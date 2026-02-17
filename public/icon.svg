@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F88022"/>
+      <stop offset="100%" style="stop-color:#D66A1A"/>
+    </linearGradient>
+    <linearGradient id="silverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E0E0E0"/>
+      <stop offset="50%" style="stop-color:#B0B0B0"/>
+      <stop offset="100%" style="stop-color:#808080"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="#000000"/>
+  
+  <!-- Barbell Bar -->
+  <rect x="80" y="170" width="352" height="12" rx="6" fill="url(#silverGrad)"/>
+  
+  <!-- Left Weight Plate (A) -->
+  <rect x="60" y="130" width="70" height="100" rx="10" fill="url(#orangeGrad)"/>
+  <rect x="70" y="140" width="50" height="80" rx="6" fill="#000000" fill-opacity="0.3"/>
+  <text x="95" y="195" font-family="Montserrat, Arial, sans-serif" font-size="48" font-weight="900" fill="#FFFFFF" text-anchor="middle">A</text>
+  
+  <!-- Left Inner Weight -->
+  <rect x="130" y="150" width="30" height="60" rx="6" fill="url(#silverGrad)"/>
+  
+  <!-- Right Weight Plate (S) -->
+  <rect x="382" y="130" width="70" height="100" rx="10" fill="url(#orangeGrad)"/>
+  <rect x="392" y="140" width="50" height="80" rx="6" fill="#000000" fill-opacity="0.3"/>
+  <text x="417" y="195" font-family="Montserrat, Arial, sans-serif" font-size="48" font-weight="900" fill="#FFFFFF" text-anchor="middle">S</text>
+  
+  <!-- Right Inner Weight -->
+  <rect x="352" y="150" width="30" height="60" rx="6" fill="url(#silverGrad)"/>
+  
+  <!-- Figure Body - Torso (Orange half) -->
+  <path d="M256 240 L290 240 L310 350 C310 370 290 380 270 380 L256 380 Z" fill="url(#orangeGrad)"/>
+  
+  <!-- Figure Body - Torso (Silver half) -->
+  <path d="M256 240 L222 240 L202 350 C202 370 222 380 242 380 L256 380 Z" fill="url(#silverGrad)"/>
+  
+  <!-- Head -->
+  <circle cx="256" cy="210" r="35" fill="url(#silverGrad)"/>
+  
+  <!-- Left Arm (Silver) -->
+  <path d="M222 240 C180 230 160 200 140 180 L160 160 C175 175 200 200 232 220 Z" fill="url(#silverGrad)" stroke="#808080" stroke-width="2"/>
+  
+  <!-- Right Arm (Orange) -->
+  <path d="M290 240 C332 230 352 200 372 180 L352 160 C337 175 312 200 280 220 Z" fill="url(#orangeGrad)" stroke="#D66A1A" stroke-width="2"/>
+  
+  <!-- Accent Line -->
+  <ellipse cx="256" cy="400" rx="120" ry="20" fill="none" stroke="url(#orangeGrad)" stroke-width="6"/>
+  
+  <!-- Text: ADRIAN SANTOS -->
+  <text x="256" y="455" font-family="Montserrat, Arial, sans-serif" font-size="30" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="4">ADRIAN SANTOS</text>
+  <text x="256" y="485" font-family="Montserrat, Arial, sans-serif" font-size="18" font-weight="500" fill="#F88022" text-anchor="middle" letter-spacing="6">PERSONAL TRAINER</text>
+</svg>

@@ -1,0 +1,376 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// USER & AUTHENTICATION
+// ==========================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          String    @default("STUDENT") // PERSONAL | STUDENT
+  phone         String?
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  personal         Personal?
+  student          Student?
+  sentMessages     Message[]      @relation("SentMessages")
+  receivedMessages Message[]      @relation("ReceivedMessages")
+  notifications    Notification[]
+}
+
+// ==========================================
+// PERSONAL TRAINER PROFILE
+// ==========================================
+
+model Personal {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandName   String?
+  bio         String?
+  createdAt   DateTime @default(now())
+
+  students     Student[]
+  workoutPlans WorkoutPlan[]
+  dietPlans    DietPlan[]
+  dietTemplates DietTemplate[]
+  exercises    Exercise[]
+  workoutTemplates WorkoutTemplate[]
+}
+
+// ==========================================
+// STUDENT PROFILE
+// ==========================================
+
+model Student {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personalId String
+  personal   Personal @relation(fields: [personalId], references: [id])
+  birthDate  DateTime?
+  gender     String?  // MALE | FEMALE | OTHER
+  height     Float?   // em cm
+  weight     Float?   // em kg
+  goal       String?
+  status     String   @default("ACTIVE") // ACTIVE | INACTIVE | PAUSED
+  createdAt  DateTime @default(now())
+
+  anamnesis      Anamnesis?
+  workoutPlans   WorkoutPlan[]
+  dietPlans      DietPlan[]
+  checkins       Checkin[]
+  progressPhotos ProgressPhoto[]
+  foodSubstitutions FoodSubstitutionHistory[]
+}
+
+// ==========================================
+// ANAMNESIS (Health History)
+// ==========================================
+
+model Anamnesis {
+  id            String   @id @default(cuid())
+  studentId     String   @unique
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  restrictions  String?  // Restrições alimentares
+  injuries      String?  // Lesões
+  medications   String?  // Medicamentos
+  activityLevel String   // SEDENTARY | LIGHT | MODERATE | ACTIVE | VERY_ACTIVE
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ==========================================
+// WORKOUT PLAN & EXERCISES
+// ==========================================
+
+model WorkoutPlan {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  personalId String
+  personal   Personal @relation(fields: [personalId], references: [id])
+  title      String
+  startDate  DateTime
+  endDate    DateTime
+  version    Int      @default(1)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  workoutDays WorkoutDay[]
+}
+
+model WorkoutDay {
+  id        String      @id @default(cuid())
+  planId    String
+  plan      WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  dayOfWeek Int         // 0=Dom, 1=Seg, ..., 6=Sab
+  name      String      // "Treino A - Peito e Tríceps"
+  order     Int         @default(0)
+
+  items       WorkoutItem[]
+  completions WorkoutCompletion[]
+}
+
+model WorkoutTemplate {
+  id         String   @id @default(cuid())
+  personalId String
+  personal   Personal @relation(fields: [personalId], references: [id])
+  title      String
+  description String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  templateDays WorkoutTemplateDay[]
+}
+
+model WorkoutTemplateDay {
+  id         String          @id @default(cuid())
+  templateId String
+  template   WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int             // 0=Dom, 1=Seg, ..., 6=Sab
+  name       String          // "Treino A - Peito e Tríceps"
+  order      Int             @default(0)
+
+  items WorkoutTemplateItem[]
+}
+
+model WorkoutTemplateItem {
+  id            String             @id @default(cuid())
+  templateDayId String
+  templateDay   WorkoutTemplateDay @relation(fields: [templateDayId], references: [id], onDelete: Cascade)
+  exerciseId    String
+  exercise      Exercise           @relation(fields: [exerciseId], references: [id])
+  sets          Int
+  reps          String
+  rest          Int
+  notes         String?
+  order         Int                @default(0)
+}
+
+model Exercise {
+  id           String    @id @default(cuid())
+  personalId   String?
+  personal     Personal? @relation(fields: [personalId], references: [id])
+  name         String    @unique
+  muscleGroup  String
+  equipment    String?
+  difficulty   String    @default("INICIANTE") // INICIANTE | INTERMEDIARIO | AVANCADO
+  videoUrl     String?
+  thumbnailUrl String?
+  instructions String?
+  tips         String?
+  createdAt    DateTime  @default(now())
+
+  workoutItems         WorkoutItem[]
+  workoutTemplateItems WorkoutTemplateItem[]
+}
+
+model WorkoutItem {
+  id           String     @id @default(cuid())
+  workoutDayId String
+  workoutDay   WorkoutDay @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  exerciseId   String
+  exercise     Exercise   @relation(fields: [exerciseId], references: [id])
+  sets         Int        // Número de séries
+  reps         String     // "10-12" ou "15"
+  rest         Int        // Segundos de descanso
+  notes        String?
+  order        Int        @default(0)
+}
+
+model WorkoutCompletion {
+  id           String     @id @default(cuid())
+  workoutDayId String
+  workoutDay   WorkoutDay @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  studentId    String
+  completedAt  DateTime   @default(now())
+
+  @@unique([workoutDayId, studentId, completedAt])
+}
+
+// ==========================================
+// DIET PLAN & MEALS
+// ==========================================
+
+model DietPlan {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  personalId String
+  personal   Personal @relation(fields: [personalId], references: [id])
+  title      String
+  startDate  DateTime?
+  endDate    DateTime?
+  calories   Int?
+  protein    Int?     // gramas
+  carbs      Int?     // gramas
+  fat        Int?     // gramas
+  version    Int      @default(1)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  meals DietMeal[]
+}
+
+model DietMeal {
+  id         String   @id @default(cuid())
+  dietPlanId String
+  dietPlan   DietPlan @relation(fields: [dietPlanId], references: [id], onDelete: Cascade)
+  name       String   // "Café da manhã", "Almoço", etc.
+  time       String   // "07:00"
+  foods      String   // JSON string com lista de alimentos
+  notes      String?
+  order      Int      @default(0)
+
+  completions MealCompletion[]
+}
+
+model MealCompletion {
+  id          String   @id @default(cuid())
+  mealId      String
+  meal        DietMeal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  studentId   String
+  completedAt DateTime @default(now())
+
+  @@unique([mealId, studentId, completedAt])
+}
+
+// ==========================================
+// CHECK-INS & PROGRESS
+// ==========================================
+
+model Checkin {
+  id               String   @id @default(cuid())
+  studentId        String
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date             DateTime @default(now())
+  weight           Float    // kg
+  sleepHours       Float    // horas
+  energyLevel      Int      // 1-5
+  hungerLevel      Int      // 1-5
+  stressLevel      Int      // 1-5
+  workoutAdherence Int      // 0-100%
+  dietAdherence    Int      // 0-100%
+  notes            String?
+}
+
+model ProgressPhoto {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  url       String
+  angle     String   // FRONT | SIDE | BACK
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// MESSAGING
+// ==========================================
+
+model Message {
+  id         String   @id @default(cuid())
+  fromUserId String
+  fromUser   User     @relation("SentMessages", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User     @relation("ReceivedMessages", fields: [toUserId], references: [id], onDelete: Cascade)
+  text       String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+// ==========================================
+// NOTIFICATIONS
+// ==========================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // WORKOUT_REMINDER | MEAL_REMINDER | CHECKIN_REMINDER | PLAN_UPDATED | LOW_ADHERENCE | NEW_MESSAGE
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// FOOD DATABASE
+// ==========================================
+
+model Food {
+  id        String   @id @default(cuid())
+  name      String
+  portion   String   @default("100g")
+  calories  Float
+  protein   Float
+  carbs     Float
+  fat       Float
+  isSystem  Boolean  @default(false)
+  
+  // Optional: tracking who created/imported it
+  createdById String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FoodSubstitutionHistory {
+  id             String   @id @default(cuid())
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mealId         String
+  originalFood   String   // Name of original food
+  originalAmount String   // e.g. "100g"
+  newFood        String   // Name of new food
+  newAmount      String   // e.g. "150g"
+  caloriesDiff   Float?   // Difference in calories
+  createdAt      DateTime @default(now())
+}
+
+// ==========================================
+// DIET TEMPLATES
+// ==========================================
+
+model DietTemplate {
+  id         String   @id @default(cuid())
+  personalId String
+  personal   Personal @relation(fields: [personalId], references: [id])
+  title      String
+  calories   Int?
+  protein    Int?     // gramas
+  carbs      Int?     // gramas
+  fat        Int?     // gramas
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  meals DietTemplateMeal[]
+}
+
+model DietTemplateMeal {
+  id             String       @id @default(cuid())
+  templateId     String
+  template       DietTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name           String
+  time           String
+  foods          String       // JSON string
+  notes          String?
+  order          Int          @default(0)
+}
