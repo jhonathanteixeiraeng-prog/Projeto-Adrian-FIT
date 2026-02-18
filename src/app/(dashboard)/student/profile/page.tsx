@@ -18,14 +18,6 @@ import {
 import { Card, CardContent, Button, Avatar, Badge } from '@/components/ui';
 import { useTheme } from '@/components/providers';
 
-// Mock data
-const mockProfile = {
-    startDate: '2023-11-14',
-    goal: 'Perda de gordura',
-    currentWeight: 75.2,
-    targetWeight: 72,
-};
-
 interface StudentPersonalData {
     brandName?: string | null;
     user?: {
@@ -35,29 +27,48 @@ interface StudentPersonalData {
     };
 }
 
+interface StudentProfileData {
+    goal?: string | null;
+    trainingDays?: number;
+    goalProgress?: number | null;
+}
+
 export default function StudentProfilePage() {
     const { data: session } = useSession();
     const { theme, setTheme } = useTheme();
     const [notifications, setNotifications] = useState(true);
     const [personal, setPersonal] = useState<StudentPersonalData | null>(null);
+    const [studentProfile, setStudentProfile] = useState<StudentProfileData | null>(null);
 
     useEffect(() => {
         let active = true;
 
-        const fetchPersonal = async () => {
+        const fetchProfileData = async () => {
             try {
-                const response = await fetch('/api/student/personal');
-                const data = await response.json();
+                const [personalResponse, profileResponse] = await Promise.all([
+                    fetch('/api/student/personal'),
+                    fetch('/api/student/profile'),
+                ]);
+                const [personalData, profileData] = await Promise.all([
+                    personalResponse.json(),
+                    profileResponse.json(),
+                ]);
 
-                if (active && data?.success && data?.data) {
-                    setPersonal(data.data);
+                if (!active) return;
+
+                if (personalData?.success && personalData?.data) {
+                    setPersonal(personalData.data);
+                }
+
+                if (profileData?.success && profileData?.data) {
+                    setStudentProfile(profileData.data);
                 }
             } catch (error) {
                 console.error('Erro ao carregar personal:', error);
             }
         };
 
-        fetchPersonal();
+        fetchProfileData();
 
         return () => {
             active = false;
@@ -90,6 +101,11 @@ export default function StudentProfilePage() {
         session?.user?.personalTrainerName ||
         session?.user?.name ||
         'Seu Personal';
+    const trainingDays = studentProfile?.trainingDays ?? 0;
+    const goalText = studentProfile?.goal || 'Sem objetivo';
+    const goalProgressText = studentProfile?.goalProgress === null || studentProfile?.goalProgress === undefined
+        ? '--'
+        : `${Math.round(studentProfile.goalProgress)}%`;
 
     const menuItems = [
         {
@@ -168,21 +184,17 @@ export default function StudentProfilePage() {
                     <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
                             <Calendar className="w-5 h-5 text-accent mx-auto mb-1" />
-                            <p className="text-lg font-bold text-foreground">
-                                {Math.floor((Date.now() - new Date(mockProfile.startDate).getTime()) / (1000 * 60 * 60 * 24))}
-                            </p>
+                            <p className="text-lg font-bold text-foreground">{trainingDays}</p>
                             <p className="text-xs text-muted-foreground">Dias de treino</p>
                         </div>
                         <div>
                             <Target className="w-5 h-5 text-secondary mx-auto mb-1" />
-                            <p className="text-lg font-bold text-foreground">{mockProfile.goal}</p>
+                            <p className="text-lg font-bold text-foreground">{goalText}</p>
                             <p className="text-xs text-muted-foreground">Objetivo</p>
                         </div>
                         <div>
                             <Star className="w-5 h-5 text-yellow-500 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-foreground">
-                                {((mockProfile.currentWeight - mockProfile.targetWeight) / (mockProfile.currentWeight - mockProfile.targetWeight) * 100 || 0).toFixed(0)}%
-                            </p>
+                            <p className="text-lg font-bold text-foreground">{goalProgressText}</p>
                             <p className="text-xs text-muted-foreground">Da meta</p>
                         </div>
                     </div>
