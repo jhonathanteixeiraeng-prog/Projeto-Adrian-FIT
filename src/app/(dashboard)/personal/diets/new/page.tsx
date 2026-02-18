@@ -484,31 +484,31 @@ export default function NewDietPage() {
     };
 
     return (
-        <div className="space-y-6 animate-in pb-8">
+        <div className="w-full space-y-6 animate-in pb-8 overflow-x-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-start gap-3 min-w-0">
                     <Link href="/personal/diets">
                         <Button variant="ghost" size="sm" type="button">
                             <ArrowLeft className="w-5 h-5" />
                         </Button>
                     </Link>
-                    <div>
-                        <h1 className="text-2xl font-bold text-foreground">Novo Plano Alimentar</h1>
+                    <div className="min-w-0">
+                        <h1 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">Novo Plano Alimentar</h1>
                         <p className="text-muted-foreground">Configure a dieta do aluno</p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                     <Button
                         type="button"
                         variant="outline"
                         onClick={() => setShowAIModal(true)}
-                        className="border-[#F88022] text-[#F88022] hover:bg-[#F88022]/10"
+                        className="w-full sm:w-auto border-[#F88022] text-[#F88022] hover:bg-[#F88022]/10"
                     >
                         <Sparkles className="w-4 h-4 mr-2" />
                         Gerar com IA
                     </Button>
-                    <Button onClick={handleSave} loading={saving} className="bg-[#F88022] hover:bg-[#F88022]/90 text-white">
+                    <Button onClick={handleSave} loading={saving} className="w-full sm:w-auto bg-[#F88022] hover:bg-[#F88022]/90 text-white">
                         <Save className="w-5 h-5 mr-2" />
                         Salvar
                     </Button>
@@ -516,9 +516,9 @@ export default function NewDietPage() {
             </div>
 
             {/* Macros Summary */}
-            <Card className="bg-gradient-to-r from-secondary/10 to-accent/10 border-secondary/30">
+            <Card className="overflow-hidden bg-gradient-to-r from-secondary/10 to-accent/10 border-secondary/30">
                 <CardContent className="p-4">
-                    <div className="grid grid-cols-4 gap-4 text-center">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                         <div>
                             <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
                             <p className="text-2xl font-bold text-foreground">{Math.round(totals.calories)}</p>
@@ -600,9 +600,9 @@ export default function NewDietPage() {
 
             {/* Meals */}
             <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <h2 className="text-lg font-semibold text-foreground">Refeições</h2>
-                    <Button variant="outline" onClick={addMeal}>
+                    <Button variant="outline" onClick={addMeal} className="w-full sm:w-auto">
                         <Plus className="w-5 h-5 mr-2" />
                         Adicionar Refeição
                     </Button>
@@ -636,8 +636,8 @@ export default function NewDietPage() {
                         return (
                             <Card key={meal.id}>
                                 <CardHeader className="pb-2">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3 flex-1">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <button
                                                 onClick={() => toggleMealExpanded(meal.id)}
                                                 className="text-muted-foreground hover:text-foreground transition-colors"
@@ -652,13 +652,13 @@ export default function NewDietPage() {
                                                 type="text"
                                                 value={meal.name}
                                                 onChange={(e) => updateMeal(meal.id, { name: e.target.value })}
-                                                className="text-lg font-semibold bg-transparent border-none focus:outline-none focus:ring-0 text-foreground"
+                                                className="min-w-0 w-full text-lg font-semibold bg-transparent border-none focus:outline-none focus:ring-0 text-foreground"
                                             />
                                             <Badge variant="info">
                                                 {Math.round(mealTotals.calories)} kcal
                                             </Badge>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                                             <div className="flex items-center gap-1 text-muted-foreground">
                                                 <Clock className="w-4 h-4" />
                                                 <input
@@ -687,46 +687,48 @@ export default function NewDietPage() {
                                             {meal.items.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl"
+                                                    className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-muted/50 rounded-xl"
                                                 >
-                                                    <div className="flex-1">
+                                                    <div className="flex-1 min-w-0">
                                                         <p className="font-medium text-foreground">{item.name}</p>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        {(() => {
-                                                            const { unit } = parsePortion(item.portion);
-                                                            return (
-                                                                <>
-                                                                    <input
-                                                                        type="number"
-                                                                        value={formatAmount(getDisplayAmount(item))}
-                                                                        onChange={(e) => updateFoodDisplayAmount(
-                                                                            meal.id,
-                                                                            item.id,
-                                                                            parseFloat(e.target.value) || 0,
-                                                                            item.portion
-                                                                        )}
-                                                                        className="w-20 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
-                                                                        min="0"
-                                                                        step="1"
-                                                                    />
-                                                                    <span className="text-xs text-muted-foreground">{unit}</span>
-                                                                </>
-                                                            );
-                                                        })()}
+                                                    <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-3">
+                                                        <div className="flex items-center gap-2">
+                                                            {(() => {
+                                                                const { unit } = parsePortion(item.portion);
+                                                                return (
+                                                                    <>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={formatAmount(getDisplayAmount(item))}
+                                                                            onChange={(e) => updateFoodDisplayAmount(
+                                                                                meal.id,
+                                                                                item.id,
+                                                                                parseFloat(e.target.value) || 0,
+                                                                                item.portion
+                                                                            )}
+                                                                            className="w-20 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
+                                                                            min="0"
+                                                                            step="1"
+                                                                        />
+                                                                        <span className="text-xs text-muted-foreground">{unit}</span>
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                        <div className="text-right text-xs text-muted-foreground sm:min-w-[80px]">
+                                                            <p>{Math.round(item.calories * item.quantity)} kcal</p>
+                                                            <p>P:{Math.round(item.protein * item.quantity)}g</p>
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => removeFood(meal.id, item.id)}
+                                                            className="text-red-500 hover:text-red-600"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
                                                     </div>
-                                                    <div className="text-right text-xs text-muted-foreground min-w-[80px]">
-                                                        <p>{Math.round(item.calories * item.quantity)} kcal</p>
-                                                        <p>P:{Math.round(item.protein * item.quantity)}g</p>
-                                                    </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => removeFood(meal.id, item.id)}
-                                                        className="text-red-500 hover:text-red-600"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
                                                 </div>
                                             ))}
                                         </div>
@@ -743,9 +745,9 @@ export default function NewDietPage() {
                                         {/* Meal Summary */}
                                         {meal.items.length > 0 && (
                                             <div className="mt-3 pt-3 border-t border-border">
-                                                <div className="flex justify-between text-xs text-muted-foreground">
+                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs text-muted-foreground">
                                                     <span>Total da refeição:</span>
-                                                    <span>
+                                                    <span className="break-words sm:text-right">
                                                         {Math.round(mealTotals.calories)}kcal |
                                                         P:{Math.round(mealTotals.protein)}g |
                                                         C:{Math.round(mealTotals.carbs)}g |
