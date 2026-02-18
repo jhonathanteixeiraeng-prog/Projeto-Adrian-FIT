@@ -100,8 +100,10 @@ export async function GET(request: NextRequest) {
                 },
                 workoutPlans: {
                     where: { active: true },
+                    orderBy: { createdAt: 'desc' },
                     include: {
                         workoutDays: {
+                            orderBy: { order: 'asc' },
                             include: {
                                 items: {
                                     include: {
@@ -150,8 +152,12 @@ export async function GET(request: NextRequest) {
         let todayWorkout = null;
 
         if (activeWorkoutPlan) {
-            // Find workout day matching today's day of week
-            const dayWorkout = activeWorkoutPlan.workoutDays.find(d => d.dayOfWeek === today);
+            const orderedDays = [...activeWorkoutPlan.workoutDays].sort((a, b) => a.order - b.order);
+            const dayWorkoutToday = orderedDays.find((d) => d.dayOfWeek === today);
+
+            // Fallback: nearest upcoming day in week, or first day in plan
+            const dayWorkoutUpcoming = orderedDays.find((d) => d.dayOfWeek > today);
+            const dayWorkout = dayWorkoutToday || dayWorkoutUpcoming || orderedDays[0];
 
             if (dayWorkout) {
                 // Format exercises for frontend

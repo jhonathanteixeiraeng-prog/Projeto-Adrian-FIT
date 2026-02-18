@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
             include: {
                 workoutPlans: {
                     where: { active: true },
+                    orderBy: { createdAt: 'desc' },
                     include: {
                         workoutDays: {
+                            orderBy: { order: 'asc' },
                             include: {
                                 items: {
                                     include: {
