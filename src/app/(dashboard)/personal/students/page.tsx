@@ -105,7 +105,7 @@ export default function StudentsPage() {
     }
 
     return (
-        <div className="space-y-6 animate-in">
+        <div className="space-y-6 animate-in w-full max-w-full overflow-x-hidden">
             {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
@@ -115,7 +115,7 @@ export default function StudentsPage() {
                     </p>
                 </div>
                 <Link href="/personal/students/new">
-                    <Button className="bg-[#F88022] hover:bg-[#F88022]/90 text-white">
+                    <Button className="w-full sm:w-auto bg-[#F88022] hover:bg-[#F88022]/90 text-white">
                         <UserPlus className="w-5 h-5" />
                         Novo Aluno
                     </Button>
@@ -142,11 +142,11 @@ export default function StudentsPage() {
                                 onChange={(e) => setSearch(e.target.value)}
                             />
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 w-full lg:w-auto">
                             <select
                                 value={filterStatus}
                                 onChange={(e) => setFilterStatus(e.target.value)}
-                                className="px-4 py-3 bg-muted border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
+                                className="w-full lg:w-auto px-4 py-3 bg-muted border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
                             >
                                 <option value="all">Todos os status</option>
                                 <option value="ACTIVE">Ativos</option>
@@ -161,17 +161,17 @@ export default function StudentsPage() {
             {/* Students List */}
             <div className="space-y-3">
                 {filteredStudents.map((student) => (
-                    <Card key={student.id} hover className="mb-3 relative">
+                    <Card key={student.id} hover className="mb-3 relative overflow-hidden">
                         <CardContent className="p-4">
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
                                 <Link href={`/personal/students/${student.id}`} className="flex items-center gap-4 flex-1 min-w-0">
                                     <Avatar name={student.user?.name || ''} size="lg" />
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex flex-wrap items-center gap-2 mb-1 min-w-0">
                                             <h3 className="font-semibold text-foreground truncate">
                                                 {student.user?.name}
                                             </h3>
-                                            <Badge variant={statusConfig[student.status]?.variant || 'info'}>
+                                            <Badge variant={statusConfig[student.status]?.variant || 'info'} className="shrink-0">
                                                 {statusConfig[student.status]?.label || student.status}
                                             </Badge>
                                         </div>
@@ -194,7 +194,7 @@ export default function StudentsPage() {
                                             <span>--</span>
                                         </div>
                                     </div>
-                                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                                    <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
                                 </Link>
 
                                 {/* Actions Menu */}

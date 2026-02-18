@@ -63,7 +63,7 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
     }, [session?.user?.role]);
 
     return (
-        <div className="min-h-screen bg-background flex">
+        <div className="min-h-dvh bg-background flex overflow-x-hidden">
             {/* Sidebar */}
             <aside className="hidden lg:flex w-64 flex-col fixed inset-y-0 left-0 bg-card border-r border-border">
                 {/* Logo */}
@@ -137,11 +137,11 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
 
             {/* Mobile Header */}
             <header className="lg:hidden fixed top-0 inset-x-0 h-16 bg-card border-b border-border flex items-center justify-between px-4 z-50">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-[#F88022] flex items-center justify-center">
                         <Dumbbell className="w-6 h-6 text-white" />
                     </div>
-                    <span className="font-bold text-foreground">Adrian Santos</span>
+                    <span className="font-bold text-foreground truncate">Adrian Santos</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Link href="/personal/notifications" className="p-2 text-muted-foreground hover:text-foreground relative rounded-xl hover:bg-muted transition-colors">
@@ -180,8 +180,8 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
             </nav>
 
             {/* Main Content */}
-            <main className="flex-1 lg:ml-64 pt-16 lg:pt-0 pb-20 lg:pb-0">
-                <div className="p-4 lg:p-8">
+            <main className="flex-1 lg:ml-64 pt-16 lg:pt-0 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 overflow-x-hidden">
+                <div className="p-4 lg:p-8 w-full max-w-full overflow-x-hidden">
                     {children}
                 </div>
             </main>
