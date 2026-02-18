@@ -10,9 +10,11 @@ import {
     Clock,
     ChevronRight,
     RotateCcw,
-    Trophy
+    Trophy,
+    ExternalLink
 } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
+import { getEmbedVideoUrl, isDirectVideoFile } from '@/lib/video';
 
 // Mock data
 const mockWorkout = {
@@ -288,11 +290,62 @@ export default function WorkoutPage() {
                             {/* Expanded Details */}
                             {selectedExercise === exercise.id && (
                                 <div className="mt-4 pt-4 border-t border-border animate-in">
-                                    {/* Video Placeholder */}
-                                    <div className="aspect-video bg-muted rounded-xl mb-4 flex items-center justify-center">
-                                        <button className="w-16 h-16 rounded-full bg-secondary/20 flex items-center justify-center hover:bg-secondary/30 transition-colors">
-                                            <Play className="w-8 h-8 text-secondary ml-1" />
-                                        </button>
+                                    {/* Video */}
+                                    <div className="aspect-video bg-muted rounded-xl mb-4 overflow-hidden border border-border">
+                                        {(() => {
+                                            const embedVideoUrl = getEmbedVideoUrl(exercise.videoUrl);
+                                            const isDirectVideo = isDirectVideoFile(exercise.videoUrl);
+
+                                            if (embedVideoUrl) {
+                                                return (
+                                                    <iframe
+                                                        src={embedVideoUrl}
+                                                        title={`Video de ${exercise.name}`}
+                                                        className="w-full h-full"
+                                                        loading="lazy"
+                                                        referrerPolicy="strict-origin-when-cross-origin"
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                        allowFullScreen
+                                                    />
+                                                );
+                                            }
+
+                                            if (isDirectVideo && exercise.videoUrl) {
+                                                return (
+                                                    <video controls className="w-full h-full" preload="metadata">
+                                                        <source src={exercise.videoUrl} />
+                                                        Seu navegador nao suporta reproducao de video.
+                                                    </video>
+                                                );
+                                            }
+
+                                            if (exercise.videoUrl) {
+                                                return (
+                                                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 text-center">
+                                                        <Play className="w-8 h-8 text-muted-foreground" />
+                                                        <p className="text-sm text-muted-foreground">
+                                                            Nao foi possivel incorporar este video.
+                                                        </p>
+                                                        <a
+                                                            href={exercise.videoUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-2 text-sm text-secondary hover:underline"
+                                                        >
+                                                            <ExternalLink className="w-4 h-4" />
+                                                            Abrir video
+                                                        </a>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                                                    <Play className="w-8 h-8 text-muted-foreground/50" />
+                                                    <span className="text-sm text-muted-foreground">Sem video</span>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     {/* Instructions */}

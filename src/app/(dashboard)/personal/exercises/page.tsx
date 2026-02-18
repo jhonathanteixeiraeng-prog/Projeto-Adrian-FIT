@@ -18,6 +18,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { Card, CardContent, Button, Badge, Input, Select, Dialog, DialogContent, DialogHeader, DialogTitle, AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui';
+import { getEmbedVideoUrl, isDirectVideoFile } from '@/lib/video';
 
 const muscleGroups = ['Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps', 'Pernas', 'Core', 'Glúteos'];
 const difficulties = ['INICIANTE', 'INTERMEDIARIO', 'AVANCADO'];
@@ -373,30 +374,58 @@ export default function ExercisesPage() {
                     {filteredExercises.map((exercise) => (
                         <Card key={exercise.id} className="overflow-hidden hover:border-secondary/50 transition-colors">
                             {/* Video Thumbnail */}
-                            <div className="aspect-video bg-muted relative">
-                                {exercise.videoUrl ? (
-                                    <>
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center">
-                                                <Play className="w-6 h-6 text-primary ml-1" />
+                            <div className="aspect-video bg-muted relative overflow-hidden">
+                                {(() => {
+                                    const embedVideoUrl = getEmbedVideoUrl(exercise.videoUrl);
+                                    const isDirectVideo = isDirectVideoFile(exercise.videoUrl);
+
+                                    if (embedVideoUrl) {
+                                        return (
+                                            <iframe
+                                                src={embedVideoUrl}
+                                                title={`Video de ${exercise.name}`}
+                                                className="w-full h-full"
+                                                loading="lazy"
+                                                referrerPolicy="strict-origin-when-cross-origin"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                allowFullScreen
+                                            />
+                                        );
+                                    }
+
+                                    if (isDirectVideo && exercise.videoUrl) {
+                                        return (
+                                            <video controls className="w-full h-full" preload="metadata">
+                                                <source src={exercise.videoUrl} />
+                                                Seu navegador nao suporta reproducao de video.
+                                            </video>
+                                        );
+                                    }
+
+                                    if (exercise.videoUrl) {
+                                        return (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-3 text-center">
+                                                <Play className="w-8 h-8 text-muted-foreground" />
+                                                <a
+                                                    href={exercise.videoUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-xs text-secondary hover:underline"
+                                                >
+                                                    <ExternalLink className="w-3 h-3" />
+                                                    Abrir video
+                                                </a>
                                             </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="absolute inset-0 flex items-center justify-center flex-col gap-2">
+                                            <Video className="w-10 h-10 text-muted-foreground/50" />
+                                            <span className="text-xs text-muted-foreground">Sem video</span>
                                         </div>
-                                        <a
-                                            href={exercise.videoUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="absolute bottom-2 right-2 p-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
-                                        >
-                                            <ExternalLink className="w-4 h-4 text-white" />
-                                        </a>
-                                    </>
-                                ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center flex-col gap-2">
-                                        <Video className="w-10 h-10 text-muted-foreground/50" />
-                                        <span className="text-xs text-muted-foreground">Sem vídeo</span>
-                                    </div>
-                                )}
+                                    );
+                                })()}
                             </div>
 
                             <CardContent className="p-4">
