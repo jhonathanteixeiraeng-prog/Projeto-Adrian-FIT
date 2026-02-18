@@ -141,7 +141,7 @@ export default function WorkoutPage() {
                     <CardContent>
                         <p className="text-muted-foreground">Nenhum treino encontrado para hoje.</p>
                         <Link href="/student/workout/weekly">
-                            <Button variant="outline" className="mt-4">Ver Cronograma Semanal</Button>
+                            <Button variant="outline" className="mt-4">Ver Plano Completo</Button>
                         </Link>
                     </CardContent>
                 </Card>

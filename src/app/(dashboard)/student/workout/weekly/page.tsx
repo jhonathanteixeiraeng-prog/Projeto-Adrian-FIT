@@ -28,12 +28,9 @@ export default function WeeklyWorkoutPage() {
                 const data = await response.json();
                 if (data.success) {
                     setWorkoutPlan(data.data);
-                    // Expand current day by default
-                    const today = new Date().getDay();
-                    const todayWorkout = data.data?.workoutDays?.find((d: any) => d.dayOfWeek === today);
-                    if (todayWorkout) {
-                        setExpandedDays([todayWorkout.id]);
-                    }
+                    // Expand all days by default so the student can see the full workout plan.
+                    const allDayIds = (data.data?.workoutDays || []).map((d: any) => d.id);
+                    setExpandedDays(allDayIds);
                 }
             } catch (error) {
                 console.error('Erro ao buscar plano:', error);
@@ -53,6 +50,14 @@ export default function WeeklyWorkoutPage() {
         );
     };
 
+    const allDayIds = (workoutPlan?.workoutDays || []).map((day: any) => day.id);
+    const allExpanded = allDayIds.length > 0 && expandedDays.length === allDayIds.length;
+
+    const toggleExpandAll = () => {
+        if (!workoutPlan?.workoutDays?.length) return;
+        setExpandedDays(allExpanded ? [] : allDayIds);
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[400px]">
@@ -68,7 +73,7 @@ export default function WeeklyWorkoutPage() {
                     <Link href="/student/home" className="p-2 rounded-xl hover:bg-muted transition-colors">
                         <ArrowLeft className="w-6 h-6" />
                     </Link>
-                    <h1 className="text-xl font-bold">Cronograma Semanal</h1>
+                    <h1 className="text-xl font-bold">Plano Completo</h1>
                 </div>
                 <Card className="text-center py-12">
                     <CardContent className="space-y-4">
@@ -94,8 +99,11 @@ export default function WeeklyWorkoutPage() {
                 </Link>
                 <div className="flex-1">
                     <h1 className="text-xl font-bold">{workoutPlan.title}</h1>
-                    <p className="text-sm text-muted-foreground">Cronograma Semanal</p>
+                    <p className="text-sm text-muted-foreground">Plano Completo de Treino</p>
                 </div>
+                <Button variant="outline" size="sm" onClick={toggleExpandAll}>
+                    {allExpanded ? 'Recolher' : 'Expandir'} todos
+                </Button>
             </div>
 
             {/* Days Schedule */}

@@ -178,7 +178,7 @@ export default function StudentHomePage() {
                                 <Link href="/student/workout/weekly" className="flex-1">
                                     <Button variant="outline" className="w-full h-full" size="lg">
                                         <Calendar className="w-5 h-5 mr-2" />
-                                        Semanal
+                                        Plano Completo
                                     </Button>
                                 </Link>
                             </div>
