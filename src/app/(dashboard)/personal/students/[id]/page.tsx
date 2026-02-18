@@ -41,15 +41,32 @@ interface Student {
         startDate: string;
         endDate: string;
         active: boolean;
+        workoutDays?: Array<{
+            id: string;
+            dayOfWeek: number;
+            name: string;
+            items?: Array<{
+                id: string;
+            }>;
+        }>;
     }>;
     dietPlans: Array<{
         id: string;
         title: string;
+        startDate: string | null;
+        endDate: string | null;
         calories: number | null;
         protein: number | null;
         carbs: number | null;
         fat: number | null;
         active: boolean;
+        meals?: Array<{
+            id: string;
+            name: string;
+            time: string;
+            foods: string;
+            order: number;
+        }>;
     }>;
     checkins: Array<{
         id: string;
@@ -173,6 +190,31 @@ export default function StudentDetailPage() {
 
     const getActiveDiet = () => {
         return student?.dietPlans?.find(p => p.active) || null;
+    };
+
+    const formatPlanDate = (date: string | null | undefined) => {
+        if (!date) return '-';
+        return new Date(date).toLocaleDateString('pt-BR');
+    };
+
+    const getWorkoutExerciseCount = (workoutPlan: Student['workoutPlans'][number] | null) => {
+        if (!workoutPlan?.workoutDays?.length) return 0;
+        return workoutPlan.workoutDays.reduce((acc, day) => acc + (day.items?.length || 0), 0);
+    };
+
+    const getMealFoodsCount = (foods: string | null | undefined) => {
+        if (!foods) return 0;
+        try {
+            const parsed = JSON.parse(foods);
+            return Array.isArray(parsed) ? parsed.length : 0;
+        } catch {
+            return 0;
+        }
+    };
+
+    const getDietFoodsCount = (dietPlan: Student['dietPlans'][number] | null) => {
+        if (!dietPlan?.meals?.length) return 0;
+        return dietPlan.meals.reduce((acc, meal) => acc + getMealFoodsCount(meal.foods), 0);
     };
 
     const handleAssignFromLibrary = async () => {
@@ -623,11 +665,40 @@ export default function StudentDetailPage() {
                         </CardHeader>
                         <CardContent>
                             {activeWorkout ? (
-                                <div className="text-center py-6">
-                                    <p className="text-lg font-medium">{activeWorkout.title}</p>
-                                    <p className="text-muted-foreground mt-2">
-                                        Clique em "Editar Treino" para visualizar ou modificar
-                                    </p>
+                                <div className="space-y-4 py-2">
+                                    <div className="rounded-xl border border-border bg-muted/20 p-4">
+                                        <p className="text-lg font-medium text-foreground">{activeWorkout.title}</p>
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            {formatPlanDate(activeWorkout.startDate)} - {formatPlanDate(activeWorkout.endDate)}
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="rounded-xl bg-muted p-3">
+                                            <p className="text-xl font-bold text-foreground">{activeWorkout.workoutDays?.length || 0}</p>
+                                            <p className="text-xs text-muted-foreground">Dias de treino</p>
+                                        </div>
+                                        <div className="rounded-xl bg-muted p-3">
+                                            <p className="text-xl font-bold text-foreground">{getWorkoutExerciseCount(activeWorkout)}</p>
+                                            <p className="text-xs text-muted-foreground">Exercícios no plano</p>
+                                        </div>
+                                    </div>
+
+                                    {!!activeWorkout.workoutDays?.length && (
+                                        <div className="space-y-2">
+                                            {activeWorkout.workoutDays
+                                                .slice()
+                                                .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+                                                .map((day) => (
+                                                    <div key={day.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                                                        <p className="text-sm font-medium text-foreground truncate">{day.name}</p>
+                                                        <Badge variant="default" className="ml-3 shrink-0">
+                                                            {day.items?.length || 0} exercícios
+                                                        </Badge>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-muted-foreground">
@@ -673,11 +744,62 @@ export default function StudentDetailPage() {
                         </CardHeader>
                         <CardContent>
                             {activeDiet ? (
-                                <div className="text-center py-6">
-                                    <p className="text-lg font-medium">{activeDiet.title}</p>
-                                    <p className="text-muted-foreground mt-2">
-                                        Clique em "Editar Dieta" para visualizar ou modificar
-                                    </p>
+                                <div className="space-y-4 py-2">
+                                    <div className="rounded-xl border border-border bg-muted/20 p-4">
+                                        <p className="text-lg font-medium text-foreground">{activeDiet.title}</p>
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            {formatPlanDate(activeDiet.startDate)} - {formatPlanDate(activeDiet.endDate)}
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div className="rounded-xl bg-muted p-3">
+                                            <p className="text-lg font-bold text-foreground">{activeDiet.calories || 0}</p>
+                                            <p className="text-xs text-muted-foreground">kcal</p>
+                                        </div>
+                                        <div className="rounded-xl bg-muted p-3">
+                                            <p className="text-lg font-bold text-foreground">{activeDiet.protein || 0}g</p>
+                                            <p className="text-xs text-muted-foreground">Proteína</p>
+                                        </div>
+                                        <div className="rounded-xl bg-muted p-3">
+                                            <p className="text-lg font-bold text-foreground">{activeDiet.carbs || 0}g</p>
+                                            <p className="text-xs text-muted-foreground">Carboidratos</p>
+                                        </div>
+                                        <div className="rounded-xl bg-muted p-3">
+                                            <p className="text-lg font-bold text-foreground">{activeDiet.fat || 0}g</p>
+                                            <p className="text-xs text-muted-foreground">Gorduras</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="rounded-xl bg-muted p-3">
+                                            <p className="text-xl font-bold text-foreground">{activeDiet.meals?.length || 0}</p>
+                                            <p className="text-xs text-muted-foreground">Refeições</p>
+                                        </div>
+                                        <div className="rounded-xl bg-muted p-3">
+                                            <p className="text-xl font-bold text-foreground">{getDietFoodsCount(activeDiet)}</p>
+                                            <p className="text-xs text-muted-foreground">Alimentos no plano</p>
+                                        </div>
+                                    </div>
+
+                                    {!!activeDiet.meals?.length && (
+                                        <div className="space-y-2">
+                                            {activeDiet.meals
+                                                .slice()
+                                                .sort((a, b) => a.order - b.order)
+                                                .map((meal) => (
+                                                    <div key={meal.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-foreground">{meal.name}</p>
+                                                            <p className="text-xs text-muted-foreground">{meal.time}</p>
+                                                        </div>
+                                                        <Badge variant="default" className="ml-3 shrink-0">
+                                                            {getMealFoodsCount(meal.foods)} alimentos
+                                                        </Badge>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-muted-foreground">
