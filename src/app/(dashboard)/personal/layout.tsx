@@ -14,7 +14,9 @@ import {
     Bell,
     Library,
     ClipboardList,
-    Utensils
+    Utensils,
+    MoreHorizontal,
+    X
 } from 'lucide-react';
 import { Avatar } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -33,6 +35,10 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
     const { data: session } = useSession();
     const pathname = usePathname();
     const [unreadCount, setUnreadCount] = useState(0);
+    const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+
+    const mobilePrimaryItems = navItems.slice(0, 4);
+    const mobileMoreItems = navItems.slice(4);
 
     useEffect(() => {
         let active = true;
@@ -61,6 +67,10 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
             if (intervalId) clearInterval(intervalId);
         };
     }, [session?.user?.role]);
+
+    useEffect(() => {
+        setIsMoreMenuOpen(false);
+    }, [pathname]);
 
     return (
         <div className="min-h-dvh bg-background flex overflow-x-hidden">
@@ -161,7 +171,7 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
 
             {/* Mobile Bottom Navigation */}
             <nav className="lg:hidden fixed bottom-0 inset-x-0 h-16 bg-card border-t border-border flex items-center justify-around px-4 z-50">
-                {navItems.slice(0, 4).map((item) => {
+                {mobilePrimaryItems.map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
                         <Link
@@ -177,7 +187,63 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
                         </Link>
                     );
                 })}
+                <button
+                    onClick={() => setIsMoreMenuOpen(true)}
+                    className={cn(
+                        'flex flex-col items-center gap-1 p-2 transition-colors',
+                        isMoreMenuOpen || mobileMoreItems.some((item) => pathname === item.href || pathname.startsWith(item.href + '/'))
+                            ? 'text-[#F88022]'
+                            : 'text-muted-foreground'
+                    )}
+                >
+                    <MoreHorizontal className="w-5 h-5" />
+                    <span className="text-xs">Mais</span>
+                </button>
             </nav>
+
+            {/* Mobile More Menu */}
+            {isMoreMenuOpen && (
+                <div
+                    className="lg:hidden fixed inset-0 z-[60] bg-black/60"
+                    onClick={() => setIsMoreMenuOpen(false)}
+                >
+                    <div
+                        className="absolute inset-x-0 bottom-16 bg-card border-t border-border rounded-t-2xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-foreground">Mais opções</h3>
+                            <button
+                                onClick={() => setIsMoreMenuOpen(false)}
+                                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                            >
+                                <X className="w-5 h-5 text-muted-foreground" />
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            {mobileMoreItems.map((item) => {
+                                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className={cn(
+                                            'flex flex-col items-center gap-2 p-3 rounded-xl transition-colors',
+                                            isActive
+                                                ? 'bg-[#F88022]/15 text-[#F88022]'
+                                                : 'bg-muted text-muted-foreground hover:text-foreground'
+                                        )}
+                                        onClick={() => setIsMoreMenuOpen(false)}
+                                    >
+                                        <item.icon className="w-5 h-5" />
+                                        <span className="text-xs text-center leading-tight">{item.label}</span>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content */}
             <main className="flex-1 lg:ml-64 pt-16 lg:pt-0 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 overflow-x-hidden">
