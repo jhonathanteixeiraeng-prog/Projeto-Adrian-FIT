@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { searchTacoFoods } from '@/lib/taco-api';
+
+type SearchFoodResult = {
+    id: string;
+    name: string;
+    portion: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    isSystem: boolean;
+    source: 'local' | 'external';
+};
 
 const BRAZILIAN_STAPLES = [
     'arroz', 'feijao', 'frango', 'ovo', 'banana', 'aveia', 'tapioca', 'batata',
@@ -38,6 +51,56 @@ function scoreFood(name: string, query: string, source: 'local' | 'external') {
     return score;
 }
 
+async function persistImportedFoods(foods: Array<{
+    name: string;
+    portion: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+}>) {
+    if (foods.length === 0) return;
+
+    const normalizedSeen = new Set<string>();
+    const uniqueFoods = foods.filter((food) => {
+        const key = normalizeText(food.name);
+        if (!key || normalizedSeen.has(key)) return false;
+        normalizedSeen.add(key);
+        return true;
+    });
+
+    if (uniqueFoods.length === 0) return;
+
+    const existing = await prisma.food.findMany({
+        where: {
+            name: {
+                in: uniqueFoods.map((food) => food.name),
+            },
+        },
+        select: { name: true },
+    });
+
+    const existingNormalized = new Set(existing.map((food) => normalizeText(food.name)));
+
+    const dataToCreate = uniqueFoods
+        .filter((food) => !existingNormalized.has(normalizeText(food.name)))
+        .map((food) => ({
+            name: food.name,
+            portion: food.portion || '100g',
+            calories: Number(food.calories || 0),
+            protein: Number(food.protein || 0),
+            carbs: Number(food.carbs || 0),
+            fat: Number(food.fat || 0),
+            isSystem: true,
+        }));
+
+    if (dataToCreate.length === 0) return;
+
+    await prisma.food.createMany({
+        data: dataToCreate,
+    });
+}
+
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('q');
@@ -61,58 +124,60 @@ export async function GET(request: NextRequest) {
         // SQLite case-insensitive filter manual if needed, but 'contains' is usually case-insensitive in default SQLite for ASCII
         // For accurate results, we might need a raw query or just rely on default.
 
-        let results = localFoods.map(f => ({
-            ...f,
-            source: 'local'
+        let results: SearchFoodResult[] = localFoods.map((food) => ({
+            id: food.id,
+            name: food.name,
+            portion: food.portion || '100g',
+            calories: Number(food.calories || 0),
+            protein: Number(food.protein || 0),
+            carbs: Number(food.carbs || 0),
+            fat: Number(food.fat || 0),
+            isSystem: Boolean(food.isSystem),
+            source: 'local',
         }));
 
-        // 2. If valid results are few, search OpenFoodFacts
-        // Reduce threshold to trigger external search more easily for testing
-        // if (results.length < 5) {
-        // Actually, let's always search external if query is specific enough and local results are not perfect matches
-        if (true) { // Always try external for now to ensure we get results
+        // 2. Search TACO API and feed DB for future use
+        if (results.length < 20) {
             try {
-                const offResponse = await fetch(
-                    `https://br.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=25`
-                );
-                const offData = await offResponse.json();
+                const tacoFoods = await searchTacoFoods(query, 30);
 
-                if (offData.products && Array.isArray(offData.products)) {
-                    const externalFoods = offData.products
-                        .filter((p: any) => p.product_name && p.nutriments)
-                        .map((p: any) => ({
-                            id: `off_${p.code}`, // Temporary ID
-                            name: p.product_name,
-                            portion: '100g', // Standardize to 100g for OFF
-                            calories: p.nutriments['energy-kcal_100g'] || 0,
-                            protein: p.nutriments.proteins_100g || 0,
-                            carbs: p.nutriments.carbohydrates_100g || 0,
-                            fat: p.nutriments.fat_100g || 0,
+                if (tacoFoods.length > 0) {
+                    const localNames = new Set(results.map((r) => normalizeText(r.name || '')));
+                    const uniqueExternal: SearchFoodResult[] = tacoFoods
+                        .filter((f) => !localNames.has(normalizeText(f.name)))
+                        .map((f) => ({
+                            id: `taco_${f.id}`,
+                            name: f.name,
+                            portion: f.portion || '100g',
+                            calories: f.calories || 0,
+                            protein: f.protein || 0,
+                            carbs: f.carbs || 0,
+                            fat: f.fat || 0,
                             source: 'external',
-                            isSystem: false
+                            isSystem: true
                         }));
 
-                    // Filter out external results that might be duplicates of local ones (simple name check)
-                    const localNames = new Set(results.map(r => r.name.toLowerCase()));
-                    const uniqueExternal = externalFoods.filter((f: any) => !localNames.has(f.name.toLowerCase()));
+                    if (uniqueExternal.length > 0) {
+                        await persistImportedFoods(uniqueExternal);
+                    }
 
                     results = [...results, ...uniqueExternal];
                 }
             } catch (err) {
-                console.error('OpenFoodFacts Error:', err);
+                console.error('TACO API Error:', err);
                 // Continue with local results
             }
         }
 
         // Rank results to prioritize common Brazilian foods and local matches.
         const ranked = results
-            .map((r: any) => ({
+            .map((r) => ({
                 ...r,
-                __score: scoreFood(r.name || '', query, (r.source || 'external') as 'local' | 'external')
+                __score: scoreFood(r.name || '', query, r.source)
             }))
-            .sort((a: any, b: any) => b.__score - a.__score)
+            .sort((a, b) => b.__score - a.__score)
             .slice(0, 20)
-            .map(({ __score, ...rest }: any) => rest);
+            .map(({ __score, ...rest }) => rest);
 
         return NextResponse.json({ success: true, data: ranked });
 

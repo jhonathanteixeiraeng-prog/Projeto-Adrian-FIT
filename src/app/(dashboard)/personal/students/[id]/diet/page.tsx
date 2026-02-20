@@ -35,7 +35,7 @@ import {
     DialogHeader,
     DialogTitle
 } from '@/components/ui';
-import { calculateBMR, calculateTDEE, generateDietPlan } from '@/lib/diet-generator';
+import { calculateBMR, calculateTDEE, generateDietPlan, type FoodInput } from '@/lib/diet-generator';
 
 interface MealFood {
     id: string;
@@ -89,6 +89,7 @@ export default function StudentDietPage() {
     const [foodSearchQuery, setFoodSearchQuery] = useState('');
     const [foodSuggestions, setFoodSuggestions] = useState<FoodSearchResult[]>([]);
     const [foodSearching, setFoodSearching] = useState(false);
+    const [generationFoods, setGenerationFoods] = useState<FoodInput[]>([]);
     const [dietPlan, setDietPlan] = useState({
         title: '',
         calories: 0,
@@ -132,10 +133,29 @@ export default function StudentDietPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const studentRes = await fetch(`/api/students/${studentId}`);
-            const studentData = await studentRes.json();
-            if (studentData.success) {
-                setStudent(studentData.data);
+            const [studentRes, foodsRes] = await Promise.all([
+                fetch(`/api/students/${studentId}`),
+                fetch('/api/foods?systemOnly=true&limit=800')
+            ]);
+
+            const [studentData, foodsData] = await Promise.all([
+                studentRes.json(),
+                foodsRes.json()
+            ]);
+
+            if (studentData.success) setStudent(studentData.data);
+            if (foodsData.success && Array.isArray(foodsData.data)) {
+                setGenerationFoods(
+                    foodsData.data.map((food: any) => ({
+                        id: String(food.id),
+                        name: String(food.name),
+                        portion: String(food.portion || '100g'),
+                        calories: Number(food.calories || 0),
+                        protein: Number(food.protein || 0),
+                        carbs: Number(food.carbs || 0),
+                        fat: Number(food.fat || 0),
+                    }))
+                );
             }
         } catch (err) {
             console.error('Error fetching data:', err);
@@ -487,6 +507,7 @@ export default function StudentDietPage() {
                 gender: student.gender || 'MALE',
                 activityLevel: student.anamnesis?.activityLevel || 'MODERATE',
                 goal: generateGoal,
+                foods: generationFoods,
             });
 
             const mealCount = Math.min(Math.max(generateMealCount, 1), result.meals.length);

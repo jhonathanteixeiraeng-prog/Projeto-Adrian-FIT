@@ -24,7 +24,7 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui';
 import { foodDatabase } from '@/lib/food-database';
-import { generateDietPlan } from '@/lib/diet-generator';
+import { generateDietPlan, type FoodInput } from '@/lib/diet-generator';
 
 interface FoodItem {
     id: string;
@@ -59,6 +59,7 @@ export default function EditDietPage() {
     const [foodSearch, setFoodSearch] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [generationFoods, setGenerationFoods] = useState<FoodInput[]>([]);
 
     // Student data for generation
     const [studentData, setStudentData] = useState<any>(null);
@@ -284,8 +285,28 @@ export default function EditDietPage() {
     const fetchDietPlan = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/diets/${params.id}`);
-            const result = await response.json();
+            const [response, foodsRes] = await Promise.all([
+                fetch(`/api/diets/${params.id}`),
+                fetch('/api/foods?systemOnly=true&limit=800')
+            ]);
+            const [result, foodsData] = await Promise.all([
+                response.json(),
+                foodsRes.json()
+            ]);
+
+            if (foodsData.success && Array.isArray(foodsData.data)) {
+                setGenerationFoods(
+                    foodsData.data.map((food: any) => ({
+                        id: String(food.id),
+                        name: String(food.name),
+                        portion: String(food.portion || '100g'),
+                        calories: Number(food.calories || 0),
+                        protein: Number(food.protein || 0),
+                        carbs: Number(food.carbs || 0),
+                        fat: Number(food.fat || 0),
+                    }))
+                );
+            }
 
             if (result.success && result.data) {
                 const plan = result.data;
@@ -373,7 +394,8 @@ export default function EditDietPage() {
                     age,
                     gender: studentData.gender || 'MALE',
                     activityLevel: studentData.anamnesis?.activityLevel || 'MODERATE',
-                    goal: studentData.goal || 'MAINTENANCE'
+                    goal: studentData.goal || 'MAINTENANCE',
+                    foods: generationFoods,
                 });
 
                 console.log('Generated Plan:', generatedPlan);
