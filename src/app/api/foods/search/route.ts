@@ -136,6 +136,37 @@ export async function GET(request: NextRequest) {
             await persistImportedFoods(results);
         }
 
+        // Fallback de disponibilidade: usa cache local previamente importado da TACO.
+        // Isso evita lista vazia quando a API externa estiver temporariamente indisponível.
+        if (results.length === 0) {
+            const cachedFoods = await prisma.food.findMany({
+                where: {
+                    isSystem: true,
+                },
+                orderBy: { name: 'asc' },
+                take: 2000,
+            });
+
+            const fromCache: SearchFoodResult[] = cachedFoods
+                .filter((food) => normalizeText(food.name || '').includes(normalizedQuery))
+                .slice(0, 40)
+                .map((food) => ({
+                    id: food.id,
+                    name: food.name,
+                    portion: food.portion || '100g',
+                    calories: Number(food.calories || 0),
+                    protein: Number(food.protein || 0),
+                    carbs: Number(food.carbs || 0),
+                    fat: Number(food.fat || 0),
+                    source: 'external',
+                    isSystem: true,
+                }));
+
+            if (fromCache.length > 0) {
+                return NextResponse.json({ success: true, data: fromCache.slice(0, 20) });
+            }
+        }
+
         // Rank results to prioritize common Brazilian foods and local matches.
         const ranked = results
             .map((r) => ({
