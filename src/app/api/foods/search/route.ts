@@ -177,6 +177,13 @@ export async function GET(request: NextRequest) {
             .slice(0, 20)
             .map(({ __score, ...rest }) => rest);
 
+        if (ranked.length === 0) {
+            return NextResponse.json({
+                success: false,
+                error: 'A TACO não retornou resultados. Verifique a configuração da API (URL/token) ou tente novamente em instantes.'
+            });
+        }
+
         return NextResponse.json({ success: true, data: ranked });
 
     } catch (error) {

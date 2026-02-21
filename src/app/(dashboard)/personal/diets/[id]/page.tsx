@@ -59,6 +59,7 @@ export default function EditDietPage() {
     const [foodSearch, setFoodSearch] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [foodSearchError, setFoodSearchError] = useState('');
     const [generationFoods, setGenerationFoods] = useState<FoodInput[]>([]);
 
     // Student data for generation
@@ -450,14 +451,21 @@ export default function EditDietPage() {
 
     const searchFoods = async (query: string) => {
         setIsSearching(true);
+        setFoodSearchError('');
         try {
             const res = await fetch(`/api/foods/search?q=${encodeURIComponent(query)}`);
             const data = await res.json();
             if (data.success) {
                 setSearchResults(data.data);
+                setFoodSearchError('');
+            } else {
+                setSearchResults([]);
+                setFoodSearchError(data.error || 'Erro ao buscar alimentos na TACO.');
             }
         } catch (error) {
             console.error('Search error:', error);
+            setSearchResults([]);
+            setFoodSearchError('Erro ao conectar com a TACO. Tente novamente.');
         } finally {
             setIsSearching(false);
         }
@@ -1025,6 +1033,11 @@ export default function EditDietPage() {
                                         </div>
                                     ) : (
                                         <>
+                                            {foodSearchError && (
+                                                <p className="text-center text-red-400 py-2 text-sm">
+                                                    {foodSearchError}
+                                                </p>
+                                            )}
                                             {searchResults.map(food => (
                                                 <button
                                                     key={food.id}

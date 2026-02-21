@@ -192,6 +192,7 @@ export function FoodSubstitutionModal({ isOpen, onClose, originalFood, mealId, o
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<FoodData[]>([]);
     const [loading, setLoading] = useState(false);
+    const [searchError, setSearchError] = useState('');
     const [selectedFood, setSelectedFood] = useState<FoodData | null>(null);
     const [calculation, setCalculation] = useState<any>(null);
     const [submitting, setSubmitting] = useState(false);
@@ -209,14 +210,21 @@ export function FoodSubstitutionModal({ isOpen, onClose, originalFood, mealId, o
 
     const searchFoods = async () => {
         setLoading(true);
+        setSearchError('');
         try {
             const response = await fetch(`/api/foods/search?q=${encodeURIComponent(searchTerm)}`);
             const data = await response.json();
             if (data.success) {
                 setSearchResults(data.data);
+                setSearchError('');
+            } else {
+                setSearchResults([]);
+                setSearchError(data.error || 'Erro ao buscar alimentos na TACO.');
             }
         } catch (error) {
             console.error('Search error:', error);
+            setSearchResults([]);
+            setSearchError('Erro ao conectar com a TACO. Tente novamente.');
         } finally {
             setLoading(false);
         }
@@ -301,6 +309,7 @@ export function FoodSubstitutionModal({ isOpen, onClose, originalFood, mealId, o
         setSearchTerm('');
         setSearchResults([]);
         setLoading(false);
+        setSearchError('');
         setSubmitting(false);
     };
 
@@ -338,7 +347,9 @@ export function FoodSubstitutionModal({ isOpen, onClose, originalFood, mealId, o
                             {loading && <p className="text-center text-sm text-muted-foreground">Buscando...</p>}
 
                             {!loading && searchResults.length === 0 && searchTerm.length >= 2 && (
-                                <p className="text-center text-sm text-muted-foreground">Nenhum alimento encontrado.</p>
+                                <p className="text-center text-sm text-muted-foreground">
+                                    {searchError || 'Nenhum alimento encontrado.'}
+                                </p>
                             )}
 
                             {searchResults.map((food) => (

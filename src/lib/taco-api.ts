@@ -145,7 +145,11 @@ function mapRawFood(raw: any, index: number): TacoFoodResult | null {
 }
 
 function getBaseUrl() {
-    const raw = process.env.TACO_API_BASE_URL || process.env.TACO_API_URL || '';
+    // Public default can be overridden by env in production.
+    const raw =
+        process.env.TACO_API_BASE_URL ||
+        process.env.TACO_API_URL ||
+        'https://taco.codivatech.com';
     return raw.trim().replace(/\/+$/, '');
 }
 
