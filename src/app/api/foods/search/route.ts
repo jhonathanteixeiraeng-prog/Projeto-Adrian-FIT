@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { searchTacoFoods } from '@/lib/taco-api';
-import { foodDatabase } from '@/lib/food-database';
 
 type SearchFoodResult = {
     id: string;
@@ -112,101 +111,36 @@ export async function GET(request: NextRequest) {
 
     try {
         const normalizedQuery = normalizeText(query);
+        const tacoFoods = await searchTacoFoods(query, 40);
 
-        // 1. Search Local DB (case/accent-insensitive in app layer for cross-DB consistency)
-        const localPool = await prisma.food.findMany({
-            orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
-            take: 2000,
-        });
-
-        const localFoods = localPool
-            .filter((food) => normalizeText(food.name || '').includes(normalizedQuery))
-            .slice(0, 60);
-
-        let results: SearchFoodResult[] = localFoods.map((food) => ({
-            id: food.id,
-            name: food.name,
-            portion: food.portion || '100g',
-            calories: Number(food.calories || 0),
-            protein: Number(food.protein || 0),
-            carbs: Number(food.carbs || 0),
-            fat: Number(food.fat || 0),
-            isSystem: Boolean(food.isSystem),
-            source: 'local',
-        }));
-
-        // 2. Search TACO API and feed DB for future use
-        if (results.length < 20) {
-            try {
-                const tacoFoods = await searchTacoFoods(query, 30);
-
-                if (tacoFoods.length > 0) {
-                    const localNames = new Set(results.map((r) => normalizeText(r.name || '')));
-                    const uniqueExternal: SearchFoodResult[] = tacoFoods
-                        .filter((f) => !localNames.has(normalizeText(f.name)))
-                        .map((f) => ({
-                            id: `taco_${f.id}`,
-                            name: f.name,
-                            portion: f.portion || '100g',
-                            calories: f.calories || 0,
-                            protein: f.protein || 0,
-                            carbs: f.carbs || 0,
-                            fat: f.fat || 0,
-                            source: 'external',
-                            isSystem: true
-                        }));
-
-                    if (uniqueExternal.length > 0) {
-                        await persistImportedFoods(uniqueExternal);
-                    }
-
-                    results = [...results, ...uniqueExternal];
-                }
-            } catch (err) {
-                console.error('TACO API Error:', err);
-                // Continue with local results
-            }
-        }
-
-        // 3. Guaranteed fallback from bundled food database.
-        if (results.length < 20) {
-            const localNames = new Set(results.map((r) => normalizeText(r.name || '')));
-            const fallbackFoods: SearchFoodResult[] = foodDatabase
-                .filter((food) => normalizeText(food.name || '').includes(normalizedQuery))
-                .filter((food) => !localNames.has(normalizeText(food.name || '')))
-                .slice(0, 40)
-                .map((food, index) => ({
-                    id: `fallback_${index}_${normalizeText(food.name).replace(/\s+/g, '_')}`,
-                    name: food.name,
-                    portion: food.portion || '100g',
-                    calories: Number(food.calories || 0),
-                    protein: Number(food.protein || 0),
-                    carbs: Number(food.carbs || 0),
-                    fat: Number(food.fat || 0),
-                    source: 'external',
-                    isSystem: true,
-                }));
-
-            if (fallbackFoods.length > 0) {
-                await persistImportedFoods(fallbackFoods);
-                results = [...results, ...fallbackFoods];
-            }
-        }
-
-        // Prevent duplicated names from mixed sources.
         const dedupedMap = new Map<string, SearchFoodResult>();
-        for (const item of results) {
-            const key = normalizeText(item.name || '');
+        for (const food of tacoFoods) {
+            const key = normalizeText(food.name || '');
             if (!key || dedupedMap.has(key)) continue;
-            dedupedMap.set(key, item);
+
+            dedupedMap.set(key, {
+                id: `taco_${food.id}`,
+                name: food.name,
+                portion: food.portion || '100g',
+                calories: Number(food.calories || 0),
+                protein: Number(food.protein || 0),
+                carbs: Number(food.carbs || 0),
+                fat: Number(food.fat || 0),
+                source: 'external',
+                isSystem: true,
+            });
         }
-        results = Array.from(dedupedMap.values());
+
+        const results = Array.from(dedupedMap.values());
+        if (results.length > 0) {
+            await persistImportedFoods(results);
+        }
 
         // Rank results to prioritize common Brazilian foods and local matches.
         const ranked = results
             .map((r) => ({
                 ...r,
-                __score: scoreFood(r.name || '', normalizedQuery, r.source)
+                __score: scoreFood(r.name || '', normalizedQuery, 'external')
             }))
             .sort((a, b) => b.__score - a.__score)
             .slice(0, 20)
