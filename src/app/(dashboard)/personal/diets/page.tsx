@@ -98,12 +98,13 @@ export default function DietsPage() {
     const confirmDeleteDiet = async () => {
         if (!dietToDelete) return;
         try {
-            const response = await fetch(`/api/diet-plans/${dietToDelete}`, { method: 'DELETE' });
+            const response = await fetch(`/api/diets/${dietToDelete}`, { method: 'DELETE' });
             if (response.ok) {
                 setDietPlans(dietPlans.filter(d => d.id !== dietToDelete));
                 setOpenMenuId(null);
             } else {
-                alert('Erro ao excluir dieta');
+                const errorData = await response.json().catch(() => null);
+                alert(errorData?.error || 'Erro ao excluir dieta');
             }
         } catch (err) {
             alert('Erro ao conectar com o servidor');
