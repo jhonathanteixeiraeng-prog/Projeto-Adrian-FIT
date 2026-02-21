@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { searchTacoFoods } from '@/lib/taco-api';
+import { foodDatabase } from '@/lib/food-database';
 
 type SearchFoodResult = {
     id: string;
@@ -103,26 +104,24 @@ async function persistImportedFoods(foods: Array<{
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get('q');
+    const query = (searchParams.get('q') || '').trim();
 
     if (!query || query.length < 2) {
         return NextResponse.json({ success: true, data: [] });
     }
 
     try {
-        // 1. Search Local DB
-        const localFoods = await prisma.food.findMany({
-            where: {
-                name: {
-                    contains: query,
-                    // mode: 'insensitive' // SQLite doesn't support mode: insensitive natively for all collations, but let's try or handle in app
-                }
-            },
-            take: 20
+        const normalizedQuery = normalizeText(query);
+
+        // 1. Search Local DB (case/accent-insensitive in app layer for cross-DB consistency)
+        const localPool = await prisma.food.findMany({
+            orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+            take: 2000,
         });
 
-        // SQLite case-insensitive filter manual if needed, but 'contains' is usually case-insensitive in default SQLite for ASCII
-        // For accurate results, we might need a raw query or just rely on default.
+        const localFoods = localPool
+            .filter((food) => normalizeText(food.name || '').includes(normalizedQuery))
+            .slice(0, 60);
 
         let results: SearchFoodResult[] = localFoods.map((food) => ({
             id: food.id,
@@ -169,11 +168,45 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        // 3. Guaranteed fallback from bundled food database.
+        if (results.length < 20) {
+            const localNames = new Set(results.map((r) => normalizeText(r.name || '')));
+            const fallbackFoods: SearchFoodResult[] = foodDatabase
+                .filter((food) => normalizeText(food.name || '').includes(normalizedQuery))
+                .filter((food) => !localNames.has(normalizeText(food.name || '')))
+                .slice(0, 40)
+                .map((food, index) => ({
+                    id: `fallback_${index}_${normalizeText(food.name).replace(/\s+/g, '_')}`,
+                    name: food.name,
+                    portion: food.portion || '100g',
+                    calories: Number(food.calories || 0),
+                    protein: Number(food.protein || 0),
+                    carbs: Number(food.carbs || 0),
+                    fat: Number(food.fat || 0),
+                    source: 'external',
+                    isSystem: true,
+                }));
+
+            if (fallbackFoods.length > 0) {
+                await persistImportedFoods(fallbackFoods);
+                results = [...results, ...fallbackFoods];
+            }
+        }
+
+        // Prevent duplicated names from mixed sources.
+        const dedupedMap = new Map<string, SearchFoodResult>();
+        for (const item of results) {
+            const key = normalizeText(item.name || '');
+            if (!key || dedupedMap.has(key)) continue;
+            dedupedMap.set(key, item);
+        }
+        results = Array.from(dedupedMap.values());
+
         // Rank results to prioritize common Brazilian foods and local matches.
         const ranked = results
             .map((r) => ({
                 ...r,
-                __score: scoreFood(r.name || '', query, r.source)
+                __score: scoreFood(r.name || '', normalizedQuery, r.source)
             }))
             .sort((a, b) => b.__score - a.__score)
             .slice(0, 20)
