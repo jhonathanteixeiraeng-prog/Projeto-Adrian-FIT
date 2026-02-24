@@ -219,12 +219,12 @@ export function FoodSubstitutionModal({ isOpen, onClose, originalFood, mealId, o
                 setSearchError('');
             } else {
                 setSearchResults([]);
-                setSearchError(data.error || 'Erro ao buscar alimentos na TACO.');
+                setSearchError(data.error || 'Erro ao buscar alimentos.');
             }
         } catch (error) {
             console.error('Search error:', error);
             setSearchResults([]);
-            setSearchError('Erro ao conectar com a TACO. Tente novamente.');
+            setSearchError('Erro ao conectar com o servidor de alimentos. Tente novamente.');
         } finally {
             setLoading(false);
         }

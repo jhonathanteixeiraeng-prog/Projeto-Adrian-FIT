@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { searchTacoFoods } from '@/lib/taco-api';
+import auditedFoods from '@/data/taco-audited-foods.json';
 
 type SearchFoodResult = {
     id: string;
@@ -12,6 +12,15 @@ type SearchFoodResult = {
     fat: number;
     isSystem: boolean;
     source: 'local' | 'external';
+};
+
+type AuditedFood = {
+    name: string;
+    portion: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
 };
 
 const BRAZILIAN_STAPLES = [
@@ -46,7 +55,7 @@ function scoreFood(name: string, query: string, source: 'local' | 'external') {
     if (BRAZILIAN_STAPLES.some((k) => n.includes(k))) score += 80;
     if (DEPRIORITIZE_TERMS.some((k) => n.includes(k))) score -= 90;
 
-    if (source === 'local') score += 40;
+    if (source === 'local') score += 50;
 
     return score;
 }
@@ -101,6 +110,25 @@ async function persistImportedFoods(foods: Array<{
     });
 }
 
+function searchInAuditedDataset(query: string): SearchFoodResult[] {
+    const normalizedQuery = normalizeText(query);
+    if (!normalizedQuery) return [];
+
+    return (auditedFoods as AuditedFood[])
+        .filter((food) => normalizeText(food.name).includes(normalizedQuery))
+        .map((food, index) => ({
+            id: `audit_${index}_${normalizeText(food.name).replace(/\s+/g, '_')}`,
+            name: food.name,
+            portion: food.portion || '100g',
+            calories: Number(food.calories || 0),
+            protein: Number(food.protein || 0),
+            carbs: Number(food.carbs || 0),
+            fat: Number(food.fat || 0),
+            source: 'local',
+            isSystem: true,
+        }));
+}
+
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const query = (searchParams.get('q') || '').trim();
@@ -111,77 +139,58 @@ export async function GET(request: NextRequest) {
 
     try {
         const normalizedQuery = normalizeText(query);
-        const tacoFoods = await searchTacoFoods(query, 40);
+        const localFoods = await prisma.food.findMany({
+            where: {
+                isSystem: true,
+            },
+            orderBy: { name: 'asc' },
+            take: 4000,
+            select: {
+                id: true,
+                name: true,
+                portion: true,
+                calories: true,
+                protein: true,
+                carbs: true,
+                fat: true,
+                isSystem: true,
+            },
+        });
 
-        const dedupedMap = new Map<string, SearchFoodResult>();
-        for (const food of tacoFoods) {
-            const key = normalizeText(food.name || '');
-            if (!key || dedupedMap.has(key)) continue;
-
-            dedupedMap.set(key, {
-                id: `taco_${food.id}`,
+        let results: SearchFoodResult[] = localFoods
+            .filter((food) => normalizeText(food.name || '').includes(normalizedQuery))
+            .map((food) => ({
+                id: food.id,
                 name: food.name,
                 portion: food.portion || '100g',
                 calories: Number(food.calories || 0),
                 protein: Number(food.protein || 0),
                 carbs: Number(food.carbs || 0),
                 fat: Number(food.fat || 0),
-                source: 'external',
+                source: 'local',
                 isSystem: true,
-            });
-        }
+            }));
 
-        const results = Array.from(dedupedMap.values());
-        if (results.length > 0) {
-            await persistImportedFoods(results);
-        }
-
-        // Fallback de disponibilidade: usa cache local previamente importado da TACO.
-        // Isso evita lista vazia quando a API externa estiver temporariamente indisponível.
+        // Fallback auditado para casos de base local ainda não populada.
         if (results.length === 0) {
-            const cachedFoods = await prisma.food.findMany({
-                where: {
-                    isSystem: true,
-                },
-                orderBy: { name: 'asc' },
-                take: 2000,
-            });
-
-            const fromCache: SearchFoodResult[] = cachedFoods
-                .filter((food) => normalizeText(food.name || '').includes(normalizedQuery))
-                .slice(0, 40)
-                .map((food) => ({
-                    id: food.id,
-                    name: food.name,
-                    portion: food.portion || '100g',
-                    calories: Number(food.calories || 0),
-                    protein: Number(food.protein || 0),
-                    carbs: Number(food.carbs || 0),
-                    fat: Number(food.fat || 0),
-                    source: 'external',
-                    isSystem: true,
-                }));
-
-            if (fromCache.length > 0) {
-                return NextResponse.json({ success: true, data: fromCache.slice(0, 20) });
+            const auditedResults = searchInAuditedDataset(query).slice(0, 60);
+            if (auditedResults.length > 0) {
+                await persistImportedFoods(auditedResults);
+                results = auditedResults;
             }
         }
 
-        // Rank results to prioritize common Brazilian foods and local matches.
         const ranked = results
             .map((r) => ({
                 ...r,
-                __score: scoreFood(r.name || '', normalizedQuery, 'external')
+                __score: scoreFood(r.name || '', normalizedQuery, r.source)
             }))
             .sort((a, b) => b.__score - a.__score)
             .slice(0, 20)
             .map(({ __score, ...rest }) => rest);
 
         if (ranked.length === 0) {
-            return NextResponse.json({
-                success: false,
-                error: 'A TACO não retornou resultados. Verifique a configuração da API (URL/token) ou tente novamente em instantes.'
-            });
+            return NextResponse.json({ success: true, data: [] });
         }
 
         return NextResponse.json({ success: true, data: ranked });

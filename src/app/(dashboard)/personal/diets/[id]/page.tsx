@@ -460,12 +460,12 @@ export default function EditDietPage() {
                 setFoodSearchError('');
             } else {
                 setSearchResults([]);
-                setFoodSearchError(data.error || 'Erro ao buscar alimentos na TACO.');
+                setFoodSearchError(data.error || 'Erro ao buscar alimentos.');
             }
         } catch (error) {
             console.error('Search error:', error);
             setSearchResults([]);
-            setFoodSearchError('Erro ao conectar com a TACO. Tente novamente.');
+            setFoodSearchError('Erro ao conectar com o servidor de alimentos. Tente novamente.');
         } finally {
             setIsSearching(false);
         }
@@ -1063,7 +1063,7 @@ export default function EditDietPage() {
                                             ))}
                                             {searchResults.length === 0 && foodSearch.length >= 2 && (
                                                 <p className="text-center text-muted-foreground py-8">
-                                                    Nenhum alimento encontrado. Tente buscar online ou verifique a ortografia.
+                                                    Nenhum alimento encontrado. Verifique a ortografia ou use um termo mais específico.
                                                 </p>
                                             )}
                                             {searchResults.length === 0 && foodSearch.length < 2 && (
