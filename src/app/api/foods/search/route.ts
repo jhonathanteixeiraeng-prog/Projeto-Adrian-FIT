@@ -42,9 +42,25 @@ function normalizeText(value: string) {
         .trim();
 }
 
+function normalizeForSearch(value: string) {
+    return normalizeText(value).replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function matchesQuery(name: string, query: string) {
+    const normalizedName = normalizeForSearch(name);
+    const normalizedQuery = normalizeForSearch(query);
+    if (!normalizedName || !normalizedQuery) return false;
+
+    if (normalizedName.includes(normalizedQuery)) return true;
+
+    const tokens = normalizedQuery.split(' ').filter((token) => token.length > 0);
+    if (tokens.length === 0) return false;
+    return tokens.every((token) => normalizedName.includes(token));
+}
+
 function scoreFood(name: string, query: string, source: 'local' | 'external') {
-    const n = normalizeText(name);
-    const q = normalizeText(query);
+    const n = normalizeForSearch(name);
+    const q = normalizeForSearch(query);
 
     let score = 0;
 
@@ -115,7 +131,7 @@ function searchInAuditedDataset(query: string): SearchFoodResult[] {
     if (!normalizedQuery) return [];
 
     return (auditedFoods as AuditedFood[])
-        .filter((food) => normalizeText(food.name).includes(normalizedQuery))
+        .filter((food) => matchesQuery(food.name, normalizedQuery))
         .map((food, index) => ({
             id: `audit_${index}_${normalizeText(food.name).replace(/\s+/g, '_')}`,
             name: food.name,
@@ -158,7 +174,7 @@ export async function GET(request: NextRequest) {
         });
 
         let results: SearchFoodResult[] = localFoods
-            .filter((food) => normalizeText(food.name || '').includes(normalizedQuery))
+            .filter((food) => matchesQuery(food.name || '', normalizedQuery))
             .map((food) => ({
                 id: food.id,
                 name: food.name,
