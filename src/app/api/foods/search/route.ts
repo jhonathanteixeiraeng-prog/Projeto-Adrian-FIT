@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import auditedFoods from '@/data/taco-audited-foods.json';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 type SearchFoodResult = {
     id: string;
@@ -58,7 +60,7 @@ function matchesQuery(name: string, query: string) {
     return tokens.every((token) => normalizedName.includes(token));
 }
 
-function scoreFood(name: string, query: string, source: 'local' | 'external') {
+function scoreFood(name: string, query: string, source: 'local' | 'external', isSystem: boolean) {
     const n = normalizeForSearch(name);
     const q = normalizeForSearch(query);
 
@@ -72,6 +74,7 @@ function scoreFood(name: string, query: string, source: 'local' | 'external') {
     if (DEPRIORITIZE_TERMS.some((k) => n.includes(k))) score -= 90;
 
     if (source === 'local') score += 50;
+    if (isSystem) score += 20;
 
     return score;
 }
@@ -154,12 +157,41 @@ export async function GET(request: NextRequest) {
     }
 
     try {
+        const session = await getServerSession(authOptions);
         const normalizedQuery = normalizeText(query);
+
+        const allowedCreatorIds: string[] = [];
+        if (session?.user?.role === 'PERSONAL' && session.user.id) {
+            allowedCreatorIds.push(session.user.id);
+        } else if (session?.user?.role === 'STUDENT' && session.user.id) {
+            const student = await prisma.student.findUnique({
+                where: { userId: session.user.id },
+                select: {
+                    personal: {
+                        select: {
+                            userId: true,
+                        },
+                    },
+                },
+            });
+            if (student?.personal?.userId) {
+                allowedCreatorIds.push(student.personal.userId);
+            }
+        }
+
+        const foodVisibilityWhere =
+            allowedCreatorIds.length > 0
+                ? {
+                    OR: [
+                        { isSystem: true },
+                        { createdById: { in: allowedCreatorIds } },
+                    ],
+                }
+                : { isSystem: true };
+
         const localFoods = await prisma.food.findMany({
-            where: {
-                isSystem: true,
-            },
-            orderBy: { name: 'asc' },
+            where: foodVisibilityWhere,
+            orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
             take: 4000,
             select: {
                 id: true,
@@ -173,19 +205,26 @@ export async function GET(request: NextRequest) {
             },
         });
 
-        let results: SearchFoodResult[] = localFoods
+        const dedupedLocalMap = new Map<string, SearchFoodResult>();
+        localFoods
             .filter((food) => matchesQuery(food.name || '', normalizedQuery))
-            .map((food) => ({
-                id: food.id,
-                name: food.name,
-                portion: food.portion || '100g',
-                calories: Number(food.calories || 0),
-                protein: Number(food.protein || 0),
-                carbs: Number(food.carbs || 0),
-                fat: Number(food.fat || 0),
-                source: 'local',
-                isSystem: true,
-            }));
+            .forEach((food) => {
+                const key = normalizeText(food.name || '');
+                if (!key || dedupedLocalMap.has(key)) return;
+                dedupedLocalMap.set(key, {
+                    id: food.id,
+                    name: food.name,
+                    portion: food.portion || '100g',
+                    calories: Number(food.calories || 0),
+                    protein: Number(food.protein || 0),
+                    carbs: Number(food.carbs || 0),
+                    fat: Number(food.fat || 0),
+                    source: 'local',
+                    isSystem: Boolean(food.isSystem),
+                });
+            });
+
+        let results: SearchFoodResult[] = Array.from(dedupedLocalMap.values());
 
         // Fallback auditado para casos de base local ainda não populada.
         if (results.length === 0) {
@@ -199,7 +238,7 @@ export async function GET(request: NextRequest) {
         const ranked = results
             .map((r) => ({
                 ...r,
-                __score: scoreFood(r.name || '', normalizedQuery, r.source)
+                __score: scoreFood(r.name || '', normalizedQuery, r.source, r.isSystem)
             }))
             .sort((a, b) => b.__score - a.__score)
             .slice(0, 20)
