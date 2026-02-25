@@ -33,12 +33,22 @@ function getWorkoutProgressStorageKey(workoutDayId: string, dateKey: string) {
     return `student-workout-progress:${workoutDayId}:${dateKey}`;
 }
 
+function getSafeStorage(): Storage | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        return window.localStorage;
+    } catch {
+        return null;
+    }
+}
+
 function readWorkoutProgress(workoutDayId: string, dateKey: string): Set<string> {
-    if (typeof window === 'undefined') return new Set();
+    const storage = getSafeStorage();
+    if (!storage) return new Set();
 
     try {
         const key = getWorkoutProgressStorageKey(workoutDayId, dateKey);
-        const raw = window.localStorage.getItem(key);
+        const raw = storage.getItem(key);
         if (!raw) return new Set();
 
         const parsed = JSON.parse(raw) as PersistedWorkoutProgress;
@@ -51,7 +61,8 @@ function readWorkoutProgress(workoutDayId: string, dateKey: string): Set<string>
 }
 
 function writeWorkoutProgress(workoutDayId: string, dateKey: string, completedExerciseIds: string[]) {
-    if (typeof window === 'undefined') return;
+    const storage = getSafeStorage();
+    if (!storage) return;
 
     try {
         const key = getWorkoutProgressStorageKey(workoutDayId, dateKey);
@@ -59,7 +70,7 @@ function writeWorkoutProgress(workoutDayId: string, dateKey: string, completedEx
             completedExerciseIds,
             updatedAt: new Date().toISOString(),
         };
-        window.localStorage.setItem(key, JSON.stringify(payload));
+        storage.setItem(key, JSON.stringify(payload));
     } catch (error) {
         console.warn('Falha ao salvar progresso do treino localmente:', error);
     }
@@ -141,22 +152,24 @@ export default function WorkoutPage() {
                 const data = await response.json();
                 if (data.success && data.data) {
                     const plan = data.data;
+                    const workoutDays = Array.isArray(plan?.workoutDays) ? plan.workoutDays : [];
                     let targetDay;
 
                     if (dayId) {
-                        targetDay = plan.workoutDays.find((d: any) => d.id === dayId);
+                        targetDay = workoutDays.find((d: any) => d?.id === dayId);
                     } else {
                         // Default to today
                         const today = new Date().getDay();
-                        targetDay = plan.workoutDays.find((d: any) => d.dayOfWeek === today) || plan.workoutDays[0];
+                        targetDay = workoutDays.find((d: any) => d?.dayOfWeek === today) || workoutDays[0];
                     }
 
                     if (targetDay) {
                         const persistedCompletedIds = readWorkoutProgress(targetDay.id, dateKey);
+                        const exercises = Array.isArray(targetDay?.exercises) ? targetDay.exercises : [];
                         setWorkout({
                             id: targetDay.id,
                             name: targetDay.name,
-                            exercises: targetDay.exercises.map((e: any) => ({
+                            exercises: exercises.map((e: any) => ({
                                 ...e,
                                 completed: persistedCompletedIds.has(e.id)
                             }))
@@ -202,8 +215,9 @@ export default function WorkoutPage() {
         );
     }
 
-    const completedCount = workout.exercises.filter((e: any) => e.completed).length;
-    const allCompleted = completedCount === workout.exercises.length;
+    const exercises = Array.isArray(workout?.exercises) ? workout.exercises : [];
+    const completedCount = exercises.filter((e: any) => e.completed).length;
+    const allCompleted = exercises.length > 0 && completedCount === exercises.length;
 
     const toggleExercise = (exerciseId: string) => {
         setWorkout((prev: any) => ({
@@ -273,7 +287,7 @@ export default function WorkoutPage() {
                 <div className="flex-1">
                     <h1 className="text-xl font-bold text-foreground">{workout.name}</h1>
                     <p className="text-sm text-muted-foreground">
-                        {completedCount} de {workout.exercises.length} exercícios
+                        {completedCount} de {exercises.length} exercícios
                     </p>
                 </div>
             </div>
@@ -282,7 +296,7 @@ export default function WorkoutPage() {
             <div className="h-3 bg-muted rounded-full overflow-hidden">
                 <div
                     className="h-full bg-gradient-to-r from-secondary to-accent rounded-full transition-all duration-500"
-                    style={{ width: `${(completedCount / workout.exercises.length) * 100}%` }}
+                    style={{ width: `${exercises.length > 0 ? (completedCount / exercises.length) * 100 : 0}%` }}
                 />
             </div>
 
@@ -307,7 +321,7 @@ export default function WorkoutPage() {
 
             {/* Exercises List */}
             <div className="space-y-3">
-                {workout.exercises.map((exercise: any, index: number) => (
+                {exercises.map((exercise: any, index: number) => (
                     <Card
                         key={exercise.id}
                         className={exercise.completed ? 'bg-secondary/10 border-secondary/30' : ''}
