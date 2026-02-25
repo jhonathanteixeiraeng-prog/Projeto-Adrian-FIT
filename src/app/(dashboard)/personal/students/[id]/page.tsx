@@ -13,6 +13,7 @@ import {
     Scale,
     Target,
     Edit,
+    Copy,
     Plus,
     ChevronRight,
     Clock,
@@ -99,6 +100,8 @@ export default function StudentDetailPage() {
     const [dietTemplates, setDietTemplates] = useState<any[]>([]);
     const [selectedDietTemplateId, setSelectedDietTemplateId] = useState('');
     const [cloneDietTitle, setCloneDietTitle] = useState('');
+    const [copyingWorkoutTemplate, setCopyingWorkoutTemplate] = useState(false);
+    const [copyingDietTemplate, setCopyingDietTemplate] = useState(false);
 
     useEffect(() => {
         if (params.id) {
@@ -300,6 +303,80 @@ export default function StudentDetailPage() {
             alert('Erro ao conectar com o servidor');
         } finally {
             setCloning(false);
+        }
+    };
+
+    const handleCopyWorkoutToLibrary = async () => {
+        const activeWorkout = getActiveWorkout();
+        if (!activeWorkout) {
+            alert('Nenhum treino ativo para copiar');
+            return;
+        }
+
+        const suggestedTitle = `${activeWorkout.title} - Modelo`;
+        const typed = window.prompt('Nome do modelo de treino na biblioteca:', suggestedTitle);
+        if (typed === null) return;
+
+        const title = typed.trim() || suggestedTitle;
+
+        try {
+            setCopyingWorkoutTemplate(true);
+            const response = await fetch('/api/workout-templates/from-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    planId: activeWorkout.id,
+                    title,
+                }),
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                alert('Treino copiado para a biblioteca com sucesso!');
+            } else {
+                alert(result.error || 'Erro ao copiar treino para biblioteca');
+            }
+        } catch (err) {
+            alert('Erro ao conectar com o servidor');
+        } finally {
+            setCopyingWorkoutTemplate(false);
+        }
+    };
+
+    const handleCopyDietToLibrary = async () => {
+        const activeDiet = getActiveDiet();
+        if (!activeDiet) {
+            alert('Nenhuma dieta ativa para copiar');
+            return;
+        }
+
+        const suggestedTitle = `${activeDiet.title} - Modelo`;
+        const typed = window.prompt('Nome do modelo de dieta na biblioteca:', suggestedTitle);
+        if (typed === null) return;
+
+        const title = typed.trim() || suggestedTitle;
+
+        try {
+            setCopyingDietTemplate(true);
+            const response = await fetch('/api/diet-templates/from-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    planId: activeDiet.id,
+                    title,
+                }),
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                alert('Dieta copiada para a biblioteca com sucesso!');
+            } else {
+                alert(result.error || 'Erro ao copiar dieta para biblioteca');
+            }
+        } catch (err) {
+            alert('Erro ao conectar com o servidor');
+        } finally {
+            setCopyingDietTemplate(false);
         }
     };
 
@@ -644,6 +721,15 @@ export default function StudentDetailPage() {
                             <div className="flex gap-2">
                                 <Button
                                     variant="outline"
+                                    onClick={handleCopyWorkoutToLibrary}
+                                    loading={copyingWorkoutTemplate}
+                                    disabled={!activeWorkout}
+                                >
+                                    <Copy className="w-4 h-4" />
+                                    Copiar para Biblioteca
+                                </Button>
+                                <Button
+                                    variant="outline"
                                     onClick={() => {
                                         setCloneTitle('');
                                         setCloneStartDate('');
@@ -721,6 +807,15 @@ export default function StudentDetailPage() {
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>Plano Alimentar</CardTitle>
                             <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={handleCopyDietToLibrary}
+                                    loading={copyingDietTemplate}
+                                    disabled={!activeDiet}
+                                >
+                                    <Copy className="w-4 h-4" />
+                                    Copiar para Biblioteca
+                                </Button>
                                 <Button
                                     variant="outline"
                                     onClick={() => {
