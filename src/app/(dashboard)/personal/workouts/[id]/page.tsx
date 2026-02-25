@@ -19,6 +19,12 @@ import {
     MoreVertical
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge, Avatar } from '@/components/ui';
+import {
+    buildRepsFromPerSet,
+    inferRepsMode,
+    normalizePerSetReps,
+    parsePerSetReps,
+} from '@/lib/workout-reps';
 
 // Mock existing workout plan
 const mockWorkoutPlan = {
@@ -109,6 +115,8 @@ interface WorkoutItem {
     muscleGroup: string;
     sets: number;
     reps: string;
+    repsBySet: string[];
+    usePerSetReps: boolean;
     rest: number;
     notes: string;
 }
@@ -146,7 +154,15 @@ export default function EditWorkoutPage() {
     const [startDate, setStartDate] = useState(mockWorkoutPlan.startDate);
     const [endDate, setEndDate] = useState(mockWorkoutPlan.endDate);
     const [active, setActive] = useState(mockWorkoutPlan.active);
-    const [workoutDays, setWorkoutDays] = useState<WorkoutDay[]>(mockWorkoutPlan.workoutDays);
+    const [workoutDays, setWorkoutDays] = useState<WorkoutDay[]>(
+        () => mockWorkoutPlan.workoutDays.map((day) => ({
+            ...day,
+            items: day.items.map((item) => ({
+                ...item,
+                ...inferRepsMode(item.reps, item.sets),
+            })),
+        }))
+    );
 
     const muscleGroups = Array.from(new Set(exerciseLibrary.map(e => e.muscleGroup)));
 
@@ -216,6 +232,8 @@ export default function EditWorkoutPage() {
             muscleGroup: exercise.muscleGroup,
             sets: 3,
             reps: '10-12',
+            repsBySet: ['10-12', '10-12', '10-12'],
+            usePerSetReps: false,
             rest: 60,
             notes: '',
         };
@@ -245,6 +263,126 @@ export default function EditWorkoutPage() {
                 }
                 : d
         ));
+    };
+
+    const updateExerciseSets = (dayId: string, itemId: string, nextSets: number) => {
+        setWorkoutDays((current) =>
+            current.map((day) => {
+                if (day.id !== dayId) return day;
+
+                return {
+                    ...day,
+                    items: day.items.map((item) => {
+                        if (item.id !== itemId) return item;
+
+                        const normalizedSets = Math.max(0, nextSets || 0);
+                        if (!item.usePerSetReps) {
+                            return {
+                                ...item,
+                                sets: normalizedSets,
+                                repsBySet: normalizePerSetReps(item.repsBySet, normalizedSets, item.reps || ''),
+                            };
+                        }
+
+                        const repsBySet = normalizePerSetReps(
+                            item.repsBySet,
+                            normalizedSets,
+                            item.repsBySet[0] || item.reps || ''
+                        );
+                        return {
+                            ...item,
+                            sets: normalizedSets,
+                            repsBySet,
+                            reps: buildRepsFromPerSet(repsBySet),
+                        };
+                    }),
+                };
+            })
+        );
+    };
+
+    const updateExerciseReps = (dayId: string, itemId: string, reps: string) => {
+        setWorkoutDays((current) =>
+            current.map((day) => {
+                if (day.id !== dayId) return day;
+
+                return {
+                    ...day,
+                    items: day.items.map((item) => {
+                        if (item.id !== itemId) return item;
+
+                        return {
+                            ...item,
+                            reps,
+                            repsBySet: normalizePerSetReps(parsePerSetReps(reps), item.sets, reps),
+                        };
+                    }),
+                };
+            })
+        );
+    };
+
+    const togglePerSetReps = (dayId: string, itemId: string, enabled: boolean) => {
+        setWorkoutDays((current) =>
+            current.map((day) => {
+                if (day.id !== dayId) return day;
+
+                return {
+                    ...day,
+                    items: day.items.map((item) => {
+                        if (item.id !== itemId) return item;
+
+                        if (enabled) {
+                            const parsed = parsePerSetReps(item.reps);
+                            const seed = parsed.length ? parsed : [item.reps || ''];
+                            const repsBySet = normalizePerSetReps(seed, item.sets, item.reps || '');
+                            return {
+                                ...item,
+                                usePerSetReps: true,
+                                repsBySet,
+                                reps: buildRepsFromPerSet(repsBySet),
+                            };
+                        }
+
+                        const fallback = item.repsBySet.find((rep) => rep.trim()) || item.reps || '';
+                        return {
+                            ...item,
+                            usePerSetReps: false,
+                            reps: fallback,
+                            repsBySet: normalizePerSetReps([fallback], item.sets, fallback),
+                        };
+                    }),
+                };
+            })
+        );
+    };
+
+    const updatePerSetRep = (dayId: string, itemId: string, setIndex: number, repValue: string) => {
+        setWorkoutDays((current) =>
+            current.map((day) => {
+                if (day.id !== dayId) return day;
+
+                return {
+                    ...day,
+                    items: day.items.map((item) => {
+                        if (item.id !== itemId) return item;
+
+                        const repsBySet = normalizePerSetReps(
+                            item.repsBySet,
+                            item.sets,
+                            item.repsBySet[0] || item.reps || ''
+                        );
+                        repsBySet[setIndex] = repValue;
+
+                        return {
+                            ...item,
+                            repsBySet,
+                            reps: buildRepsFromPerSet(repsBySet),
+                        };
+                    }),
+                };
+            })
+        );
     };
 
     const moveExercise = (dayId: string, itemId: string, direction: 'up' | 'down') => {
@@ -465,39 +603,113 @@ export default function EditWorkoutPage() {
                                                         {item.muscleGroup}
                                                     </Badge>
                                                 </div>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="flex items-center gap-1">
-                                                        <input
-                                                            type="number"
-                                                            value={item.sets}
-                                                            onChange={(e) => updateExercise(day.id, item.id, { sets: parseInt(e.target.value) || 0 })}
-                                                            className="w-12 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
-                                                            min="1"
-                                                        />
-                                                        <span className="text-xs text-muted-foreground">séries</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <input
-                                                            type="text"
-                                                            value={item.reps}
-                                                            onChange={(e) => updateExercise(day.id, item.id, { reps: e.target.value })}
-                                                            className="w-16 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
-                                                            placeholder="10-12"
-                                                        />
-                                                        <span className="text-xs text-muted-foreground">reps</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <Clock className="w-3 h-3 text-muted-foreground" />
-                                                        <input
-                                                            type="number"
-                                                            value={item.rest}
-                                                            onChange={(e) => updateExercise(day.id, item.id, { rest: parseInt(e.target.value) || 0 })}
-                                                            className="w-14 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
-                                                            min="0"
-                                                        />
-                                                        <span className="text-xs text-muted-foreground">s</span>
+                                                <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-background/30 p-2">
+                                                    <span className="text-xs font-medium text-muted-foreground">Modo de repetições</span>
+                                                    <div className="inline-flex rounded-lg border border-border overflow-hidden">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => togglePerSetReps(day.id, item.id, false)}
+                                                            className={`px-3 py-1.5 text-xs font-medium transition-colors ${!item.usePerSetReps
+                                                                ? 'bg-[#F88022] text-white'
+                                                                : 'bg-transparent text-muted-foreground hover:text-foreground'
+                                                                }`}
+                                                        >
+                                                            Valor único
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => togglePerSetReps(day.id, item.id, true)}
+                                                            className={`px-3 py-1.5 text-xs font-medium transition-colors ${item.usePerSetReps
+                                                                ? 'bg-[#F88022] text-white'
+                                                                : 'bg-transparent text-muted-foreground hover:text-foreground'
+                                                                }`}
+                                                        >
+                                                            Por série
+                                                        </button>
                                                     </div>
                                                 </div>
+                                                {item.usePerSetReps ? (
+                                                    <div className="space-y-3">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex items-center gap-1">
+                                                                <input
+                                                                    type="number"
+                                                                    value={item.sets}
+                                                                    onChange={(e) => updateExerciseSets(day.id, item.id, parseInt(e.target.value, 10) || 0)}
+                                                                    className="w-12 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
+                                                                    min="1"
+                                                                />
+                                                                <span className="text-xs text-muted-foreground">séries</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1">
+                                                                <Clock className="w-3 h-3 text-muted-foreground" />
+                                                                <input
+                                                                    type="number"
+                                                                    value={item.rest}
+                                                                    onChange={(e) => updateExercise(day.id, item.id, { rest: parseInt(e.target.value, 10) || 0 })}
+                                                                    className="w-14 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
+                                                                    min="0"
+                                                                />
+                                                                <span className="text-xs text-muted-foreground">s</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="rounded-lg border border-border bg-background/40 p-2">
+                                                            <div className="mb-2 flex items-center justify-between">
+                                                                <span className="text-xs text-muted-foreground">Repetições por série</span>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                                {Array.from({ length: Math.max(0, item.sets || 0) }).map((_, setIndex) => (
+                                                                    <div key={`${item.id}-series-${setIndex}`}>
+                                                                        <label className="mb-1 block text-[11px] text-muted-foreground">
+                                                                            {setIndex + 1}ª
+                                                                        </label>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={item.repsBySet[setIndex] || ''}
+                                                                            onChange={(e) => updatePerSetRep(day.id, item.id, setIndex, e.target.value)}
+                                                                            className="w-full rounded-lg border border-border bg-muted px-2 py-1 text-sm text-center text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                                                                            placeholder="12"
+                                                                        />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="flex items-center gap-1">
+                                                            <input
+                                                                type="number"
+                                                                value={item.sets}
+                                                                onChange={(e) => updateExerciseSets(day.id, item.id, parseInt(e.target.value, 10) || 0)}
+                                                                className="w-12 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
+                                                                min="1"
+                                                            />
+                                                            <span className="text-xs text-muted-foreground">séries</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <input
+                                                                type="text"
+                                                                value={item.reps}
+                                                                onChange={(e) => updateExerciseReps(day.id, item.id, e.target.value)}
+                                                                className="w-20 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
+                                                                placeholder="10-12"
+                                                            />
+                                                            <span className="text-xs text-muted-foreground">reps</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <Clock className="w-3 h-3 text-muted-foreground" />
+                                                            <input
+                                                                type="number"
+                                                                value={item.rest}
+                                                                onChange={(e) => updateExercise(day.id, item.id, { rest: parseInt(e.target.value, 10) || 0 })}
+                                                                className="w-14 px-2 py-1 text-sm bg-background border border-border rounded-lg text-center"
+                                                                min="0"
+                                                            />
+                                                            <span className="text-xs text-muted-foreground">s</span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <Button
