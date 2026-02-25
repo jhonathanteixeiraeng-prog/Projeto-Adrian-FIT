@@ -16,6 +16,55 @@ import {
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { getEmbedVideoUrl, isDirectVideoFile } from '@/lib/video';
 
+interface PersistedWorkoutProgress {
+    completedExerciseIds: string[];
+    updatedAt: string;
+}
+
+function getLocalDateKey() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getWorkoutProgressStorageKey(workoutDayId: string, dateKey: string) {
+    return `student-workout-progress:${workoutDayId}:${dateKey}`;
+}
+
+function readWorkoutProgress(workoutDayId: string, dateKey: string): Set<string> {
+    if (typeof window === 'undefined') return new Set();
+
+    try {
+        const key = getWorkoutProgressStorageKey(workoutDayId, dateKey);
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return new Set();
+
+        const parsed = JSON.parse(raw) as PersistedWorkoutProgress;
+        if (!parsed || !Array.isArray(parsed.completedExerciseIds)) return new Set();
+        return new Set(parsed.completedExerciseIds);
+    } catch (error) {
+        console.warn('Falha ao ler progresso do treino salvo localmente:', error);
+        return new Set();
+    }
+}
+
+function writeWorkoutProgress(workoutDayId: string, dateKey: string, completedExerciseIds: string[]) {
+    if (typeof window === 'undefined') return;
+
+    try {
+        const key = getWorkoutProgressStorageKey(workoutDayId, dateKey);
+        const payload: PersistedWorkoutProgress = {
+            completedExerciseIds,
+            updatedAt: new Date().toISOString(),
+        };
+        window.localStorage.setItem(key, JSON.stringify(payload));
+    } catch (error) {
+        console.warn('Falha ao salvar progresso do treino localmente:', error);
+    }
+}
+
 // Mock data
 const mockWorkout = {
     id: '1',
@@ -77,6 +126,7 @@ const mockWorkout = {
 export default function WorkoutPage() {
     const searchParams = useSearchParams();
     const dayId = searchParams.get('dayId');
+    const dateKey = getLocalDateKey();
 
     const [workout, setWorkout] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -102,12 +152,13 @@ export default function WorkoutPage() {
                     }
 
                     if (targetDay) {
+                        const persistedCompletedIds = readWorkoutProgress(targetDay.id, dateKey);
                         setWorkout({
                             id: targetDay.id,
                             name: targetDay.name,
                             exercises: targetDay.exercises.map((e: any) => ({
                                 ...e,
-                                completed: false // TODO: Persist completion status
+                                completed: persistedCompletedIds.has(e.id)
                             }))
                         });
                     }
@@ -120,7 +171,7 @@ export default function WorkoutPage() {
         };
 
         fetchWorkout();
-    }, [dayId]);
+    }, [dayId, dateKey]);
 
     if (loading) {
         return (
@@ -162,6 +213,16 @@ export default function WorkoutPage() {
             )
         }));
     };
+
+    useEffect(() => {
+        if (!workout?.id || !Array.isArray(workout.exercises)) return;
+
+        const completedExerciseIds = workout.exercises
+            .filter((exercise: any) => exercise.completed)
+            .map((exercise: any) => exercise.id);
+
+        writeWorkoutProgress(workout.id, dateKey, completedExerciseIds);
+    }, [workout, dateKey]);
 
     const startRest = (seconds: number) => {
         setRestTimer(seconds);
