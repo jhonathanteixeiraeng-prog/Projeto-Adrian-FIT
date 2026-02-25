@@ -8,6 +8,7 @@ import {
     Dumbbell,
     Plus,
     Save,
+    Copy,
     Trash2,
     GripVertical,
     ChevronDown,
@@ -69,6 +70,7 @@ export default function StudentWorkoutPage() {
     });
     const [workoutDays, setWorkoutDays] = useState<WorkoutDay[]>([]);
     const [planId, setPlanId] = useState<string | null>(null);
+    const [copyingTemplate, setCopyingTemplate] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -303,6 +305,42 @@ export default function StudentWorkoutPage() {
         );
     };
 
+    const handleCopyToLibrary = async () => {
+        if (!planId) {
+            alert('Salve o treino antes de copiar para a biblioteca.');
+            return;
+        }
+
+        const suggestedTitle = `${(workoutPlan.title || 'Treino').trim()} - Modelo`;
+        const typed = window.prompt('Nome do modelo de treino na biblioteca:', suggestedTitle);
+        if (typed === null) return;
+
+        const title = typed.trim() || suggestedTitle;
+
+        try {
+            setCopyingTemplate(true);
+            const response = await fetch('/api/workout-templates/from-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    planId,
+                    title,
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert('Treino copiado para a biblioteca com sucesso!');
+            } else {
+                alert(result.error || 'Erro ao copiar treino para a biblioteca');
+            }
+        } catch (error) {
+            alert('Erro ao conectar com o servidor');
+        } finally {
+            setCopyingTemplate(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!workoutPlan.title) {
             alert('Por favor, preencha o título do treino');
@@ -385,14 +423,25 @@ export default function StudentWorkoutPage() {
                         {student?.user?.name || 'Aluno'}
                     </p>
                 </div>
-                <Button
-                    onClick={handleSave}
-                    className="bg-[#F88022] hover:bg-[#F88022]/90 text-white"
-                    loading={saving}
-                >
-                    <Save className="w-5 h-5" />
-                    Salvar Treino
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={handleCopyToLibrary}
+                        loading={copyingTemplate}
+                        disabled={!planId}
+                    >
+                        <Copy className="w-4 h-4" />
+                        Copiar para Biblioteca
+                    </Button>
+                    <Button
+                        onClick={handleSave}
+                        className="bg-[#F88022] hover:bg-[#F88022]/90 text-white"
+                        loading={saving}
+                    >
+                        <Save className="w-5 h-5" />
+                        Salvar Treino
+                    </Button>
+                </div>
             </div>
 
             {/* Workout Info */}

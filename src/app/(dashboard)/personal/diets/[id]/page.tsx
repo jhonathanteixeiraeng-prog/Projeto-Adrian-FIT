@@ -51,9 +51,11 @@ interface Meal {
 export default function EditDietPage() {
     const params = useParams();
     const router = useRouter();
+    const dietPlanId = Array.isArray(params.id) ? params.id[0] : params.id;
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [generating, setGenerating] = useState(false);
+    const [copyingTemplate, setCopyingTemplate] = useState(false);
     const [showFoodModal, setShowFoodModal] = useState(false);
     const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
     const [foodSearch, setFoodSearch] = useState('');
@@ -706,6 +708,42 @@ export default function EditDietPage() {
         }
     };
 
+    const handleCopyToLibrary = async () => {
+        if (!dietPlanId) {
+            alert('Plano de dieta inválido para cópia.');
+            return;
+        }
+
+        const suggestedTitle = `${(title || 'Plano alimentar').trim()} - Modelo`;
+        const typed = window.prompt('Nome do modelo de dieta na biblioteca:', suggestedTitle);
+        if (typed === null) return;
+
+        const templateTitle = typed.trim() || suggestedTitle;
+
+        try {
+            setCopyingTemplate(true);
+            const response = await fetch('/api/diet-templates/from-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    planId: dietPlanId,
+                    title: templateTitle,
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert('Dieta copiada para a biblioteca com sucesso!');
+            } else {
+                alert(result.error || 'Erro ao copiar dieta para a biblioteca');
+            }
+        } catch (error) {
+            alert('Erro ao conectar com o servidor');
+        } finally {
+            setCopyingTemplate(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -730,6 +768,15 @@ export default function EditDietPage() {
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyToLibrary}
+                        loading={copyingTemplate}
+                    >
+                        <Copy className="w-4 h-4" />
+                        Copiar para Biblioteca
+                    </Button>
                     <Button
                         variant="outline"
                         size="sm"

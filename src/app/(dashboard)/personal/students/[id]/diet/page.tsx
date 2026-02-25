@@ -8,6 +8,7 @@ import {
     Utensils,
     Plus,
     Save,
+    Copy,
     Trash2,
     ChevronDown,
     ChevronUp,
@@ -90,6 +91,8 @@ export default function StudentDietPage() {
     const [foodSuggestions, setFoodSuggestions] = useState<FoodSearchResult[]>([]);
     const [foodSearching, setFoodSearching] = useState(false);
     const [generationFoods, setGenerationFoods] = useState<FoodInput[]>([]);
+    const [dietPlanId, setDietPlanId] = useState<string | null>(null);
+    const [copyingTemplate, setCopyingTemplate] = useState(false);
     const [dietPlan, setDietPlan] = useState({
         title: '',
         calories: 0,
@@ -144,6 +147,13 @@ export default function StudentDietPage() {
             ]);
 
             if (studentData.success) setStudent(studentData.data);
+            if (studentData.success) {
+                const activeDietPlan =
+                    studentData.data?.dietPlans?.find((plan: any) => plan.active) ||
+                    studentData.data?.dietPlans?.[0] ||
+                    null;
+                setDietPlanId(activeDietPlan?.id || null);
+            }
             if (foodsData.success && Array.isArray(foodsData.data)) {
                 setGenerationFoods(
                     foodsData.data.map((food: any) => ({
@@ -556,6 +566,42 @@ export default function StudentDietPage() {
         }
     };
 
+    const handleCopyToLibrary = async () => {
+        if (!dietPlanId) {
+            alert('Salve ou ative uma dieta antes de copiar para a biblioteca.');
+            return;
+        }
+
+        const suggestedTitle = `${(dietPlan.title || 'Plano alimentar').trim()} - Modelo`;
+        const typed = window.prompt('Nome do modelo de dieta na biblioteca:', suggestedTitle);
+        if (typed === null) return;
+
+        const title = typed.trim() || suggestedTitle;
+
+        try {
+            setCopyingTemplate(true);
+            const response = await fetch('/api/diet-templates/from-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    planId: dietPlanId,
+                    title,
+                }),
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert('Dieta copiada para a biblioteca com sucesso!');
+            } else {
+                alert(result.error || 'Erro ao copiar dieta para a biblioteca');
+            }
+        } catch (error) {
+            alert('Erro ao conectar com o servidor');
+        } finally {
+            setCopyingTemplate(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!dietPlan.title) {
             alert('Por favor, preencha o título da dieta');
@@ -648,6 +694,15 @@ export default function StudentDietPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={handleCopyToLibrary}
+                        loading={copyingTemplate}
+                        disabled={!dietPlanId}
+                    >
+                        <Copy className="w-4 h-4" />
+                        Copiar para Biblioteca
+                    </Button>
                     <Button
                         variant="outline"
                         onClick={handleAutoGenerateClick}
