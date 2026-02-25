@@ -186,6 +186,16 @@ export default function WorkoutPage() {
         fetchWorkout();
     }, [dayId, dateKey]);
 
+    useEffect(() => {
+        if (!workout?.id || !Array.isArray(workout.exercises)) return;
+
+        const completedExerciseIds = workout.exercises
+            .filter((exercise: any) => exercise.completed)
+            .map((exercise: any) => exercise.id);
+
+        writeWorkoutProgress(workout.id, dateKey, completedExerciseIds);
+    }, [workout, dateKey]);
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[400px]">
@@ -227,16 +237,6 @@ export default function WorkoutPage() {
             )
         }));
     };
-
-    useEffect(() => {
-        if (!workout?.id || !Array.isArray(workout.exercises)) return;
-
-        const completedExerciseIds = workout.exercises
-            .filter((exercise: any) => exercise.completed)
-            .map((exercise: any) => exercise.id);
-
-        writeWorkoutProgress(workout.id, dateKey, completedExerciseIds);
-    }, [workout, dateKey]);
 
     const startRest = (seconds: number) => {
         setRestTimer(seconds);
