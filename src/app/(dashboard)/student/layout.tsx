@@ -90,9 +90,9 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         'Seu Personal';
 
     return (
-        <div className="min-h-[100dvh] bg-background">
+        <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
             {/* Mobile Header */}
-            <header className="fixed top-0 inset-x-0 h-16 bg-card border-b border-border flex items-center justify-between px-4 z-50">
+            <header className="h-16 shrink-0 bg-card border-b border-border flex items-center justify-between px-4 z-40">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[#F88022] flex items-center justify-center">
                         <Dumbbell className="w-6 h-6 text-white" />
@@ -120,8 +120,15 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                 </div>
             </header>
 
+            {/* Main Content */}
+            <main className="flex-1 overflow-y-auto overscroll-y-contain">
+                <div className="p-4 pb-6">
+                    {children}
+                </div>
+            </main>
+
             {/* Bottom Navigation */}
-            <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 h-[calc(5rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] flex items-center justify-around px-4">
+            <nav className="shrink-0 z-40 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 h-[calc(5rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] flex items-center justify-around px-4">
                 {navItems.map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
@@ -139,13 +146,6 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                     );
                 })}
             </nav>
-
-            {/* Main Content */}
-            <main className="pt-16 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-                <div className="p-4">
-                    {children}
-                </div>
-            </main>
         </div>
     );
 }
