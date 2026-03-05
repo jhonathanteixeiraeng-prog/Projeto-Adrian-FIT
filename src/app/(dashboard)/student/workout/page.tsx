@@ -426,24 +426,17 @@ export default function WorkoutPage() {
                                     <h3 className={`font-semibold ${exercise.completed ? 'text-secondary' : 'text-foreground'}`}>
                                         {exercise.name}
                                     </h3>
-                                    <div className="grid grid-cols-3 gap-2 mt-2 text-xs sm:text-sm">
-                                        <div className="rounded-lg border border-border bg-muted/40 px-2 py-1.5">
-                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Séries</p>
-                                            <p className="font-semibold text-foreground">{exercise.sets}</p>
-                                        </div>
-                                        <div className="rounded-lg border border-border bg-muted/40 px-2 py-1.5">
-                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Meta reps</p>
-                                            <p className="font-semibold text-foreground">{exercise.reps}</p>
-                                        </div>
-                                        <div className="rounded-lg border border-border bg-muted/40 px-2 py-1.5">
-                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Descanso</p>
-                                            <p className="font-semibold text-foreground flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                {exercise.rest}s
-                                            </p>
-                                        </div>
+                                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-muted-foreground">
+                                        <span>{exercise.sets} séries</span>
+                                        <span aria-hidden>•</span>
+                                        <span>Meta: {exercise.reps}</span>
+                                        <span aria-hidden>•</span>
+                                        <span className="inline-flex items-center gap-1">
+                                            <Clock className="w-3 h-3" />
+                                            {exercise.rest}s
+                                        </span>
                                     </div>
-                                    <div className="mt-2 flex items-center gap-2">
+                                    <div className="mt-2">
                                         <Badge variant="outline" className="text-[11px]">
                                             {completedSetsCount}/{repsBySet.length} séries concluídas
                                         </Badge>
@@ -456,6 +449,13 @@ export default function WorkoutPage() {
                             {/* Expanded Details */}
                             {selectedExercise === exercise.id && (
                                 <div className="mt-4 pt-4 border-t border-border animate-in">
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <p className="text-sm font-medium text-foreground">Plano de séries</p>
+                                        <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            Descanso: {exercise.rest}s
+                                        </span>
+                                    </div>
                                     <div className="mb-4 rounded-xl border border-border overflow-hidden bg-muted/20">
                                         <div className="grid grid-cols-[60px_1fr_64px] bg-muted/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                             <span>Série</span>
@@ -474,7 +474,7 @@ export default function WorkoutPage() {
                                                         <button
                                                             type="button"
                                                             onClick={() => toggleExerciseSet(exercise, setIndex)}
-                                                            className={`h-8 w-8 rounded-lg border flex items-center justify-center transition-colors ${setProgress[setIndex]
+                                                            className={`h-7 w-7 rounded-lg border flex items-center justify-center transition-colors ${setProgress[setIndex]
                                                                 ? 'border-[#F88022] bg-[#F88022] text-white'
                                                                 : 'border-border bg-background text-muted-foreground hover:border-[#F88022]'
                                                                 }`}
@@ -490,11 +490,6 @@ export default function WorkoutPage() {
                                             ))}
                                         </div>
                                     </div>
-
-                                    <p className="mb-4 text-xs text-muted-foreground flex items-center gap-2">
-                                        <Clock className="w-3.5 h-3.5" />
-                                        Descanso entre séries: {exercise.rest}s
-                                    </p>
 
                                     {/* Video */}
                                     <div className="aspect-video bg-muted rounded-xl mb-4 overflow-hidden border border-border">
