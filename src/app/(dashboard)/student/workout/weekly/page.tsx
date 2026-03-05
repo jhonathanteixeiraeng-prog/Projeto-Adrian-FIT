@@ -107,20 +107,20 @@ export default function WeeklyWorkoutPage() {
             </div>
 
             {/* Days Schedule */}
-            <div className="space-y-4">
+            <div className="space-y-4 stagger-in">
                 {workoutPlan.workoutDays.sort((a: any, b: any) => a.dayOfWeek - b.dayOfWeek).map((day: any) => {
                     const isExpanded = expandedDays.includes(day.id);
                     const isToday = new Date().getDay() === day.dayOfWeek;
 
                     return (
-                        <Card key={day.id} className={isToday ? 'border-secondary shadow-md' : ''}>
+                        <Card key={day.id} className={`touch-bounce transition-all ${isToday ? 'border-[#F88022] shadow-glow-orange bg-[#F88022]/5' : ''}`}>
                             <CardHeader
                                 className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
                                 onClick={() => toggleDay(day.id)}
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isToday ? 'bg-secondary text-white' : 'bg-muted text-muted-foreground'}`}>
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isToday ? 'bg-gradient-to-br from-[#F88022] to-[#e06b10] text-white shadow-glow-orange' : 'bg-muted text-muted-foreground'}`}>
                                             <Dumbbell className="w-5 h-5" />
                                         </div>
                                         <div>
@@ -153,7 +153,7 @@ export default function WeeklyWorkoutPage() {
                                         ))}
                                     </div>
                                     <Link href={`/student/workout?dayId=${day.id}`} className="block mt-4">
-                                        <Button variant={isToday ? 'secondary' : 'outline'} className="w-full">
+                                        <Button variant={isToday ? 'secondary' : 'outline'} className={`w-full ${isToday ? 'bg-gradient-to-r from-[#F88022] to-[#e06b10] text-white border-0 shadow-glow-orange' : ''}`}>
                                             Ver Detalhes do Treino
                                         </Button>
                                     </Link>

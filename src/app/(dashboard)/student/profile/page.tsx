@@ -152,11 +152,11 @@ export default function StudentProfilePage() {
 
     return (
         <div className="space-y-6 animate-in pb-8">
-            {/* Header */}
-            <div className="text-center">
-                <Avatar name={session?.user?.name || ''} size="xl" className="mx-auto mb-4" />
+            {/* Header with gradient cover */}
+            <div className="-mx-4 -mt-4 px-4 pt-8 pb-6 bg-gradient-to-b from-[#F88022]/10 to-transparent text-center mb-2">
+                <Avatar name={session?.user?.name || ''} size="xl" className="mx-auto mb-4 ring-4 ring-[#F88022]/20" />
                 <h1 className="text-xl font-bold text-foreground">{session?.user?.name}</h1>
-                <p className="text-muted-foreground">{session?.user?.email}</p>
+                <p className="text-muted-foreground text-sm">{session?.user?.email}</p>
                 <Badge variant="success" className="mt-2">Aluno Ativo</Badge>
             </div>
 
@@ -178,24 +178,30 @@ export default function StudentProfilePage() {
             </Card>
 
             {/* Stats */}
-            <Card>
+            <Card className="touch-bounce">
                 <CardContent className="p-4">
                     <h2 className="font-semibold text-foreground mb-3">Meu Progresso</h2>
-                    <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="grid grid-cols-3 gap-4 text-center stagger-in">
                         <div>
-                            <Calendar className="w-5 h-5 text-accent mx-auto mb-1" />
-                            <p className="text-lg font-bold text-foreground">{trainingDays}</p>
-                            <p className="text-xs text-muted-foreground">Dias de treino</p>
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400/20 to-green-400/10 flex items-center justify-center mx-auto mb-1">
+                                <Calendar className="w-5 h-5 text-emerald-500" />
+                            </div>
+                            <p className="text-lg font-bold text-foreground number-pop">{trainingDays}</p>
+                            <p className="text-[11px] text-muted-foreground font-medium">Dias de treino</p>
                         </div>
                         <div>
-                            <Target className="w-5 h-5 text-secondary mx-auto mb-1" />
-                            <p className="text-lg font-bold text-foreground">{goalText}</p>
-                            <p className="text-xs text-muted-foreground">Objetivo</p>
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F88022]/20 to-orange-400/10 flex items-center justify-center mx-auto mb-1">
+                                <Target className="w-5 h-5 text-[#F88022]" />
+                            </div>
+                            <p className="text-lg font-bold text-foreground number-pop">{goalText}</p>
+                            <p className="text-[11px] text-muted-foreground font-medium">Objetivo</p>
                         </div>
                         <div>
-                            <Star className="w-5 h-5 text-yellow-500 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-foreground">{goalProgressText}</p>
-                            <p className="text-xs text-muted-foreground">Da meta</p>
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400/20 to-amber-400/10 flex items-center justify-center mx-auto mb-1">
+                                <Star className="w-5 h-5 text-yellow-500" />
+                            </div>
+                            <p className="text-lg font-bold text-foreground number-pop">{goalProgressText}</p>
+                            <p className="text-[11px] text-muted-foreground font-medium">Da meta</p>
                         </div>
                     </div>
                 </CardContent>
@@ -203,27 +209,27 @@ export default function StudentProfilePage() {
 
             {/* Menu */}
             <Card>
-                <CardContent className="p-0">
+                <CardContent className="p-0 stagger-in">
                     {menuItems.map((item, index) => (
                         <div key={index}>
                             {item.toggle ? (
-                                <div className="flex items-center gap-3 p-4">
+                                <div className="flex items-center gap-3 p-4 touch-bounce">
                                     <div className={`w-10 h-10 rounded-xl bg-muted flex items-center justify-center ${item.color}`}>
                                         <item.icon className="w-5 h-5" />
                                     </div>
                                     <span className="flex-1 font-medium text-foreground">{item.label}</span>
                                     <button
                                         onClick={() => item.onChange(!item.value)}
-                                        className={`w-12 h-6 rounded-full transition-colors ${item.value ? 'bg-secondary' : 'bg-muted'
+                                        className={`w-12 h-7 rounded-full transition-all duration-300 ${item.value ? 'bg-[#F88022]' : 'bg-muted'
                                             }`}
                                     >
-                                        <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${item.value ? 'translate-x-6' : 'translate-x-0.5'
-                                            }`} />
+                                        <div className={`w-5.5 h-5.5 rounded-full bg-white shadow-md transform transition-all duration-300 ${item.value ? 'translate-x-[22px]' : 'translate-x-[3px]'
+                                            }`} style={{ width: 22, height: 22, marginTop: 1 }} />
                                     </button>
                                 </div>
                             ) : (
                                 <Link href={item.href || '#'}>
-                                    <div className="flex items-center gap-3 p-4 hover:bg-muted transition-colors">
+                                    <div className="flex items-center gap-3 p-4 hover:bg-muted/60 transition-colors touch-bounce">
                                         <div className={`w-10 h-10 rounded-xl bg-muted flex items-center justify-center ${item.color}`}>
                                             <item.icon className="w-5 h-5" />
                                         </div>

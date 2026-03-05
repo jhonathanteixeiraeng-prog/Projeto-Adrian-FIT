@@ -147,7 +147,7 @@ export default function StudentNotificationsPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 stagger-in">
                     {unreadMessages > 0 && (
                         <Card className="border-[#F88022]/40 bg-[#F88022]/10">
                             <CardContent className="p-4 flex items-center justify-between gap-3">
@@ -171,7 +171,7 @@ export default function StudentNotificationsPage() {
                         const Icon = getNotificationIcon(notification.type);
 
                         return (
-                            <Card key={notification.id} className={!notification.read ? 'border-[#F88022]/40' : ''}>
+                            <Card key={notification.id} className={`touch-bounce transition-all ${!notification.read ? 'border-l-4 border-l-[#F88022] border-[#F88022]/30' : ''}`}>
                                 <CardContent className="p-4">
                                     <div className="flex items-start gap-3">
                                         <div className={`w-9 h-9 rounded-full flex items-center justify-center ${notification.read ? 'bg-muted text-muted-foreground' : 'bg-[#F88022]/20 text-[#F88022]'
@@ -182,7 +182,7 @@ export default function StudentNotificationsPage() {
                                             <div className="flex items-center gap-2">
                                                 <p className="font-semibold text-foreground">{notification.title}</p>
                                                 {!notification.read && (
-                                                    <span className="w-2 h-2 rounded-full bg-[#F88022]" />
+                                                    <span className="w-2 h-2 rounded-full bg-[#F88022] pulse-glow" />
                                                 )}
                                             </div>
                                             <p className="text-sm text-muted-foreground mt-1">{notification.body}</p>

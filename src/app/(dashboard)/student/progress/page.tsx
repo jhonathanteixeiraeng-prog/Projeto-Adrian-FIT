@@ -211,13 +211,13 @@ export default function ProgressPage() {
             </div>
 
             {/* Current Stats */}
-            <div className="grid grid-cols-3 gap-3">
-                <Card className="p-3 text-center">
+            <div className="grid grid-cols-3 gap-3 stagger-in">
+                <Card className="p-3 text-center touch-bounce">
                     <Scale className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                    <p className="text-xl font-bold text-foreground">{formatWeight(progressData.currentWeight)}</p>
-                    <p className="text-xs text-muted-foreground">Peso atual</p>
+                    <p className="text-xl font-bold text-foreground number-pop">{formatWeight(progressData.currentWeight)}</p>
+                    <p className="text-[11px] text-muted-foreground font-medium">Peso atual</p>
                 </Card>
-                <Card className="p-3 text-center">
+                <Card className="p-3 text-center touch-bounce">
                     <div className="flex items-center justify-center gap-1 mb-1">
                         {(progressData.weightChange ?? 0) <= 0 ? (
                             <TrendingDown className="w-5 h-5 text-secondary" />
@@ -225,17 +225,17 @@ export default function ProgressPage() {
                             <TrendingUp className="w-5 h-5 text-red-500" />
                         )}
                     </div>
-                    <p className={`text-xl font-bold ${(progressData.weightChange ?? 0) <= 0 ? 'text-secondary' : 'text-red-500'}`}>
+                    <p className={`text-xl font-bold number-pop ${(progressData.weightChange ?? 0) <= 0 ? 'text-secondary' : 'text-red-500'}`}>
                         {progressData.weightChange === null
                             ? '--'
                             : `${progressData.weightChange > 0 ? '+' : ''}${progressData.weightChange.toFixed(1)}kg`}
                     </p>
-                    <p className="text-xs text-muted-foreground">Variação</p>
+                    <p className="text-[11px] text-muted-foreground font-medium">Variação</p>
                 </Card>
-                <Card className="p-3 text-center">
+                <Card className="p-3 text-center touch-bounce">
                     <Calendar className="w-5 h-5 text-purple-500 mx-auto mb-1" />
-                    <p className="text-xl font-bold text-foreground">{checkins.length}</p>
-                    <p className="text-xs text-muted-foreground">Check-ins</p>
+                    <p className="text-xl font-bold text-foreground number-pop">{checkins.length}</p>
+                    <p className="text-[11px] text-muted-foreground font-medium">Check-ins</p>
                 </Card>
             </div>
 
@@ -250,7 +250,7 @@ export default function ProgressPage() {
                     </div>
                     <div className="h-3 bg-muted rounded-full overflow-hidden mb-2">
                         <div
-                            className="h-full bg-gradient-to-r from-secondary to-accent rounded-full transition-all duration-500"
+                            className="h-full progress-animated rounded-full transition-all duration-700 ease-out"
                             style={{ width: `${progressData.progressToGoal ?? 0}%` }}
                         />
                     </div>
@@ -271,8 +271,8 @@ export default function ProgressPage() {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as ProgressTab)}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === tab.id
-                            ? 'bg-[#F88022] text-white'
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all duration-200 touch-bounce ${activeTab === tab.id
+                            ? 'bg-[#F88022] text-white shadow-glow-orange'
                             : 'bg-muted text-muted-foreground hover:text-foreground'
                             }`}
                     >

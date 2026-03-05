@@ -218,8 +218,18 @@ export default function DietPage() {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="space-y-6 pb-8">
+                <div className="flex items-center gap-4">
+                    <div className="skeleton-shimmer h-10 w-10 rounded-xl" />
+                    <div className="flex-1">
+                        <div className="skeleton-shimmer h-6 w-40 mb-2" />
+                        <div className="skeleton-shimmer h-4 w-28" />
+                    </div>
+                </div>
+                <div className="skeleton-shimmer h-[160px] rounded-2xl" />
+                {[1, 2, 3].map(i => (
+                    <div key={i} className="skeleton-shimmer h-[70px] rounded-2xl" />
+                ))}
             </div>
         );
     }
@@ -314,36 +324,36 @@ export default function DietPage() {
                     {/* Progress Bar */}
                     <div className="h-3 bg-muted rounded-full overflow-hidden mb-4">
                         <div
-                            className="h-full bg-gradient-to-r from-orange-500 to-red-500 rounded-full transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-[#F88022] to-orange-400 rounded-full transition-all duration-700 ease-out"
                             style={{ width: `${Math.min((consumedCalories / (normalizedDiet.calories || 1)) * 100, 100)}%` }}
                         />
                     </div>
 
                     {/* Macros Grid */}
                     <div className="grid grid-cols-3 gap-3">
-                        <div className="text-center p-3 bg-muted rounded-xl">
-                            <p className="text-lg font-bold text-blue-500">{normalizedDiet.protein || 0}g</p>
-                            <p className="text-xs text-muted-foreground">Proteína</p>
+                        <div className="text-center p-3 bg-blue-500/10 rounded-xl">
+                            <p className="text-lg font-bold text-blue-500 number-pop">{normalizedDiet.protein || 0}g</p>
+                            <p className="text-[11px] text-muted-foreground font-medium">Proteína</p>
                         </div>
-                        <div className="text-center p-3 bg-muted rounded-xl">
-                            <p className="text-lg font-bold text-yellow-500">{normalizedDiet.carbs || 0}g</p>
-                            <p className="text-xs text-muted-foreground">Carboidratos</p>
+                        <div className="text-center p-3 bg-yellow-500/10 rounded-xl">
+                            <p className="text-lg font-bold text-yellow-500 number-pop">{normalizedDiet.carbs || 0}g</p>
+                            <p className="text-[11px] text-muted-foreground font-medium">Carboidratos</p>
                         </div>
-                        <div className="text-center p-3 bg-muted rounded-xl">
-                            <p className="text-lg font-bold text-red-500">{normalizedDiet.fat || 0}g</p>
-                            <p className="text-xs text-muted-foreground">Gordura</p>
+                        <div className="text-center p-3 bg-red-500/10 rounded-xl">
+                            <p className="text-lg font-bold text-red-500 number-pop">{normalizedDiet.fat || 0}g</p>
+                            <p className="text-[11px] text-muted-foreground font-medium">Gordura</p>
                         </div>
                     </div>
                 </CardContent>
             </Card>
 
             {/* Meals List */}
-            <div className="space-y-3">
+            <div className="space-y-3 stagger-in">
                 {normalizedDiet.meals && normalizedDiet.meals.map((meal: any) => (
                     <Card
                         key={meal.id}
                         id={`meal-${meal.id}`}
-                        className={meal.completed ? 'bg-accent/10 border-accent/30' : ''}
+                        className={`touch-bounce transition-all ${meal.completed ? 'bg-emerald-500/5 border-emerald-500/20' : ''}`}
                     >
                         <CardContent className="p-4">
                             {/* Meal Header */}
@@ -351,8 +361,8 @@ export default function DietPage() {
                                 className="flex items-center gap-4 cursor-pointer"
                                 onClick={() => setExpandedMeal(expandedMeal === meal.id ? null : meal.id)}
                             >
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${meal.completed
-                                    ? 'bg-accent text-white'
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${meal.completed
+                                    ? 'bg-emerald-500 text-white'
                                     : 'bg-muted text-muted-foreground'
                                     }`}>
                                     {meal.completed ? (

@@ -226,9 +226,9 @@ export default function StudentChatPage() {
                             className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'}`}
                         >
                             <div
-                                className={`max-w-[80%] px-4 py-2 rounded-2xl ${message.fromMe
-                                    ? 'bg-[#F88022] text-white rounded-br-md'
-                                    : 'bg-card text-foreground rounded-bl-md border border-border'
+                                className={`max-w-[80%] px-4 py-2.5 rounded-2xl animate-in ${message.fromMe
+                                    ? 'bg-gradient-to-br from-[#F88022] to-[#e06b10] text-white rounded-br-md shadow-sm'
+                                    : 'bg-card text-foreground rounded-bl-md border border-border shadow-sm'
                                     }`}
                             >
                                 <p className="text-[15px]">{message.text}</p>
@@ -258,7 +258,7 @@ export default function StudentChatPage() {
                     <input
                         type="text"
                         placeholder="Digite uma mensagem..."
-                        className="flex-1 px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary"
+                        className="flex-1 px-4 py-3 bg-muted border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022] text-[16px]"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         onKeyPress={handleKeyPress}
@@ -267,7 +267,7 @@ export default function StudentChatPage() {
                     <button
                         onClick={sendMessage}
                         disabled={!newMessage.trim() || sending}
-                        className="p-2.5 bg-[#F88022] text-white rounded-xl hover:bg-secondary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-2.5 bg-gradient-to-br from-[#F88022] to-[#e06b10] text-white rounded-xl hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-bounce shadow-glow-orange"
                     >
                         {sending ? (
                             <Loader2 className="w-5 h-5 animate-spin" />

@@ -69,9 +69,9 @@ export default function CheckinPage() {
                         key={num}
                         type="button"
                         onClick={() => onChange(num)}
-                        className={`flex-1 py-3 rounded-xl font-medium transition-all ${value === num
-                                ? `bg-[#F88022] text-white`
-                                : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                        className={`flex-1 py-3 rounded-xl font-medium transition-all duration-200 touch-bounce ${value === num
+                            ? `bg-[#F88022] text-white shadow-glow-orange scale-105`
+                            : 'bg-muted text-muted-foreground hover:bg-muted/70'
                             }`}
                     >
                         {num}
@@ -149,7 +149,7 @@ export default function CheckinPage() {
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6 stagger-in">
                 {/* Weight & Sleep */}
                 <Card>
                     <CardHeader>
@@ -282,7 +282,7 @@ export default function CheckinPage() {
                 </Card>
 
                 {/* Submit */}
-                <Button type="submit" variant="secondary" size="lg" className="w-full" loading={loading}>
+                <Button type="submit" variant="secondary" size="lg" className="w-full bg-gradient-to-r from-[#F88022] to-[#e06b10] text-white border-0 shadow-glow-orange touch-bounce" loading={loading}>
                     <Send className="w-5 h-5" />
                     Enviar Check-in
                 </Button>
