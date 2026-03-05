@@ -343,7 +343,7 @@ export default function WorkoutPage() {
 
     if (allCompleted && showCompleted) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-6 animate-in">
+            <div className="min-h-full flex flex-col items-center justify-center p-6 animate-in">
                 <div className="w-28 h-28 rounded-full bg-gradient-to-br from-[#F88022]/20 to-yellow-500/20 flex items-center justify-center mb-6 shadow-glow-orange">
                     <Trophy className="w-14 h-14 text-[#F88022]" />
                 </div>

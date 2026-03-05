@@ -124,7 +124,7 @@ export default function CheckinPage() {
 
     if (success) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 animate-in">
+            <div className="min-h-full flex flex-col items-center justify-center p-4 animate-in">
                 <div className="w-24 h-24 rounded-full bg-secondary/20 flex items-center justify-center mb-6">
                     <CheckCircle2 className="w-12 h-12 text-secondary" />
                 </div>

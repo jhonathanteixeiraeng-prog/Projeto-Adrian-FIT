@@ -7,10 +7,18 @@ export const metadata: Metadata = {
     description: "Disciplina. Consistência. Alta Performance. Acompanhamento profissional para transformação física e mental.",
     keywords: ["personal trainer", "fitness", "treino personalizado", "dieta", "alta performance", "Adrian Santos"],
     authors: [{ name: "Adrian Santos Personal Trainer" }],
-    manifest: "/manifest.json",
+    manifest: "/manifest.webmanifest",
     icons: {
         icon: "/favicon.svg",
         apple: "/icon.svg",
+    },
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: "black-translucent",
+        title: "Adrian FIT",
+    },
+    formatDetection: {
+        telephone: false,
     },
 };
 

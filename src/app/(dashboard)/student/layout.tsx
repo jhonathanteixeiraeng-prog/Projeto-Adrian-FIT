@@ -103,6 +103,34 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         };
     }, []);
 
+    useEffect(() => {
+        const html = document.documentElement;
+        const body = document.body;
+
+        const previousHtmlOverflow = html.style.overflow;
+        const previousHtmlOverscroll = html.style.overscrollBehavior;
+        const previousBodyOverflow = body.style.overflow;
+        const previousBodyOverscroll = body.style.overscrollBehavior;
+        const previousBodyHeight = body.style.height;
+        const previousHtmlHeight = html.style.height;
+
+        html.style.height = '100%';
+        body.style.height = '100%';
+        html.style.overflow = 'hidden';
+        body.style.overflow = 'hidden';
+        html.style.overscrollBehavior = 'none';
+        body.style.overscrollBehavior = 'none';
+
+        return () => {
+            html.style.height = previousHtmlHeight;
+            body.style.height = previousBodyHeight;
+            html.style.overflow = previousHtmlOverflow;
+            body.style.overflow = previousBodyOverflow;
+            html.style.overscrollBehavior = previousHtmlOverscroll;
+            body.style.overscrollBehavior = previousBodyOverscroll;
+        };
+    }, []);
+
     const trainerDisplayName =
         personalName ||
         session?.user?.personalTrainerName ||
@@ -144,7 +172,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain scroll-smooth">
+            <main
+                className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain scroll-smooth"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+            >
                 <div className="p-4 pb-6 min-h-full">
                     {children}
                 </div>
