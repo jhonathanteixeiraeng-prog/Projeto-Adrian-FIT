@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     Dumbbell,
@@ -18,6 +19,7 @@ import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/compo
 
 export default function StudentHomePage() {
     const { data: session } = useSession();
+    const router = useRouter();
     const [dashboardData, setDashboardData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -226,10 +228,18 @@ export default function StudentHomePage() {
                             {/* Meals List */}
                             <div className="space-y-2 mb-4">
                                 {meals.map((meal: any) => (
-                                    <Link
+                                    <button
+                                        type="button"
                                         key={meal.id}
-                                        href={`/student/diet?mealId=${encodeURIComponent(meal.id)}`}
-                                        className="block"
+                                        onClick={() => {
+                                            const mealId = typeof meal?.id === 'string' && meal.id.trim().length > 0 ? meal.id : null;
+                                            if (mealId) {
+                                                router.push(`/student/diet?mealId=${encodeURIComponent(mealId)}`);
+                                                return;
+                                            }
+                                            router.push('/student/diet');
+                                        }}
+                                        className="block w-full text-left"
                                     >
                                         <div
                                             className={`flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-muted/80 ${meal.completed ? 'bg-accent/10' : 'bg-muted'
@@ -253,7 +263,7 @@ export default function StudentHomePage() {
                                             </div>
                                             <ChevronRight className="w-5 h-5 text-muted-foreground" />
                                         </div>
-                                    </Link>
+                                    </button>
                                 ))}
                             </div>
 
