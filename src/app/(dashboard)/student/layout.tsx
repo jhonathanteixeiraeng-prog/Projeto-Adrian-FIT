@@ -28,6 +28,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     const pathname = usePathname();
     const [personalName, setPersonalName] = useState<string>('');
     const [unreadCount, setUnreadCount] = useState(0);
+    const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
     useEffect(() => {
         let active = true;
@@ -83,6 +84,25 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         };
     }, [session?.user?.role]);
 
+    useEffect(() => {
+        const updateViewportHeight = () => {
+            const nextHeight = Math.round(window.visualViewport?.height ?? window.innerHeight);
+            setViewportHeight((currentHeight) => (currentHeight === nextHeight ? currentHeight : nextHeight));
+        };
+
+        updateViewportHeight();
+
+        window.addEventListener('resize', updateViewportHeight);
+        window.visualViewport?.addEventListener('resize', updateViewportHeight);
+        window.visualViewport?.addEventListener('scroll', updateViewportHeight);
+
+        return () => {
+            window.removeEventListener('resize', updateViewportHeight);
+            window.visualViewport?.removeEventListener('resize', updateViewportHeight);
+            window.visualViewport?.removeEventListener('scroll', updateViewportHeight);
+        };
+    }, []);
+
     const trainerDisplayName =
         personalName ||
         session?.user?.personalTrainerName ||
@@ -90,9 +110,12 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         'Seu Personal';
 
     return (
-        <div className="fixed inset-0 h-[100svh] bg-background overflow-hidden">
+        <div
+            className="relative bg-background overflow-hidden flex flex-col"
+            style={{ height: viewportHeight ? `${viewportHeight}px` : '100dvh' }}
+        >
             {/* Mobile Header — glassmorphism */}
-            <header className="fixed top-0 inset-x-0 bg-card/90 backdrop-blur-lg border-b border-border/60 flex items-center justify-between px-4 z-40 pt-[env(safe-area-inset-top)] h-[calc(4rem+env(safe-area-inset-top))]">
+            <header className="shrink-0 bg-card/90 backdrop-blur-lg border-b border-border/60 flex items-center justify-between px-4 z-40 pt-[env(safe-area-inset-top)] h-[calc(4rem+env(safe-area-inset-top))]">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#F88022] to-[#e06b10] flex items-center justify-center shadow-glow-orange">
                         <Dumbbell className="w-5 h-5 text-white" />
@@ -121,14 +144,14 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             </header>
 
             {/* Main Content */}
-            <main className="absolute inset-x-0 top-[calc(4rem+env(safe-area-inset-top))] bottom-[calc(4.5rem+env(safe-area-inset-bottom))] min-h-0 overflow-y-auto overscroll-y-contain scroll-smooth">
+            <main className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain scroll-smooth">
                 <div className="p-4 pb-6 min-h-full">
                     {children}
                 </div>
             </main>
 
             {/* Bottom Navigation — premium */}
-            <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-border/60 bg-card/95 backdrop-blur-xl supports-[backdrop-filter]:bg-card/80 h-[calc(4.5rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] flex items-center justify-around px-2">
+            <nav className="shrink-0 z-40 border-t border-border/60 bg-card/95 backdrop-blur-xl supports-[backdrop-filter]:bg-card/80 h-[calc(4.5rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] flex items-center justify-around px-2">
                 {navItems.map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
