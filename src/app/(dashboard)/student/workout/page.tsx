@@ -221,7 +221,7 @@ export default function WorkoutPage() {
 
     if (loading) {
         return (
-            <div className="space-y-6 pb-24">
+            <div className="space-y-6 pb-4">
                 <div className="flex items-center gap-4">
                     <div className="skeleton-shimmer h-10 w-10 rounded-xl" />
                     <div className="flex-1">
@@ -364,7 +364,7 @@ export default function WorkoutPage() {
     }
 
     return (
-        <div className="space-y-5 animate-in pb-24">
+        <div className="space-y-5 animate-in pb-4">
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Link href="/student/home" className="p-2 rounded-xl hover:bg-muted transition-colors">

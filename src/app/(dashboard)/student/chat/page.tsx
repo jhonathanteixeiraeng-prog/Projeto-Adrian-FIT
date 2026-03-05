@@ -176,7 +176,7 @@ export default function StudentChatPage() {
     const personalName = personal?.user?.name || 'Seu Personal';
 
     return (
-        <div className="flex flex-col h-[calc(100vh-5rem)] -m-4">
+        <div className="flex flex-col h-full -m-4">
             {/* Header */}
             <div className="flex items-center gap-3 p-4 border-b border-border bg-card">
                 <Link href="/student/home" className="p-2 -ml-2 rounded-xl hover:bg-muted transition-colors">

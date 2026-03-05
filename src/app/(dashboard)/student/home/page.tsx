@@ -19,7 +19,7 @@ import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/compo
 
 function SkeletonHome() {
     return (
-        <div className="space-y-6 pb-20">
+        <div className="space-y-6 pb-4">
             {/* Greeting skeleton */}
             <div>
                 <div className="skeleton-shimmer h-4 w-40 mb-2" />
@@ -91,7 +91,7 @@ export default function StudentHomePage() {
     const totalCalories = meals.reduce((acc: number, m: any) => acc + (m.calories || 0), 0);
 
     return (
-        <div className="space-y-6 animate-in pb-20">
+        <div className="space-y-6 animate-in pb-4">
             {/* Header */}
             <div>
                 <p className="text-muted-foreground capitalize text-sm">{getTodayName()}</p>

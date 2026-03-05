@@ -91,7 +91,7 @@ export default function WeeklyWorkoutPage() {
     }
 
     return (
-        <div className="space-y-6 animate-in pb-20">
+        <div className="space-y-6 animate-in pb-4">
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Link href="/student/home" className="p-2 rounded-xl hover:bg-muted transition-colors">

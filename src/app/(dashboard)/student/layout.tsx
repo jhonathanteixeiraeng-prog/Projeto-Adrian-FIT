@@ -121,8 +121,8 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto overscroll-y-contain scroll-smooth">
-                <div className="p-4 pb-6">
+            <main className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain scroll-smooth">
+                <div className="p-4 pb-6 min-h-full">
                     {children}
                 </div>
             </main>
