@@ -90,7 +90,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         'Seu Personal';
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-[100dvh] bg-background">
             {/* Mobile Header */}
             <header className="fixed top-0 inset-x-0 h-16 bg-card border-b border-border flex items-center justify-between px-4 z-50">
                 <div className="flex items-center gap-3">
@@ -121,7 +121,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             </header>
 
             {/* Bottom Navigation */}
-            <nav className="fixed bottom-0 inset-x-0 h-20 bg-card border-t border-border flex items-center justify-around px-4 z-50 pb-safe">
+            <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 h-[calc(5rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] flex items-center justify-around px-4">
                 {navItems.map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
@@ -141,7 +141,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             </nav>
 
             {/* Main Content */}
-            <main className="pt-16 pb-24">
+            <main className="pt-16 pb-[calc(6rem+env(safe-area-inset-bottom))]">
                 <div className="p-4">
                     {children}
                 </div>
