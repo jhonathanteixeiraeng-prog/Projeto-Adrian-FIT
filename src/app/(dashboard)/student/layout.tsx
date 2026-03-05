@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -26,6 +26,7 @@ const navItems = [
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
     const { data: session } = useSession();
     const pathname = usePathname();
+    const mainRef = useRef<HTMLElement | null>(null);
     const [personalName, setPersonalName] = useState<string>('');
     const [unreadCount, setUnreadCount] = useState(0);
     const [viewportHeight, setViewportHeight] = useState<number | null>(null);
@@ -131,6 +132,39 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         };
     }, []);
 
+    useEffect(() => {
+        const container = mainRef.current;
+        if (!container) return;
+
+        let lastTouchY = 0;
+
+        const onTouchStart = (event: TouchEvent) => {
+            lastTouchY = event.touches[0]?.clientY ?? 0;
+        };
+
+        const onTouchMove = (event: TouchEvent) => {
+            const currentTouchY = event.touches[0]?.clientY ?? 0;
+            const movingDown = currentTouchY > lastTouchY;
+            const movingUp = currentTouchY < lastTouchY;
+            const atTop = container.scrollTop <= 0;
+            const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 1;
+
+            if ((atTop && movingDown) || (atBottom && movingUp)) {
+                event.preventDefault();
+            }
+
+            lastTouchY = currentTouchY;
+        };
+
+        container.addEventListener('touchstart', onTouchStart, { passive: true });
+        container.addEventListener('touchmove', onTouchMove, { passive: false });
+
+        return () => {
+            container.removeEventListener('touchstart', onTouchStart);
+            container.removeEventListener('touchmove', onTouchMove);
+        };
+    }, []);
+
     const trainerDisplayName =
         personalName ||
         session?.user?.personalTrainerName ||
@@ -173,8 +207,9 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
             {/* Main Content */}
             <main
+                ref={mainRef}
                 className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain scroll-smooth"
-                style={{ WebkitOverflowScrolling: 'touch' }}
+                style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'none' }}
             >
                 <div className="p-4 pb-6 min-h-full">
                     {children}
