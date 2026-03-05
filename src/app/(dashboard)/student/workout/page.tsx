@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { getEmbedVideoUrl, isDirectVideoFile } from '@/lib/video';
+import { normalizePerSetReps, parsePerSetReps } from '@/lib/workout-reps';
 
 interface PersistedWorkoutProgress {
     completedExerciseIds: string[];
@@ -144,6 +145,7 @@ export default function WorkoutPage() {
     const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
     const [restTimer, setRestTimer] = useState<number | null>(null);
     const [showCompleted, setShowCompleted] = useState(false);
+    const [completedSetsByExercise, setCompletedSetsByExercise] = useState<Record<string, boolean[]>>({});
 
     useEffect(() => {
         const fetchWorkout = async () => {
@@ -196,6 +198,27 @@ export default function WorkoutPage() {
         writeWorkoutProgress(workout.id, dateKey, completedExerciseIds);
     }, [workout, dateKey]);
 
+    useEffect(() => {
+        if (!Array.isArray(workout?.exercises)) {
+            setCompletedSetsByExercise({});
+            return;
+        }
+
+        setCompletedSetsByExercise((previous) => {
+            const next: Record<string, boolean[]> = {};
+            workout.exercises.forEach((exercise: any) => {
+                const totalSets = Math.max(0, Number(exercise?.sets) || 0);
+                const previousProgress = Array.isArray(previous[exercise.id]) ? previous[exercise.id] : [];
+                next[exercise.id] = Array.from({ length: totalSets }, (_, index) => {
+                    const previousValue = previousProgress[index];
+                    if (typeof previousValue === 'boolean') return previousValue;
+                    return Boolean(exercise?.completed);
+                });
+            });
+            return next;
+        });
+    }, [workout]);
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[400px]">
@@ -229,12 +252,63 @@ export default function WorkoutPage() {
     const completedCount = exercises.filter((e: any) => e.completed).length;
     const allCompleted = exercises.length > 0 && completedCount === exercises.length;
 
+    const getRepsBySet = (exercise: any) => {
+        const totalSets = Math.max(0, Number(exercise?.sets) || 0);
+        const rawReps = typeof exercise?.reps === 'string' ? exercise.reps : '';
+        const parsed = parsePerSetReps(rawReps);
+        const fallback = parsed[0] || rawReps || '-';
+
+        return normalizePerSetReps(parsed.length ? parsed : [fallback], totalSets, fallback).map((rep) => rep || '-');
+    };
+
+    const getSetsProgress = (exercise: any, totalSets: number) => {
+        const existing = completedSetsByExercise[exercise.id];
+        return Array.from({ length: totalSets }, (_, index) => {
+            if (Array.isArray(existing) && typeof existing[index] === 'boolean') {
+                return existing[index];
+            }
+            return Boolean(exercise?.completed);
+        });
+    };
+
+    const toggleExerciseSet = (exercise: any, setIndex: number) => {
+        const totalSets = Math.max(0, Number(exercise?.sets) || 0);
+        if (totalSets <= 0) return;
+
+        setCompletedSetsByExercise((previous) => {
+            const current = getSetsProgress(exercise, totalSets);
+            current[setIndex] = !current[setIndex];
+            const allSetsDone = current.length > 0 && current.every(Boolean);
+
+            setWorkout((previousWorkout: any) => ({
+                ...previousWorkout,
+                exercises: previousWorkout.exercises.map((item: any) =>
+                    item.id === exercise.id ? { ...item, completed: allSetsDone } : item
+                )
+            }));
+
+            return {
+                ...previous,
+                [exercise.id]: current,
+            };
+        });
+    };
+
     const toggleExercise = (exerciseId: string) => {
+        const targetExercise = exercises.find((exercise: any) => exercise.id === exerciseId);
+        const nextCompletedState = !targetExercise?.completed;
+        const totalSets = Math.max(0, Number(targetExercise?.sets) || 0);
+
         setWorkout((prev: any) => ({
             ...prev,
             exercises: prev.exercises.map((e: any) =>
-                e.id === exerciseId ? { ...e, completed: !e.completed } : e
+                e.id === exerciseId ? { ...e, completed: nextCompletedState } : e
             )
+        }));
+
+        setCompletedSetsByExercise((previous) => ({
+            ...previous,
+            [exerciseId]: Array.from({ length: totalSets }, () => nextCompletedState)
         }));
     };
 
@@ -321,7 +395,12 @@ export default function WorkoutPage() {
 
             {/* Exercises List */}
             <div className="space-y-3">
-                {exercises.map((exercise: any, index: number) => (
+                {exercises.map((exercise: any, index: number) => {
+                    const repsBySet = getRepsBySet(exercise);
+                    const setProgress = getSetsProgress(exercise, repsBySet.length);
+                    const completedSetsCount = setProgress.filter(Boolean).length;
+
+                    return (
                     <Card
                         key={exercise.id}
                         className={exercise.completed ? 'bg-secondary/10 border-secondary/30' : ''}
@@ -347,15 +426,27 @@ export default function WorkoutPage() {
                                     <h3 className={`font-semibold ${exercise.completed ? 'text-secondary' : 'text-foreground'}`}>
                                         {exercise.name}
                                     </h3>
-                                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                        <span>{exercise.sets} séries</span>
-                                        <span>•</span>
-                                        <span>{exercise.reps} reps</span>
-                                        <span>•</span>
-                                        <span className="flex items-center gap-1">
-                                            <Clock className="w-3 h-3" />
-                                            {exercise.rest}s
-                                        </span>
+                                    <div className="grid grid-cols-3 gap-2 mt-2 text-xs sm:text-sm">
+                                        <div className="rounded-lg border border-border bg-muted/40 px-2 py-1.5">
+                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Séries</p>
+                                            <p className="font-semibold text-foreground">{exercise.sets}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-border bg-muted/40 px-2 py-1.5">
+                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Meta reps</p>
+                                            <p className="font-semibold text-foreground">{exercise.reps}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-border bg-muted/40 px-2 py-1.5">
+                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Descanso</p>
+                                            <p className="font-semibold text-foreground flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />
+                                                {exercise.rest}s
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <Badge variant="outline" className="text-[11px]">
+                                            {completedSetsCount}/{repsBySet.length} séries concluídas
+                                        </Badge>
                                     </div>
                                 </div>
                                 <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform ${selectedExercise === exercise.id ? 'rotate-90' : ''
@@ -365,6 +456,46 @@ export default function WorkoutPage() {
                             {/* Expanded Details */}
                             {selectedExercise === exercise.id && (
                                 <div className="mt-4 pt-4 border-t border-border animate-in">
+                                    <div className="mb-4 rounded-xl border border-border overflow-hidden bg-muted/20">
+                                        <div className="grid grid-cols-[60px_1fr_64px] bg-muted/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            <span>Série</span>
+                                            <span>Meta de reps</span>
+                                            <span className="text-right">OK</span>
+                                        </div>
+                                        <div className="divide-y divide-border">
+                                            {repsBySet.map((targetReps, setIndex) => (
+                                                <div
+                                                    key={`${exercise.id}-set-${setIndex}`}
+                                                    className={`grid grid-cols-[60px_1fr_64px] items-center px-3 py-2 ${setProgress[setIndex] ? 'bg-[#F88022]/10' : ''}`}
+                                                >
+                                                    <span className="font-semibold text-foreground">{setIndex + 1}</span>
+                                                    <span className="text-sm text-foreground">{targetReps}</span>
+                                                    <div className="flex justify-end">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleExerciseSet(exercise, setIndex)}
+                                                            className={`h-8 w-8 rounded-lg border flex items-center justify-center transition-colors ${setProgress[setIndex]
+                                                                ? 'border-[#F88022] bg-[#F88022] text-white'
+                                                                : 'border-border bg-background text-muted-foreground hover:border-[#F88022]'
+                                                                }`}
+                                                        >
+                                                            {setProgress[setIndex] ? (
+                                                                <CheckCircle2 className="w-4 h-4" />
+                                                            ) : (
+                                                                <span className="text-xs font-bold">{setIndex + 1}</span>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <p className="mb-4 text-xs text-muted-foreground flex items-center gap-2">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        Descanso entre séries: {exercise.rest}s
+                                    </p>
+
                                     {/* Video */}
                                     <div className="aspect-video bg-muted rounded-xl mb-4 overflow-hidden border border-border">
                                         {(() => {
@@ -461,12 +592,6 @@ export default function WorkoutPage() {
                                         >
                                             {exercise.completed ? (
                                                 <>
-                                                    {/* Assuming 'isToday' is defined in the component's scope */}
-                                                    {/* If 'isToday' is not defined, this will cause an error. */}
-                                                    {/* For now, adding it as per instruction, assuming it will be defined. */}
-                                                    {/* If 'Badge' component is not imported, it will also cause an error. */}
-                                                    {/* Assuming 'Badge' is imported or will be. */}
-                                                    {/* <Badge variant="info" className="text-[10px] py-0">Hoje</Badge> */}
                                                     <RotateCcw className="w-4 h-4" />
                                                     Refazer
                                                 </>
@@ -482,7 +607,8 @@ export default function WorkoutPage() {
                             )}
                         </CardContent>
                     </Card>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Complete Workout Button */}
