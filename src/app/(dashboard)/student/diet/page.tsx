@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
     ArrowLeft,
     CheckCircle2,
@@ -15,6 +16,8 @@ import { FoodSubstitutionModal } from '@/components/diet/FoodSubstitutionModal';
 import { RefreshCw } from 'lucide-react';
 
 export default function DietPage() {
+    const searchParams = useSearchParams();
+    const requestedMealId = searchParams.get('mealId');
     const [diet, setDiet] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
@@ -198,6 +201,21 @@ export default function DietPage() {
         };
     }, [diet]);
 
+    useEffect(() => {
+        if (!normalizedDiet || !requestedMealId) return;
+
+        const hasRequestedMeal = normalizedDiet.meals?.some((meal: any) => meal.id === requestedMealId);
+        if (!hasRequestedMeal) return;
+
+        setExpandedMeal(requestedMealId);
+        const timer = window.setTimeout(() => {
+            const element = document.getElementById(`meal-${requestedMealId}`);
+            element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 120);
+
+        return () => window.clearTimeout(timer);
+    }, [normalizedDiet, requestedMealId]);
+
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[400px]">
@@ -324,6 +342,7 @@ export default function DietPage() {
                 {normalizedDiet.meals && normalizedDiet.meals.map((meal: any) => (
                     <Card
                         key={meal.id}
+                        id={`meal-${meal.id}`}
                         className={meal.completed ? 'bg-accent/10 border-accent/30' : ''}
                     >
                         <CardContent className="p-4">

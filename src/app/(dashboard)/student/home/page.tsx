@@ -226,29 +226,34 @@ export default function StudentHomePage() {
                             {/* Meals List */}
                             <div className="space-y-2 mb-4">
                                 {meals.map((meal: any) => (
-                                    <div
+                                    <Link
                                         key={meal.id}
-                                        className={`flex items-center gap-3 p-3 rounded-xl ${meal.completed ? 'bg-accent/10' : 'bg-muted'
-                                            }`}
+                                        href={`/student/diet?mealId=${encodeURIComponent(meal.id)}`}
+                                        className="block"
                                     >
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${meal.completed ? 'bg-accent text-white' : 'bg-background text-muted-foreground'
-                                            }`}>
-                                            {meal.completed ? (
-                                                <CheckCircle2 className="w-5 h-5" />
-                                            ) : (
-                                                <Clock className="w-4 h-4" />
-                                            )}
+                                        <div
+                                            className={`flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-muted/80 ${meal.completed ? 'bg-accent/10' : 'bg-muted'
+                                                }`}
+                                        >
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${meal.completed ? 'bg-accent text-white' : 'bg-background text-muted-foreground'
+                                                }`}>
+                                                {meal.completed ? (
+                                                    <CheckCircle2 className="w-5 h-5" />
+                                                ) : (
+                                                    <Clock className="w-4 h-4" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className={`font-medium ${meal.completed ? 'text-accent' : 'text-foreground'}`}>
+                                                    {meal.name}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {meal.time} • {meal.calories} kcal
+                                                </p>
+                                            </div>
+                                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
                                         </div>
-                                        <div className="flex-1">
-                                            <p className={`font-medium ${meal.completed ? 'text-accent' : 'text-foreground'}`}>
-                                                {meal.name}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {meal.time} • {meal.calories} kcal
-                                            </p>
-                                        </div>
-                                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                                    </div>
+                                    </Link>
                                 ))}
                             </div>
 
