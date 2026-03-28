@@ -1,16 +1,15 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-interface CardProps {
+interface CardProps extends ComponentPropsWithoutRef<'div'> {
     children: ReactNode;
     className?: string;
     hover?: boolean;
-    onClick?: () => void;
 }
 
-export function Card({ children, className, hover = false, onClick }: CardProps) {
+export function Card({ children, className, hover = false, ...props }: CardProps) {
     return (
         <div
             className={cn(
@@ -18,7 +17,7 @@ export function Card({ children, className, hover = false, onClick }: CardProps)
                 hover && 'cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5',
                 className
             )}
-            onClick={onClick}
+            {...props}
         >
             {children}
         </div>
