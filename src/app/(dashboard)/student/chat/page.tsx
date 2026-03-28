@@ -10,13 +10,11 @@ import {
     Image,
     Paperclip,
     MoreVertical,
-    Phone,
-    Video,
     CheckCheck,
     Loader2,
     RefreshCw
 } from 'lucide-react';
-import { Avatar, Button, Input } from '@/components/ui';
+import { Avatar } from '@/components/ui';
 
 interface Message {
     id: string;
@@ -176,9 +174,9 @@ export default function StudentChatPage() {
     const personalName = personal?.user?.name || 'Seu Personal';
 
     return (
-        <div className="flex flex-col h-full -m-4">
+        <div className="student-chat-shell">
             {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b border-border bg-card">
+            <div className="sticky top-0 z-10 flex items-center gap-3 p-4 border-b border-border bg-card/95 backdrop-blur">
                 <Link href="/student/home" className="p-2 -ml-2 rounded-xl hover:bg-muted transition-colors">
                     <ArrowLeft className="w-5 h-5" />
                 </Link>
@@ -200,7 +198,7 @@ export default function StudentChatPage() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/30">
+            <div className="student-chat-messages space-y-3">
                 {/* Date Separator */}
                 <div className="flex items-center justify-center">
                     <span className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
@@ -247,8 +245,8 @@ export default function StudentChatPage() {
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t border-border bg-card">
-                <div className="flex items-center gap-2">
+            <div className="student-chat-composer">
+                <div className="student-chat-composer-inner">
                     <button className="p-2 text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
                         <Paperclip className="w-5 h-5" />
                     </button>

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     },
     appleWebApp: {
         capable: true,
-        statusBarStyle: "black-translucent",
+        statusBarStyle: "black",
         title: "Adrian FIT",
     },
     formatDetection: {
@@ -26,6 +26,7 @@ export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
     maximumScale: 1,
+    viewportFit: "cover",
     themeColor: [
         { media: "(prefers-color-scheme: light)", color: "#F88022" },
         { media: "(prefers-color-scheme: dark)", color: "#000000" },

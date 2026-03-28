@@ -48,6 +48,12 @@
     --black-deep: #000000;
     --gray-graphite: #333333;
     --white-snow: #FFFFFF;
+    --app-safe-top: env(safe-area-inset-top, 0px);
+    --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --student-header-height: 4rem;
+    --student-nav-height: 4.5rem;
+    --student-header-total: calc(var(--student-header-height) + var(--app-safe-top));
+    --student-nav-total: calc(var(--student-nav-height) + var(--app-safe-bottom));
   }
 
   .dark {
@@ -209,6 +215,71 @@
 
   .pt-safe {
     padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .student-shell {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--background);
+  }
+
+  .student-header {
+    min-height: var(--student-header-total);
+    padding-top: var(--app-safe-top);
+  }
+
+  .student-main {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .student-main-content {
+    min-height: 100%;
+    padding: 1rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .student-tabbar {
+    min-height: var(--student-nav-total);
+    padding-bottom: var(--app-safe-bottom);
+  }
+
+  .student-chat-shell {
+    height: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: color-mix(in srgb, var(--muted) 30%, transparent);
+  }
+
+  .student-chat-messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1rem;
+    padding-bottom: 1rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .student-chat-composer {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--card) 95%, transparent);
+    backdrop-filter: blur(16px);
+    padding: 0.75rem 1rem;
+  }
+
+  .student-chat-composer-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
   }
 }
 
