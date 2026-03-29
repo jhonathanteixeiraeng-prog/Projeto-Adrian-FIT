@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -450,6 +451,14 @@ export default function WorkoutPage() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const closeRestTimer = () => {
+        if (restIntervalRef.current) {
+            clearInterval(restIntervalRef.current);
+            restIntervalRef.current = null;
+        }
+        setRestTimer(null);
+    };
+
     if (allCompleted && showCompleted) {
         return (
             <div className="min-h-full flex flex-col items-center justify-center p-6 animate-in">
@@ -496,29 +505,34 @@ export default function WorkoutPage() {
             </div>
 
             {/* Rest Timer Overlay */}
-            {restTimer !== null && (
-                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="w-full max-w-sm text-center animate-in">
-                        <div className="w-40 h-40 rounded-full border-4 border-[#F88022]/30 flex items-center justify-center mx-auto mb-6 relative">
-                            <div className="absolute inset-0 rounded-full border-4 border-[#F88022] animate-pulse" style={{ clipPath: `inset(0 0 0 0)` }} />
-                            <p className="text-6xl font-bold text-white tracking-tight">{formatTime(restTimer)}</p>
+            {restTimer !== null && typeof document !== 'undefined' && createPortal(
+                <div
+                    className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md"
+                    style={{
+                        paddingTop: 'max(16px, env(safe-area-inset-top, 0px))',
+                        paddingRight: '16px',
+                        paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
+                        paddingLeft: '16px',
+                    }}
+                >
+                    <div className="flex h-full w-full items-center justify-center">
+                        <div className="w-full max-w-sm text-center animate-in">
+                            <div className="relative mx-auto mb-6 flex h-40 w-40 items-center justify-center rounded-full border-4 border-[#F88022]/30">
+                                <div className="absolute inset-0 rounded-full border-4 border-[#F88022] animate-pulse" style={{ clipPath: `inset(0 0 0 0)` }} />
+                                <p className="text-6xl font-bold tracking-tight text-white">{formatTime(restTimer)}</p>
+                            </div>
+                            <p className="mb-6 text-sm uppercase tracking-widest text-white/70">Tempo de descanso</p>
+                            <Button
+                                variant="ghost"
+                                className="px-8 py-3 text-white/80 hover:bg-white/10 hover:text-white"
+                                onClick={closeRestTimer}
+                            >
+                                Pular descanso
+                            </Button>
                         </div>
-                        <p className="text-white/70 text-sm mb-6 uppercase tracking-widest">Tempo de descanso</p>
-                        <Button
-                            variant="ghost"
-                            className="text-white/80 hover:text-white hover:bg-white/10 px-8 py-3"
-                            onClick={() => {
-                                if (restIntervalRef.current) {
-                                    clearInterval(restIntervalRef.current);
-                                    restIntervalRef.current = null;
-                                }
-                                setRestTimer(null);
-                            }}
-                        >
-                            Pular descanso
-                        </Button>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Exercises List */}
