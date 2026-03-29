@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -191,6 +191,7 @@ export default function WorkoutPage() {
     const [completedSetsByExercise, setCompletedSetsByExercise] = useState<Record<string, boolean[]>>({});
     const [setLogsByExercise, setSetLogsByExercise] = useState<Record<string, ExerciseSetLog>>({});
     const [hydratedProgress, setHydratedProgress] = useState<PersistedWorkoutProgress | null>(null);
+    const restIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         const fetchWorkout = async () => {
@@ -284,6 +285,15 @@ export default function WorkoutPage() {
         });
     }, [workout, hydratedProgress]);
 
+    useEffect(() => {
+        return () => {
+            if (restIntervalRef.current) {
+                clearInterval(restIntervalRef.current);
+                restIntervalRef.current = null;
+            }
+        };
+    }, []);
+
     if (loading) {
         return (
             <div className="space-y-6 pb-4">
@@ -352,8 +362,16 @@ export default function WorkoutPage() {
 
         setCompletedSetsByExercise((previous) => {
             const current = getSetsProgress(exercise, totalSets);
+            const wasCompleted = current[setIndex];
             current[setIndex] = !current[setIndex];
             const allSetsDone = current.length > 0 && current.every(Boolean);
+
+            if (!wasCompleted && current[setIndex]) {
+                const restSeconds = Math.max(0, Number(exercise?.rest) || 0);
+                if (restSeconds > 0) {
+                    startRest(restSeconds);
+                }
+            }
 
             setWorkout((previousWorkout: any) => ({
                 ...previousWorkout,
@@ -406,11 +424,19 @@ export default function WorkoutPage() {
     };
 
     const startRest = (seconds: number) => {
+        if (restIntervalRef.current) {
+            clearInterval(restIntervalRef.current);
+            restIntervalRef.current = null;
+        }
+
         setRestTimer(seconds);
-        const interval = setInterval(() => {
+        restIntervalRef.current = setInterval(() => {
             setRestTimer(prev => {
                 if (prev === null || prev <= 1) {
-                    clearInterval(interval);
+                    if (restIntervalRef.current) {
+                        clearInterval(restIntervalRef.current);
+                        restIntervalRef.current = null;
+                    }
                     return null;
                 }
                 return prev - 1;
@@ -481,7 +507,13 @@ export default function WorkoutPage() {
                         <Button
                             variant="ghost"
                             className="text-white/80 hover:text-white hover:bg-white/10 px-8 py-3"
-                            onClick={() => setRestTimer(null)}
+                            onClick={() => {
+                                if (restIntervalRef.current) {
+                                    clearInterval(restIntervalRef.current);
+                                    restIntervalRef.current = null;
+                                }
+                                setRestTimer(null);
+                            }}
                         >
                             Pular descanso
                         </Button>
