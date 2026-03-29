@@ -9,13 +9,12 @@ import {
     Check,
     CheckCircle2,
     Clock,
-    ChevronRight,
     RotateCcw,
     Trophy,
-    ExternalLink
+    MoreVertical,
+    Dumbbell
 } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
-import { getEmbedVideoUrl, isDirectVideoFile } from '@/lib/video';
 import { normalizePerSetReps, parsePerSetReps } from '@/lib/workout-reps';
 
 interface PersistedWorkoutProgress {
@@ -190,6 +189,8 @@ export default function WorkoutPage() {
     const [showCompleted, setShowCompleted] = useState(false);
     const [completedSetsByExercise, setCompletedSetsByExercise] = useState<Record<string, boolean[]>>({});
     const [setLogsByExercise, setSetLogsByExercise] = useState<Record<string, ExerciseSetLog>>({});
+    const [exerciseNotesById, setExerciseNotesById] = useState<Record<string, string>>({});
+    const [extraSetsByExercise, setExtraSetsByExercise] = useState<Record<string, number>>({});
     const [hydratedProgress, setHydratedProgress] = useState<PersistedWorkoutProgress | null>(null);
     const restIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -356,12 +357,13 @@ export default function WorkoutPage() {
         });
     };
 
-    const toggleExerciseSet = (exercise: any, setIndex: number) => {
-        const totalSets = Math.max(0, Number(exercise?.sets) || 0);
-        if (totalSets <= 0) return;
+    const toggleExerciseSet = (exercise: any, setIndex: number, totalSets?: number) => {
+        const resolvedTotalSets = totalSets ?? Math.max(0, Number(exercise?.sets) || 0);
+        const normalizedTotalSets = Math.max(0, resolvedTotalSets);
+        if (normalizedTotalSets <= 0) return;
 
         setCompletedSetsByExercise((previous) => {
-            const current = getSetsProgress(exercise, totalSets);
+            const current = getSetsProgress(exercise, normalizedTotalSets);
             const wasCompleted = current[setIndex];
             current[setIndex] = !current[setIndex];
             const allSetsDone = current.length > 0 && current.every(Boolean);
@@ -423,6 +425,13 @@ export default function WorkoutPage() {
         });
     };
 
+    const addExtraSet = (exerciseId: string) => {
+        setExtraSetsByExercise((previous) => ({
+            ...previous,
+            [exerciseId]: (previous[exerciseId] || 0) + 1,
+        }));
+    };
+
     const startRest = (seconds: number) => {
         if (restIntervalRef.current) {
             clearInterval(restIntervalRef.current);
@@ -448,6 +457,16 @@ export default function WorkoutPage() {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatRestLabel = (seconds: number) => {
+        const safeSeconds = Math.max(0, Number(seconds) || 0);
+        const mins = Math.floor(safeSeconds / 60);
+        const secs = safeSeconds % 60;
+
+        if (mins <= 0) return `${secs}s`;
+        if (secs === 0) return `${mins}min`;
+        return `${mins}min ${secs}s`;
     };
 
     if (allCompleted && showCompleted) {
@@ -525,228 +544,253 @@ export default function WorkoutPage() {
             <div className="space-y-3 stagger-in">
                 {exercises.map((exercise: any, index: number) => {
                     const repsBySet = getRepsBySet(exercise);
-                    const setProgress = getSetsProgress(exercise, repsBySet.length);
+                    const extraSets = extraSetsByExercise[exercise.id] || 0;
+                    const lastTarget = repsBySet[repsBySet.length - 1] || '-';
+                    const displayRepsBySet = [
+                        ...repsBySet,
+                        ...Array.from({ length: extraSets }, () => lastTarget),
+                    ];
+                    const setProgress = getSetsProgress(exercise, displayRepsBySet.length);
                     const completedSetsCount = setProgress.filter(Boolean).length;
-                    const setLogs = normalizeSetLog(setLogsByExercise[exercise.id], repsBySet.length);
+                    const setLogs = normalizeSetLog(setLogsByExercise[exercise.id], displayRepsBySet.length);
                     const rawVideoUrl = typeof exercise.videoUrl === 'string' ? exercise.videoUrl.trim() : '';
-                    const embedVideoUrl = rawVideoUrl ? getEmbedVideoUrl(rawVideoUrl) : null;
-                    const isDirectVideo = rawVideoUrl ? isDirectVideoFile(rawVideoUrl) : false;
                     const hasVideo = Boolean(rawVideoUrl);
+                    const noteValue = exerciseNotesById[exercise.id] || '';
+                    const thumbnailUrl = typeof exercise.thumbnailUrl === 'string' ? exercise.thumbnailUrl.trim() : '';
 
                     return (
                         <Card
                             key={exercise.id}
-                            className={`touch-bounce transition-all duration-200 ${exercise.completed ? 'bg-[#F88022]/5 border-[#F88022]/20' : ''}`}
+                            className={`touch-bounce border-white/10 bg-[#0B0B0D] transition-all duration-200 ${
+                                exercise.completed ? 'ring-1 ring-[#0A84FF]/40' : ''
+                            }`}
                         >
-                            <CardContent className="p-4">
+                            <CardContent className="p-4 md:p-5">
                                 <div
-                                    className="flex items-start gap-4 cursor-pointer"
+                                    className="flex items-start gap-3 cursor-pointer"
                                     onClick={() => setSelectedExercise(
                                         selectedExercise === exercise.id ? null : exercise.id
                                     )}
                                 >
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${exercise.completed
-                                        ? 'bg-[#F88022] text-white shadow-glow-orange'
-                                        : 'bg-muted text-foreground'
-                                        }`}>
-                                        {exercise.completed ? (
-                                            <CheckCircle2 className="w-6 h-6 check-pop" />
+                                    <div className="h-12 w-12 overflow-hidden rounded-full border border-white/10 bg-[#1C1C1E] flex items-center justify-center flex-shrink-0">
+                                        {thumbnailUrl ? (
+                                            <img
+                                                src={thumbnailUrl}
+                                                alt={exercise.name}
+                                                className="h-full w-full object-cover"
+                                            />
                                         ) : (
-                                            <span className="font-bold">{index + 1}</span>
+                                            <Dumbbell className="h-5 w-5 text-white/80" />
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h3 className={`font-semibold ${exercise.completed ? 'text-secondary' : 'text-foreground'}`}>
-                                            {exercise.name}
-                                        </h3>
-                                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-muted-foreground">
-                                            <span>{exercise.sets} séries</span>
-                                            <span aria-hidden>•</span>
-                                            <span>Meta: {exercise.reps}</span>
-                                            <span aria-hidden>•</span>
-                                            <span className="inline-flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                {exercise.rest}s
-                                            </span>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <h3 className="truncate text-lg font-bold text-[#0A84FF]">
+                                                    {exercise.name}
+                                                </h3>
+                                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#8E8E93]">
+                                                    <span>{displayRepsBySet.length} séries</span>
+                                                    <span aria-hidden>•</span>
+                                                    <span>Meta: {exercise.reps}</span>
+                                                    <span aria-hidden>•</span>
+                                                    <span>{formatRestLabel(exercise.rest)}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[#8E8E93]">
+                                                {exercise.completed && (
+                                                    <CheckCircle2 className="h-4 w-4 text-[#0A84FF]" />
+                                                )}
+                                                <MoreVertical className="h-5 w-5" />
+                                            </div>
                                         </div>
-                                        <div className="mt-2">
-                                            <Badge variant="outline" className="text-[11px]">
-                                                {completedSetsCount}/{repsBySet.length} séries concluídas
+                                        <div className="mt-3">
+                                            <Badge
+                                                variant="outline"
+                                                className="border-[#0A84FF]/30 bg-[#0A84FF]/10 text-[11px] text-white"
+                                            >
+                                                {completedSetsCount}/{displayRepsBySet.length} séries concluídas
                                             </Badge>
                                         </div>
                                     </div>
-                                    <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform ${selectedExercise === exercise.id ? 'rotate-90' : ''
-                                        }`} />
                                 </div>
 
-                                {/* Expanded Details */}
                                 {selectedExercise === exercise.id && (
-                                    <div className="mt-4 pt-4 border-t border-border animate-in">
-                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                            <div>
-                                                <p className="text-sm font-medium text-foreground">Plano de séries</p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Preencha carga e repetições realizadas em cada série.
-                                                </p>
-                                            </div>
-                                            <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                                                <Clock className="w-3.5 h-3.5" />
-                                                Descanso: {exercise.rest}s
-                                            </span>
-                                        </div>
-                                        <div className="mb-4 space-y-3">
-                                            {repsBySet.map((targetReps, setIndex) => (
-                                                <div
-                                                    key={`${exercise.id}-set-${setIndex}`}
-                                                    className={`rounded-2xl border px-3 py-3 transition-colors ${
-                                                        setProgress[setIndex]
-                                                            ? 'border-[#F88022]/40 bg-[#F88022]/8'
-                                                            : 'border-border/80 bg-white/[0.03]'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div>
-                                                            <p className="text-sm font-semibold text-foreground">
-                                                                Série {setIndex + 1}
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground mt-1">
-                                                                Meta: {targetReps}
-                                                            </p>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            aria-label={`Marcar série ${setIndex + 1} como concluída`}
-                                                            onClick={() => toggleExerciseSet(exercise, setIndex)}
-                                                            className={`h-9 w-9 rounded-full border flex items-center justify-center transition-all duration-200 touch-bounce ${
-                                                                setProgress[setIndex]
-                                                                    ? 'border-[#F88022] bg-[#F88022] text-white shadow-glow-orange'
-                                                                    : 'border-border bg-background text-transparent hover:border-[#F88022]'
-                                                            }`}
-                                                        >
-                                                            <Check className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
+                                    <div className="mt-4 space-y-4 border-t border-white/10 pt-4 animate-in">
+                                        {exercise.notes && (
+                                            <p className="text-sm leading-relaxed text-white">
+                                                {exercise.notes}
+                                            </p>
+                                        )}
 
-                                                    <div className="mt-3 grid grid-cols-2 gap-3">
-                                                        <label className="space-y-1.5">
-                                                            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                                                Carga (kg)
+                                        <input
+                                            type="text"
+                                            value={noteValue}
+                                            onChange={(event) =>
+                                                setExerciseNotesById((previous) => ({
+                                                    ...previous,
+                                                    [exercise.id]: event.target.value,
+                                                }))
+                                            }
+                                            placeholder="Adicionar notas aqui..."
+                                            className="w-full bg-transparent px-0 py-1 text-sm text-white placeholder:text-[#8E8E93] focus:outline-none"
+                                        />
+
+                                        <button
+                                            type="button"
+                                            className="inline-flex items-center gap-2 text-sm font-medium text-[#0A84FF]"
+                                            onClick={() => startRest(exercise.rest)}
+                                        >
+                                            <Clock className="h-4 w-4" />
+                                            Descanso: {formatRestLabel(exercise.rest)}
+                                        </button>
+
+                                        <div
+                                            className={`w-full rounded-2xl bg-[#1C1C1E] border border-white/5 ${
+                                                hasVideo ? 'cursor-pointer' : ''
+                                            }`}
+                                        >
+                                            {hasVideo ? (
+                                                <a
+                                                    href={rawVideoUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex h-36 w-full flex-col items-center justify-center gap-3 p-4 text-center"
+                                                >
+                                                    <Play className="h-10 w-10 text-white" />
+                                                    <span className="text-sm font-medium text-white">Acessar Vídeo</span>
+                                                </a>
+                                            ) : (
+                                                <div className="flex h-32 w-full flex-col items-center justify-center gap-3 p-4 text-center">
+                                                    <Play className="h-10 w-10 text-white/85" />
+                                                    <span className="text-sm text-[#8E8E93]">Sem vídeo</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="overflow-hidden rounded-2xl border border-white/5 bg-[#111113]">
+                                            <div className="grid grid-cols-[62px_1fr_88px_88px_52px] gap-2 border-b border-white/5 bg-[#0F0F10] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8E8E93]">
+                                                <span>Série</span>
+                                                <span>Anterior</span>
+                                                <span>Kg</span>
+                                                <span>Reps</span>
+                                                <span className="text-center">✓</span>
+                                            </div>
+
+                                            <div className="divide-y divide-white/5">
+                                                {displayRepsBySet.map((targetReps, setIndex) => {
+                                                    const previousPerformance =
+                                                        setLogs.loadKg[setIndex] && setLogs.completedReps[setIndex]
+                                                            ? `${setLogs.loadKg[setIndex]}kg x ${setLogs.completedReps[setIndex]}`
+                                                            : '--';
+
+                                                    return (
+                                                        <div
+                                                            key={`${exercise.id}-set-${setIndex}`}
+                                                            className="grid grid-cols-[62px_1fr_88px_88px_52px] items-center gap-2 bg-[#1C1C1E] px-4 py-3"
+                                                        >
+                                                            <div className="space-y-1">
+                                                                <p className="text-lg font-bold text-white">
+                                                                    {setIndex + 1}
+                                                                </p>
+                                                                <p className="text-[11px] text-[#8E8E93]">
+                                                                    {targetReps}
+                                                                </p>
+                                                            </div>
+
+                                                            <span className="text-sm text-[#8E8E93]">
+                                                                {previousPerformance}
                                                             </span>
+
                                                             <input
                                                                 type="number"
                                                                 inputMode="decimal"
                                                                 min="0"
                                                                 step="0.5"
-                                                                placeholder="Ex: 40"
+                                                                placeholder="kg"
                                                                 value={setLogs.loadKg[setIndex]}
                                                                 onChange={(event) =>
                                                                     updateExerciseSetLog(
                                                                         exercise.id,
-                                                                        repsBySet.length,
+                                                                        displayRepsBySet.length,
                                                                         setIndex,
                                                                         'loadKg',
                                                                         event.target.value
                                                                     )
                                                                 }
-                                                                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
+                                                                className="h-11 w-full rounded-xl border border-white/5 bg-[#0F0F10] px-3 text-center text-sm text-white placeholder:text-[#8E8E93] focus:outline-none focus:ring-2 focus:ring-[#0A84FF]"
                                                             />
-                                                        </label>
-                                                        <label className="space-y-1.5">
-                                                            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                                                Reps realizadas
-                                                            </span>
+
                                                             <input
                                                                 type="number"
                                                                 inputMode="numeric"
                                                                 min="0"
                                                                 step="1"
-                                                                placeholder="Ex: 12"
+                                                                placeholder="reps"
                                                                 value={setLogs.completedReps[setIndex]}
                                                                 onChange={(event) =>
                                                                     updateExerciseSetLog(
                                                                         exercise.id,
-                                                                        repsBySet.length,
+                                                                        displayRepsBySet.length,
                                                                         setIndex,
                                                                         'completedReps',
                                                                         event.target.value
                                                                     )
                                                                 }
-                                                                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
+                                                                className="h-11 w-full rounded-xl border border-white/5 bg-[#0F0F10] px-3 text-center text-sm text-white placeholder:text-[#8E8E93] focus:outline-none focus:ring-2 focus:ring-[#0A84FF]"
                                                             />
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            ))}
+
+                                                            <button
+                                                                type="button"
+                                                                aria-label={`Marcar série ${setIndex + 1} como concluída`}
+                                                                onClick={() => toggleExerciseSet(exercise, setIndex, displayRepsBySet.length)}
+                                                                className={`mx-auto flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-200 ${
+                                                                    setProgress[setIndex]
+                                                                        ? 'border-[#0A84FF] bg-[#0A84FF] text-white shadow-[0_0_20px_rgba(10,132,255,0.35)]'
+                                                                        : 'border-white/5 bg-[#0F0F10] text-transparent'
+                                                                }`}
+                                                            >
+                                                                <Check className="h-5 w-5" />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
 
-                                        {hasVideo && (
-                                            <div className="aspect-video bg-muted rounded-xl mb-4 overflow-hidden border border-border">
-                                                {embedVideoUrl ? (
-                                                    <iframe
-                                                        src={embedVideoUrl}
-                                                        title={`Video de ${exercise.name}`}
-                                                        className="w-full h-full"
-                                                        loading="lazy"
-                                                        referrerPolicy="strict-origin-when-cross-origin"
-                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                        allowFullScreen
-                                                    />
-                                                ) : isDirectVideo ? (
-                                                    <video controls className="w-full h-full" preload="metadata">
-                                                        <source src={rawVideoUrl} />
-                                                        Seu navegador nao suporta reproducao de video.
-                                                    </video>
-                                                ) : (
-                                                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 text-center">
-                                                        <Play className="w-8 h-8 text-muted-foreground" />
-                                                        <a
-                                                            href={rawVideoUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex items-center gap-2 text-sm text-secondary hover:underline"
-                                                        >
-                                                            <ExternalLink className="w-4 h-4" />
-                                                            Abrir vídeo
-                                                        </a>
-                                                    </div>
-                                                )}
+                                        <button
+                                            type="button"
+                                            onClick={() => addExtraSet(exercise.id)}
+                                            className="flex h-12 w-full items-center justify-center rounded-2xl bg-[#1C1C1E] text-sm font-medium text-white transition-colors hover:bg-[#252528]"
+                                        >
+                                            + Adicionar Série
+                                        </button>
+
+                                        {exercise.instructions && (
+                                            <div>
+                                                <p className="mb-1 text-sm font-semibold text-white">Instruções:</p>
+                                                <p className="text-sm leading-relaxed text-[#8E8E93]">
+                                                    {exercise.instructions}
+                                                </p>
                                             </div>
                                         )}
 
-                                        {/* Instructions */}
-                                        {(exercise.instructions || exercise.notes) && (
-                                            <div className="mb-4 space-y-3">
-                                                {exercise.instructions && (
-                                                    <div>
-                                                        <p className="text-sm font-medium text-foreground mb-1">Instruções:</p>
-                                                        <p className="text-sm text-muted-foreground">{exercise.instructions}</p>
-                                                    </div>
-                                                )}
-                                                {exercise.notes && (
-                                                    <div className="bg-muted p-3 rounded-lg border border-border">
-                                                        <p className="text-sm font-medium text-foreground mb-1 flex items-center gap-2">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-[#F88022]" />
-                                                            Observações do Personal:
-                                                        </p>
-                                                        <p className="text-sm text-foreground/80 italic">{exercise.notes}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Actions */}
                                         <div className="flex gap-3 pt-1">
                                             <Button
                                                 variant="outline"
-                                                className="flex-1 h-12"
+                                                className="h-12 flex-1 border-white/10 bg-transparent text-white hover:bg-white/5"
                                                 onClick={() => startRest(exercise.rest)}
                                             >
-                                                <Clock className="w-4 h-4" />
+                                                <Clock className="h-4 w-4" />
                                                 Descanso
                                             </Button>
                                             <Button
                                                 variant={exercise.completed ? 'outline' : 'secondary'}
-                                                className="flex-1 h-12"
+                                                className={`h-12 flex-1 ${
+                                                    exercise.completed
+                                                        ? 'border-white/10 bg-transparent text-white hover:bg-white/5'
+                                                        : 'border-0 bg-[#0A84FF] text-white hover:bg-[#0073e6]'
+                                                }`}
                                                 onClick={() => toggleExercise(exercise.id)}
                                             >
                                                 {exercise.completed ? (
