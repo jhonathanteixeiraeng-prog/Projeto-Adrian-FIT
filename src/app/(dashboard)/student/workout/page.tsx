@@ -264,10 +264,10 @@ export default function WorkoutPage() {
                 const hydratedProgressForExercise = hydratedProgress?.completedSetsByExercise?.[exercise.id];
                 const previousProgress = Array.isArray(previous[exercise.id]) ? previous[exercise.id] : [];
                 next[exercise.id] = Array.from({ length: totalSets }, (_, index) => {
-                    const hydratedValue = hydratedProgressForExercise?.[index];
-                    if (typeof hydratedValue === 'boolean') return hydratedValue;
                     const previousValue = previousProgress[index];
                     if (typeof previousValue === 'boolean') return previousValue;
+                    const hydratedValue = hydratedProgressForExercise?.[index];
+                    if (typeof hydratedValue === 'boolean') return hydratedValue;
                     return Boolean(exercise?.completed);
                 });
             });
@@ -280,7 +280,7 @@ export default function WorkoutPage() {
                 const totalSets = Math.max(0, Number(exercise?.sets) || 0);
                 const hydratedLog = hydratedProgress?.setLogsByExercise?.[exercise.id];
                 const previousLog = previous[exercise.id];
-                next[exercise.id] = normalizeSetLog(hydratedLog ?? previousLog, totalSets);
+                next[exercise.id] = normalizeSetLog(previousLog ?? hydratedLog, totalSets);
             });
             return next;
         });
@@ -630,7 +630,10 @@ export default function WorkoutPage() {
                                                         <button
                                                             type="button"
                                                             aria-label={`Marcar série ${setIndex + 1} como concluída`}
-                                                            onClick={() => toggleExerciseSet(exercise, setIndex)}
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                toggleExerciseSet(exercise, setIndex);
+                                                            }}
                                                             className={`h-9 w-9 rounded-full border flex items-center justify-center transition-all duration-200 touch-bounce ${
                                                                 setProgress[setIndex]
                                                                     ? 'border-[#F88022] bg-[#F88022] text-white shadow-glow-orange'
