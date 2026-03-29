@@ -72,7 +72,6 @@ export async function GET(request: NextRequest) {
                     rest: item.rest,
                     notes: item.notes,
                     videoUrl: item.exercise.videoUrl,
-                    thumbnailUrl: item.exercise.thumbnailUrl,
                     instructions: item.exercise.instructions,
                     equipment: item.exercise.equipment,
                 }))
