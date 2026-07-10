@@ -45,13 +45,6 @@ interface GeneratedFood {
     fat: number;
 }
 
-const brazilianStaplesByMealType: Record<string, string[]> = {
-    BREAKFAST: ['ovo', 'aveia', 'banana', 'pao', 'tapioca', 'iogurte', 'maca', 'queijo'],
-    LUNCH: ['arroz', 'feijao', 'frango', 'carne', 'batata', 'brocolis', 'azeite', 'ovo', 'salada', 'peixe'],
-    DINNER: ['arroz', 'feijao', 'frango', 'carne', 'batata', 'brocolis', 'azeite', 'ovo', 'salada', 'peixe'],
-    SNACK: ['banana', 'aveia', 'iogurte', 'amendoim', 'maca', 'tapioca', 'pao', 'ovo', 'whey'],
-};
-
 function normalizeText(value: string) {
     return value
         .normalize('NFD')
@@ -77,45 +70,83 @@ function sanitizeFoods(foods: FoodInput[]): FoodInput[] {
 
 function getFoodsPool(inputFoods?: FoodInput[]) {
     const dbFoods = sanitizeFoods((inputFoods || []) as FoodInput[]);
-    if (dbFoods.length > 0) {
-        return dbFoods;
+    const everydayFoods = sanitizeFoods(foodDatabase as FoodInput[]);
+    const merged = [...everydayFoods, ...dbFoods];
+    const unique = new Map<string, FoodInput>();
+
+    for (const food of merged) {
+        const key = normalizeText(food.name);
+        if (!unique.has(key)) unique.set(key, food);
     }
-    return sanitizeFoods(foodDatabase as FoodInput[]);
+
+    return Array.from(unique.values());
 }
 
-function filterBrazilianStaples(foods: FoodInput[], mealType: string) {
-    const staples = brazilianStaplesByMealType[mealType] || [];
-    const suitableFoods = foods.filter((food) => isSuitableForAutomaticDiet(normalizeText(food.name)));
-    const preferred = suitableFoods.filter((food) => {
-        const normalizedName = normalizeText(food.name);
-        return staples.some((keyword) => normalizedName.includes(keyword));
+type FoodCategory = 'BREAKFAST_PROTEIN' | 'FRUIT' | 'BREAKFAST_CARB' | 'LEAN_PROTEIN' |
+    'BRAZILIAN_CARB' | 'VEGETABLE' | 'SNACK_PROTEIN' | 'HEALTHY_FAT';
+
+const approvedFoodPatterns: Record<FoodCategory, RegExp[]> = {
+    BREAKFAST_PROTEIN: [
+        /^ovo inteiro$/,
+        /^ovo, de galinha, inteiro, cozido/,
+        /^iogurte,? natural(?:, desnatado)?$/,
+        /^iogurte grego$/,
+        /^queijo, minas, frescal$/,
+    ],
+    FRUIT: [/^banana$/, /^maca$/],
+    BREAKFAST_CARB: [
+        /^aveia$/,
+        /^pao integral$/,
+        /^pao, trigo, forma, integral$/,
+        /^tapioca$/,
+    ],
+    LEAN_PROTEIN: [
+        /^frango grelhado$/,
+        /^frango, peito, sem pele, (?:cozido|grelhado)$/,
+        /^carne bovina magra$/,
+        /^carne, bovina, patinho, sem gordura, grelhado$/,
+        /^salmao$/,
+    ],
+    BRAZILIAN_CARB: [
+        /^arroz branco$/,
+        /^arroz, (?:integral|tipo 1), cozido$/,
+        /^feijao carioca$/,
+        /^feijao, carioca, cozido$/,
+        /^batata doce$/,
+        /^batata, doce, cozida$/,
+        /^mandioca, cozida$/,
+    ],
+    VEGETABLE: [
+        /^brocolis$/,
+        /^brocolis, cozido$/,
+        /^cenoura, cozida$/,
+        /^abobora, (?:cabotian, cozida|moranga, refogada)$/,
+    ],
+    SNACK_PROTEIN: [
+        /^iogurte,? natural(?:, desnatado)?$/,
+        /^iogurte grego$/,
+        /^queijo, minas, frescal$/,
+        /^queijo cottage$/,
+        /^ovo inteiro$/,
+        /^ovo, de galinha, inteiro, cozido/,
+        /^whey protein$/,
+    ],
+    HEALTHY_FAT: [/^azeite de oliva$/],
+};
+
+function getApprovedFoods(foods: FoodInput[], category: FoodCategory, excludedIds: Set<string>) {
+    const patterns = approvedFoodPatterns[category];
+    return foods.filter((food) => {
+        if (excludedIds.has(food.id)) return false;
+        const name = normalizeText(food.name);
+        return patterns.some((pattern) => pattern.test(name));
     });
-    return preferred.length >= 2 ? preferred : (suitableFoods.length > 0 ? suitableFoods : foods);
 }
 
-/**
- * TACO contains useful nutritional data, but also laboratory-style entries that
- * are poor choices for an automatically generated, everyday meal plan.
- */
-function isSuitableForAutomaticDiet(normalizedName: string) {
-    const unsuitableTerms = [
-        'gema',
-        'clara',
-        'desidratad',
-        'em po',
-        'mistura para',
-        'preparado em po',
-        'maionese',
-        'farinha',
-    ];
-
-    return !unsuitableTerms.some((term) => normalizedName.includes(term));
-}
-
-function pickRandomFromTop<T>(items: T[], score: (item: T) => number, top = 5): T | null {
-    if (items.length === 0) return null;
-    const ranked = [...items].sort((a, b) => score(b) - score(a)).slice(0, top);
-    return ranked[Math.floor(Math.random() * ranked.length)] || null;
+function pickApprovedFood(foods: FoodInput[], category: FoodCategory, excludedIds: Set<string>) {
+    const candidates = getApprovedFoods(foods, category, excludedIds);
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)] || null;
 }
 
 type HouseholdMeasure = {
@@ -146,6 +177,17 @@ function getHouseholdMeasure(food: FoodInput): HouseholdMeasure | null {
     if (name.includes('whey')) {
         return { name: 'Whey protein', portion: '1 scoop (30g)', grams: 30, step: 0.5 };
     }
+    if (name.includes('iogurte')) {
+        return { name: 'Iogurte natural', portion: '1 pote (170g)', grams: 170, step: 0.5 };
+    }
+    if (name.includes('queijo') && (name.includes('minas') || name.includes('cottage'))) {
+        return {
+            name: name.includes('cottage') ? 'Queijo cottage' : 'Queijo minas frescal',
+            portion: '1 porção (30g)',
+            grams: 30,
+            step: 0.5,
+        };
+    }
 
     return null;
 }
@@ -158,6 +200,43 @@ function portionAmountInGrams(portion: string): number | null {
 
 function roundToStep(value: number, step: number) {
     return Math.max(step, Math.round(value / step) * step);
+}
+
+function maxHouseholdQuantity(food: FoodInput) {
+    const name = normalizeText(food.name);
+    if (name.includes('ovo')) return 4;
+    if (name.includes('iogurte')) return 2;
+    if (name.includes('queijo')) return 3;
+    if (name.includes('banana') || name.includes('maca')) return 2;
+    if (name.includes('pao')) return 4;
+    if (name.includes('whey')) return 1.5;
+    if (name.includes('azeite')) return 1;
+    return 4;
+}
+
+function maxBasePortions(food: FoodInput) {
+    const name = normalizeText(food.name);
+    if (name.includes('feijao')) return 2;
+    if (name.includes('brocolis') || name.includes('cenoura') || name.includes('abobora')) return 2;
+    if (name.includes('aveia')) return 2;
+    if (name.includes('frango') || name.includes('carne') || name.includes('salmao')) return 2.5;
+    if (name.includes('arroz') || name.includes('batata') || name.includes('mandioca')) return 2.5;
+    return 3;
+}
+
+function getFriendlyFoodName(food: FoodInput) {
+    const name = normalizeText(food.name);
+    if (name.includes('frango')) return name.includes('cozido') ? 'Peito de frango cozido' : 'Peito de frango grelhado';
+    if (name.includes('patinho')) return 'Patinho grelhado';
+    if (name.includes('arroz') && name.includes('integral')) return 'Arroz integral cozido';
+    if (name.includes('arroz')) return 'Arroz branco cozido';
+    if (name.includes('feijao')) return 'Feijão carioca cozido';
+    if (name.includes('batata') && name.includes('doce')) return 'Batata-doce cozida';
+    if (name.includes('mandioca')) return 'Mandioca cozida';
+    if (name.includes('brocolis')) return 'Brócolis cozido';
+    if (name.includes('cenoura')) return 'Cenoura cozida';
+    if (name.includes('abobora')) return 'Abóbora cozida';
+    return food.name;
 }
 
 export function calculateBMR(weight: number, height: number, age: number, gender: 'MALE' | 'FEMALE'): number {
@@ -225,24 +304,41 @@ export function generateDietPlan(data: StudentData): MealPlan {
         { name: 'Ceia', time: '22:00', type: 'SNACK', ratio: 0.05 },
     ];
 
+    const mealBlueprints: Record<string, Array<{ category: FoodCategory; calorieShare: number }>> = {
+        BREAKFAST: [
+            { category: 'BREAKFAST_PROTEIN', calorieShare: 0.4 },
+            { category: 'BREAKFAST_CARB', calorieShare: 0.4 },
+            { category: 'FRUIT', calorieShare: 0.2 },
+        ],
+        SNACK: [
+            { category: 'SNACK_PROTEIN', calorieShare: 0.55 },
+            { category: 'FRUIT', calorieShare: 0.45 },
+        ],
+        LUNCH: [
+            { category: 'LEAN_PROTEIN', calorieShare: 0.45 },
+            { category: 'BRAZILIAN_CARB', calorieShare: 0.45 },
+            { category: 'VEGETABLE', calorieShare: 0.1 },
+        ],
+        DINNER: [
+            { category: 'LEAN_PROTEIN', calorieShare: 0.45 },
+            { category: 'BRAZILIAN_CARB', calorieShare: 0.45 },
+            { category: 'VEGETABLE', calorieShare: 0.1 },
+        ],
+    };
+
     const generatedMeals: GeneratedMeal[] = mealsStructure.map((structure) => {
         const mealCalories = targetCalories * structure.ratio;
         const foods: GeneratedFood[] = [];
+        const selectedIds = new Set<string>();
+        const blueprint = mealBlueprints[structure.type] || mealBlueprints.SNACK;
 
-        let candidates = filterBrazilianStaples(foodsPool, structure.type);
-        if (candidates.length === 0) candidates = foodsPool;
+        for (const slot of blueprint) {
+            const selected = pickApprovedFood(foodsPool, slot.category, selectedIds);
+            if (!selected || selected.calories <= 0) continue;
 
-        const proteinSource = pickRandomFromTop(candidates, (item) => item.protein);
-        if (proteinSource && proteinSource.calories > 0) {
-            const quantity = (mealCalories * 0.4) / proteinSource.calories;
-            foods.push(createGeneratedFood(proteinSource, quantity));
-        }
-
-        const carbCandidates = candidates.filter((food) => food.id !== proteinSource?.id);
-        const carbSource = pickRandomFromTop(carbCandidates, (item) => item.carbs);
-        if (carbSource && carbSource.calories > 0) {
-            const quantity = (mealCalories * 0.4) / carbSource.calories;
-            foods.push(createGeneratedFood(carbSource, quantity));
+            selectedIds.add(selected.id);
+            const quantity = (mealCalories * slot.calorieShare) / selected.calories;
+            foods.push(createGeneratedFood(selected, quantity));
         }
 
         return {
@@ -285,6 +381,19 @@ function createGeneratedFood(food: FoodInput, quantity: number): GeneratedFood {
     const householdMeasure = getHouseholdMeasure(food);
     const baseGrams = portionAmountInGrams(food.portion);
 
+    if (householdMeasure && !baseGrams) {
+        return {
+            foodId: food.id,
+            name: householdMeasure.name,
+            portion: householdMeasure.portion,
+            quantity: Math.min(roundToStep(quantity, householdMeasure.step), maxHouseholdQuantity(food)),
+            calories: food.calories,
+            protein: food.protein,
+            carbs: food.carbs,
+            fat: food.fat,
+        };
+    }
+
     if (householdMeasure && baseGrams) {
         const nutritionFactor = householdMeasure.grams / baseGrams;
         const householdQuantity = roundToStep(
@@ -296,7 +405,7 @@ function createGeneratedFood(food: FoodInput, quantity: number): GeneratedFood {
             foodId: food.id,
             name: householdMeasure.name,
             portion: householdMeasure.portion,
-            quantity: householdQuantity,
+            quantity: Math.min(householdQuantity, maxHouseholdQuantity(food)),
             calories: food.calories * nutritionFactor,
             protein: food.protein * nutritionFactor,
             carbs: food.carbs * nutritionFactor,
@@ -304,11 +413,14 @@ function createGeneratedFood(food: FoodInput, quantity: number): GeneratedFood {
         };
     }
 
-    const roundedQty = Math.max(0.5, Math.round(quantity * 2) / 2);
+    const roundedQty = Math.min(
+        Math.max(0.5, Math.round(quantity * 2) / 2),
+        maxBasePortions(food)
+    );
 
     return {
         foodId: food.id,
-        name: food.name,
+        name: getFriendlyFoodName(food),
         portion: food.portion,
         quantity: roundedQty,
         calories: food.calories,
