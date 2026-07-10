@@ -127,6 +127,7 @@ interface TemplateSlot {
     share: number; // fração das calorias da refeição
     fallbackGroups?: FoodGroup[]; // usados se nenhum candidato nos grupos principais
     optional?: boolean;
+    ids?: string[]; // restringe o slot a alimentos específicos
 }
 
 interface MealTemplate {
@@ -136,12 +137,19 @@ interface MealTemplate {
 const PROTEIN_GROUPS: FoodGroup[] = ['ave', 'carne', 'peixe', 'porco'];
 const PROTEIN_FALLBACK: FoodGroup[] = ['ovo', 'leguminosa', 'laticinio'];
 
+// Bebidas: acompanham a refeição sem participar do rateio calórico principal
+// (quantidade fixa em 1 xícara/copo pelos limites definidos na base).
+const BREAKFAST_DRINK: TemplateSlot = { groups: ['cafe'], share: 0.02, optional: true };
+const MAIN_MEAL_DRINK: TemplateSlot = { groups: ['suco'], share: 0.05, optional: true };
+const SUPPER_DRINK: TemplateSlot = { groups: ['cafe'], ids: ['taco-cha'], share: 0.01, optional: true };
+
 const breakfastTemplates: MealTemplate[] = [
     {
         slots: [
             { groups: ['ovo'], share: 0.35, fallbackGroups: ['laticinio', 'oleaginosa'] },
             { groups: ['pao'], share: 0.40, fallbackGroups: ['tapioca', 'cereal', 'tuberculo'] },
             { groups: ['fruta'], share: 0.25 },
+            BREAKFAST_DRINK,
         ],
     },
     {
@@ -149,6 +157,7 @@ const breakfastTemplates: MealTemplate[] = [
             { groups: ['tapioca'], share: 0.45, fallbackGroups: ['pao', 'cereal'] },
             { groups: ['ovo', 'laticinio'], share: 0.35, fallbackGroups: ['oleaginosa'] },
             { groups: ['fruta'], share: 0.20 },
+            BREAKFAST_DRINK,
         ],
     },
     {
@@ -156,6 +165,7 @@ const breakfastTemplates: MealTemplate[] = [
             { groups: ['laticinio'], share: 0.35, fallbackGroups: ['ovo', 'suplemento'] },
             { groups: ['cereal'], share: 0.40, fallbackGroups: ['pao', 'tapioca'] },
             { groups: ['fruta'], share: 0.25 },
+            BREAKFAST_DRINK,
         ],
     },
     {
@@ -163,6 +173,7 @@ const breakfastTemplates: MealTemplate[] = [
             { groups: ['pao'], share: 0.40, fallbackGroups: ['tapioca', 'cereal'] },
             { groups: ['laticinio'], share: 0.35, fallbackGroups: ['ovo'] },
             { groups: ['fruta'], share: 0.25 },
+            BREAKFAST_DRINK,
         ],
     },
 ];
@@ -177,6 +188,7 @@ const mainMealTemplates: MealTemplate[] = [
             { groups: ['legume'], share: 0.12 },
             { groups: ['folhoso'], share: 0.04, optional: true },
             { groups: ['azeite'], share: 0.04, optional: true },
+            MAIN_MEAL_DRINK,
         ],
     },
     {
@@ -186,6 +198,7 @@ const mainMealTemplates: MealTemplate[] = [
             { groups: PROTEIN_GROUPS, share: 0.40, fallbackGroups: PROTEIN_FALLBACK },
             { groups: ['legume'], share: 0.14 },
             { groups: ['azeite'], share: 0.06, optional: true },
+            MAIN_MEAL_DRINK,
         ],
     },
     {
@@ -196,6 +209,7 @@ const mainMealTemplates: MealTemplate[] = [
             { groups: PROTEIN_GROUPS, share: 0.38, fallbackGroups: PROTEIN_FALLBACK },
             { groups: ['legume'], share: 0.14 },
             { groups: ['azeite'], share: 0.06, optional: true },
+            MAIN_MEAL_DRINK,
         ],
     },
     {
@@ -205,6 +219,7 @@ const mainMealTemplates: MealTemplate[] = [
             { groups: ['ave', 'carne'], share: 0.38, fallbackGroups: [...PROTEIN_GROUPS, ...PROTEIN_FALLBACK] },
             { groups: ['legume'], share: 0.14 },
             { groups: ['azeite'], share: 0.06, optional: true },
+            MAIN_MEAL_DRINK,
         ],
     },
 ];
@@ -244,18 +259,20 @@ const snackTemplates: MealTemplate[] = [
 
 const supperTemplates: MealTemplate[] = [
     {
-        slots: [{ groups: ['laticinio'], share: 1, fallbackGroups: ['ovo', 'fruta'] }],
+        slots: [{ groups: ['laticinio'], share: 1, fallbackGroups: ['ovo', 'fruta'] }, SUPPER_DRINK],
     },
     {
         slots: [
             { groups: ['laticinio'], share: 0.6, fallbackGroups: ['ovo'] },
             { groups: ['fruta'], share: 0.4 },
+            SUPPER_DRINK,
         ],
     },
     {
         slots: [
             { groups: ['ovo'], share: 0.6, fallbackGroups: ['laticinio', 'oleaginosa'] },
             { groups: ['fruta'], share: 0.4 },
+            SUPPER_DRINK,
         ],
     },
 ];
@@ -282,7 +299,9 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function candidatesForSlot(slot: TemplateSlot, foods: TacoFood[]): TacoFood[] {
-    const primary = foods.filter((food) => slot.groups.includes(food.group));
+    const primary = foods.filter((food) =>
+        slot.ids ? slot.ids.includes(food.id) : slot.groups.includes(food.group)
+    );
     if (primary.length > 0) return primary;
     if (slot.fallbackGroups) {
         return foods.filter((food) => slot.fallbackGroups!.includes(food.group));

@@ -23,7 +23,9 @@ export type FoodGroup =
     | 'legume'
     | 'folhoso'
     | 'oleaginosa'
-    | 'azeite';
+    | 'azeite'
+    | 'cafe'
+    | 'suco';
 
 export type RestrictionTag =
     | 'lactose'
@@ -93,6 +95,8 @@ const defs: TacoFoodDef[] = [
     { id: 'taco-feijao-preto', name: 'Feijão preto cozido', group: 'feijao', portion: '1 concha média (100g)', grams: 100, step: 0.5, maxQty: 2, per100: { kcal: 77, p: 4.5, c: 14.0, f: 0.5 } },
     { id: 'taco-lentilha', name: 'Lentilha cozida', group: 'leguminosa', portion: '1 concha média (100g)', grams: 100, step: 0.5, maxQty: 2, per100: { kcal: 93, p: 6.3, c: 16.3, f: 0.5 } },
     { id: 'taco-grao-bico', name: 'Grão-de-bico cozido', group: 'leguminosa', portion: '4 colheres de sopa (90g)', grams: 90, step: 0.5, maxQty: 2, per100: { kcal: 130, p: 8.4, c: 21.2, f: 2.1 } },
+    { id: 'taco-tofu', name: 'Tofu', group: 'leguminosa', portion: '1 fatia média (100g)', grams: 100, step: 0.5, maxQty: 2.5, per100: { kcal: 64, p: 6.6, c: 2.1, f: 4.0 } },
+    { id: 'taco-pvt', name: 'Proteína texturizada de soja (hidratada)', group: 'leguminosa', portion: '4 colheres de sopa (60g)', grams: 60, step: 0.5, maxQty: 3, per100: { kcal: 115, p: 17.0, c: 8.5, f: 0.4 } },
     { id: 'taco-batata-doce', name: 'Batata-doce cozida', group: 'tuberculo', portion: '1 pedaço médio (100g)', grams: 100, step: 0.5, maxQty: 3, per100: { kcal: 77, p: 0.6, c: 18.4, f: 0.1 } },
     { id: 'taco-batata', name: 'Batata inglesa cozida', group: 'tuberculo', portion: '1 unidade média (100g)', grams: 100, step: 0.5, maxQty: 3, per100: { kcal: 52, p: 1.2, c: 11.9, f: 0 } },
     { id: 'taco-mandioca', name: 'Mandioca (macaxeira) cozida', group: 'tuberculo', portion: '1 pedaço médio (100g)', grams: 100, step: 0.5, maxQty: 2.5, per100: { kcal: 125, p: 0.6, c: 30.1, f: 0.3 } },
@@ -142,6 +146,19 @@ const defs: TacoFoodDef[] = [
     { id: 'taco-amendoim-nat', name: 'Amendoim sem sal', group: 'oleaginosa', tags: ['oleaginosa'], portion: '1 colher de sopa (15g)', grams: 15, step: 0.5, maxQty: 2, per100: { kcal: 544, p: 27.2, c: 20.3, f: 43.9 } },
     { id: 'taco-pasta-amendoim', name: 'Pasta de amendoim integral', group: 'oleaginosa', tags: ['oleaginosa'], portion: '1 colher de sopa (15g)', grams: 15, step: 0.5, maxQty: 2, per100: { kcal: 590, p: 25.0, c: 20.0, f: 46.0 } },
     { id: 'taco-abacate', name: 'Abacate', group: 'fruta', portion: '2 colheres de sopa (60g)', grams: 60, step: 0.5, maxQty: 2, per100: { kcal: 96, p: 1.2, c: 6.0, f: 8.4 } },
+
+    // ===== Bebidas =====
+    // Cafés e chás (sem açúcar; adoçante à vontade)
+    { id: 'taco-cafe-preto', name: 'Café preto sem açúcar', group: 'cafe', portion: '1 xícara (150ml)', grams: 150, step: 1, maxQty: 1, per100: { kcal: 5, p: 0.2, c: 0.7, f: 0 } },
+    { id: 'taco-cafe-leite', name: 'Café com leite desnatado sem açúcar', group: 'cafe', tags: ['lactose'], portion: '1 xícara (200ml)', grams: 200, step: 1, maxQty: 1, per100: { kcal: 20, p: 1.7, c: 2.5, f: 0.1 } },
+    { id: 'taco-cha', name: 'Chá de ervas sem açúcar (camomila, hortelã, erva-doce)', group: 'cafe', portion: '1 xícara (200ml)', grams: 200, step: 1, maxQty: 1, per100: { kcal: 1, p: 0, c: 0.2, f: 0 } },
+    // Sucos naturais e água de coco (sem açúcar adicionado)
+    { id: 'taco-suco-laranja', name: 'Suco de laranja natural', group: 'suco', portion: '1 copo (250ml)', grams: 250, step: 1, maxQty: 1, per100: { kcal: 40, p: 0.7, c: 9.5, f: 0.1 } },
+    { id: 'taco-suco-maracuja', name: 'Suco de maracujá natural sem açúcar', group: 'suco', portion: '1 copo (250ml)', grams: 250, step: 1, maxQty: 1, per100: { kcal: 30, p: 0.5, c: 7.0, f: 0.1 } },
+    { id: 'taco-suco-abacaxi', name: 'Suco de abacaxi natural sem açúcar', group: 'suco', portion: '1 copo (250ml)', grams: 250, step: 1, maxQty: 1, per100: { kcal: 40, p: 0.4, c: 10.0, f: 0.1 } },
+    { id: 'taco-suco-acerola', name: 'Suco de acerola natural sem açúcar', group: 'suco', portion: '1 copo (250ml)', grams: 250, step: 1, maxQty: 1, per100: { kcal: 24, p: 0.4, c: 5.5, f: 0.2 } },
+    { id: 'taco-limonada', name: 'Limonada sem açúcar', group: 'suco', portion: '1 copo (250ml)', grams: 250, step: 1, maxQty: 1, per100: { kcal: 8, p: 0.1, c: 2.0, f: 0 } },
+    { id: 'taco-agua-coco', name: 'Água de coco', group: 'suco', portion: '1 copo (200ml)', grams: 200, step: 1, maxQty: 1, per100: { kcal: 22, p: 0, c: 5.3, f: 0 } },
 ];
 
 function round1(value: number) {
