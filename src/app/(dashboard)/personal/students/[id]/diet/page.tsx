@@ -510,6 +510,7 @@ export default function StudentDietPage() {
                 activityLevel: student.anamnesis?.activityLevel || 'MODERATE',
                 goal: generateGoal,
                 foods: generationFoods,
+                restrictions: student.anamnesis?.restrictions || '',
             });
 
             const mealCount = Math.min(Math.max(generateMealCount, 1), result.meals.length);
@@ -539,7 +540,7 @@ export default function StudentDietPage() {
                         Math.max(0.5, Math.round((f.quantity * scaling) * 2) / 2),
                         f.portion
                     ),
-                    notes: '',
+                    notes: f.substitutionNote || '',
                     portion: f.portion,
                     calories: f.calories,
                     protein: f.protein,

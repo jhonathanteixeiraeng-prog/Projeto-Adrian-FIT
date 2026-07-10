@@ -399,6 +399,7 @@ export default function EditDietPage() {
                     activityLevel: studentData.anamnesis?.activityLevel || 'MODERATE',
                     goal: studentData.goal || 'MAINTENANCE',
                     foods: generationFoods,
+                    restrictions: studentData.anamnesis?.restrictions || '',
                 });
 
                 console.log('Generated Plan:', generatedPlan);
