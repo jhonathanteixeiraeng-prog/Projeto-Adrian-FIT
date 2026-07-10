@@ -66,14 +66,6 @@ export default function DietPage() {
 
     const parsePortionInfo = (portion?: string) => {
         const raw = String(portion || '100g').replace(',', '.').trim();
-        const parenthesisMatch = raw.match(/\((\d+(?:\.\d+)?)\s*(g|ml)\)/i);
-        if (parenthesisMatch) {
-            return {
-                baseAmount: toNumber(parenthesisMatch[1], 1),
-                unit: parenthesisMatch[2].toLowerCase(),
-            };
-        }
-
         const baseMatch = raw.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
         if (baseMatch) {
             return {

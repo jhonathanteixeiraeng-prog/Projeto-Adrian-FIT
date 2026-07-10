@@ -85,17 +85,79 @@ function getFoodsPool(inputFoods?: FoodInput[]) {
 
 function filterBrazilianStaples(foods: FoodInput[], mealType: string) {
     const staples = brazilianStaplesByMealType[mealType] || [];
-    const preferred = foods.filter((food) => {
+    const suitableFoods = foods.filter((food) => isSuitableForAutomaticDiet(normalizeText(food.name)));
+    const preferred = suitableFoods.filter((food) => {
         const normalizedName = normalizeText(food.name);
         return staples.some((keyword) => normalizedName.includes(keyword));
     });
-    return preferred.length >= 2 ? preferred : foods;
+    return preferred.length >= 2 ? preferred : (suitableFoods.length > 0 ? suitableFoods : foods);
+}
+
+/**
+ * TACO contains useful nutritional data, but also laboratory-style entries that
+ * are poor choices for an automatically generated, everyday meal plan.
+ */
+function isSuitableForAutomaticDiet(normalizedName: string) {
+    const unsuitableTerms = [
+        'gema',
+        'clara',
+        'desidratad',
+        'em po',
+        'mistura para',
+        'preparado em po',
+        'maionese',
+        'farinha',
+    ];
+
+    return !unsuitableTerms.some((term) => normalizedName.includes(term));
 }
 
 function pickRandomFromTop<T>(items: T[], score: (item: T) => number, top = 5): T | null {
     if (items.length === 0) return null;
     const ranked = [...items].sort((a, b) => score(b) - score(a)).slice(0, top);
     return ranked[Math.floor(Math.random() * ranked.length)] || null;
+}
+
+type HouseholdMeasure = {
+    name: string;
+    portion: string;
+    grams: number;
+    step: number;
+};
+
+function getHouseholdMeasure(food: FoodInput): HouseholdMeasure | null {
+    const name = normalizeText(food.name);
+
+    if (name.includes('ovo') && !name.includes('gema') && !name.includes('clara')) {
+        return { name: 'Ovo inteiro', portion: '1 unidade', grams: 50, step: 1 };
+    }
+    if (name.includes('banana')) {
+        return { name: 'Banana', portion: '1 unidade média', grams: 80, step: 1 };
+    }
+    if (name.includes('maca')) {
+        return { name: 'Maçã', portion: '1 unidade média', grams: 130, step: 1 };
+    }
+    if (name.includes('pao')) {
+        return { name: 'Pão', portion: '1 fatia', grams: 25, step: 1 };
+    }
+    if (name.includes('azeite')) {
+        return { name: 'Azeite de oliva', portion: '1 colher de sopa (15ml)', grams: 13.5, step: 0.5 };
+    }
+    if (name.includes('whey')) {
+        return { name: 'Whey protein', portion: '1 scoop (30g)', grams: 30, step: 0.5 };
+    }
+
+    return null;
+}
+
+function portionAmountInGrams(portion: string): number | null {
+    const normalized = normalizeText(portion).replace(',', '.');
+    const match = normalized.match(/(\d+(?:\.\d+)?)\s*g\b/);
+    return match ? Number(match[1]) : null;
+}
+
+function roundToStep(value: number, step: number) {
+    return Math.max(step, Math.round(value / step) * step);
 }
 
 export function calculateBMR(weight: number, height: number, age: number, gender: 'MALE' | 'FEMALE'): number {
@@ -220,6 +282,28 @@ export function generateDietPlan(data: StudentData): MealPlan {
 }
 
 function createGeneratedFood(food: FoodInput, quantity: number): GeneratedFood {
+    const householdMeasure = getHouseholdMeasure(food);
+    const baseGrams = portionAmountInGrams(food.portion);
+
+    if (householdMeasure && baseGrams) {
+        const nutritionFactor = householdMeasure.grams / baseGrams;
+        const householdQuantity = roundToStep(
+            (quantity * baseGrams) / householdMeasure.grams,
+            householdMeasure.step
+        );
+
+        return {
+            foodId: food.id,
+            name: householdMeasure.name,
+            portion: householdMeasure.portion,
+            quantity: householdQuantity,
+            calories: food.calories * nutritionFactor,
+            protein: food.protein * nutritionFactor,
+            carbs: food.carbs * nutritionFactor,
+            fat: food.fat * nutritionFactor,
+        };
+    }
+
     const roundedQty = Math.max(0.5, Math.round(quantity * 2) / 2);
 
     return {

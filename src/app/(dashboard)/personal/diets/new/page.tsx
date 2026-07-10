@@ -208,14 +208,6 @@ export default function NewDietPage() {
 
     const parsePortion = (portion: string) => {
         const normalized = portion.replace(',', '.').trim();
-        const parenthesisMatch = normalized.match(/\((\d+(?:\.\d+)?)\s*(g|ml)\)/i);
-        if (parenthesisMatch) {
-            return {
-                baseAmount: parseFloat(parenthesisMatch[1]) || 1,
-                unit: parenthesisMatch[2].toLowerCase(),
-            };
-        }
-
         const match = normalized.match(/^(\d+(?:\.\d+)?)(?:\s*)?(.*)$/);
         if (match) {
             return {

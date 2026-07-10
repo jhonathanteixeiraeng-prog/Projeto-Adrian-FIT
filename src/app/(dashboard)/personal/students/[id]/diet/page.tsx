@@ -250,14 +250,6 @@ export default function StudentDietPage() {
 
     const parsePortionInfo = (portion?: string) => {
         const raw = (portion || '100g').replace(',', '.').trim();
-        const parenthesisMatch = raw.match(/\((\d+(?:\.\d+)?)\s*(g|ml)\)/i);
-        if (parenthesisMatch) {
-            return {
-                baseAmount: parseFloat(parenthesisMatch[1]) || 1,
-                unit: parenthesisMatch[2].toLowerCase(),
-            };
-        }
-
         const baseMatch = raw.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
         if (baseMatch) {
             return {
