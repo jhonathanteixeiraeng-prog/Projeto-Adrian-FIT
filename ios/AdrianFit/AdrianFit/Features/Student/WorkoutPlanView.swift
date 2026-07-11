@@ -12,7 +12,7 @@ struct WorkoutPlanView: View {
             if let plan {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
-                        Text(plan.title).font(.largeTitle.bold())
+                        Text(plan.displayTitle).font(.largeTitle.bold())
                         Text("Seu programa semanal").foregroundStyle(FitTheme.secondaryText)
                         ForEach(plan.workoutDays) { day in
                             NavigationLink { WorkoutDayDetailView(day: day) } label: {
@@ -20,17 +20,21 @@ struct WorkoutPlanView: View {
                                     HStack(spacing: 15) {
                                         VStack(spacing: 4) {
                                             Text(shortWeekday(day.dayOfWeek)).font(.caption.bold()).foregroundStyle(FitTheme.orange)
-                                            Text("\(day.exercises.count)").font(.title2.bold()).foregroundStyle(.white)
+                                            Text("\(day.exercises.count)").font(.title2.bold()).foregroundStyle(FitTheme.primaryText)
                                         }.frame(width: 48)
                                         VStack(alignment: .leading, spacing: 5) {
-                                            Text(day.name).font(.headline).foregroundStyle(.white)
-                                            Text(day.exercises.prefix(3).map(\.muscleGroup).joined(separator: " • "))
+                                            Text(day.displayName).font(.headline).foregroundStyle(FitTheme.primaryText)
+                                            Text(muscleSummary(for: day))
                                                 .font(.caption).foregroundStyle(FitTheme.secondaryText).lineLimit(1)
                                         }
-                                        Spacer(); Image(systemName: "chevron.right").foregroundStyle(FitTheme.secondaryText)
+                                        Spacer()
+                                        WorkoutDayStateBadge(state: state(for: day))
+                                        Image(systemName: "chevron.right").foregroundStyle(FitTheme.secondaryText)
                                     }
                                 }
-                            }.buttonStyle(.plain)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint(day.prescriptionIssue == nil ? "Abre o treino" : "Abre o treino para preencher os dados pendentes")
                         }
                     }.padding(20)
                 }
@@ -41,8 +45,62 @@ struct WorkoutPlanView: View {
         .task { await load() }
     }
 
-    private func load() async { do { plan = try await api.get("/api/student/workout-plan") } catch { self.error = error.localizedDescription } }
+    private func load() async {
+        do {
+            let loaded: WorkoutPlan = try await api.get("/api/student/workout-plan")
+            plan = loaded
+            error = nil
+        } catch { self.error = error.localizedDescription }
+    }
     private func shortWeekday(_ day: Int) -> String { ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"][min(max(day, 0), 6)] }
+
+    private func muscleSummary(for day: WorkoutDay) -> String {
+        if day.isRestDay { return "Recupere o corpo e mantenha-se em movimento" }
+        let groups = day.exercises.map(\.muscleGroup)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .reduce(into: [String]()) { result, group in
+                if !result.contains(where: { $0.caseInsensitiveCompare(group) == .orderedSame }) {
+                    result.append(group)
+                }
+            }
+        return groups.prefix(3).joined(separator: " • ")
+    }
+
+    private func state(for day: WorkoutDay) -> WorkoutDayVisualState {
+        if day.isRestDay { return .rest }
+        if let percentage = WorkoutHistoryStore.finalizedPercentageToday(dayId: day.id) {
+            return percentage >= 100 ? .completed : .partial(percentage)
+        }
+        if day.prescriptionIssue != nil { return .review }
+        let today = Calendar.current.component(.weekday, from: .now) - 1
+        guard day.dayOfWeek == today else { return .scheduled }
+        if WorkoutHistoryStore.isCompletedToday { return .completed }
+        if WorkoutSessionStore.hasProgressToday(dayId: day.id) { return .inProgress }
+        return .today
+    }
+}
+
+private enum WorkoutDayVisualState: Equatable {
+    case today, inProgress, completed, partial(Int), rest, review, scheduled
+
+    var label: String {
+        switch self { case .today: "HOJE"; case .inProgress: "EM CURSO"; case .completed: "CONCLUÍDO"; case .partial(let value): "PARCIAL \(value)%"; case .rest: "DESCANSO"; case .review: "REVISAR"; case .scheduled: "" }
+    }
+    var color: Color {
+        switch self { case .today, .inProgress, .partial: FitTheme.orange; case .completed: FitTheme.green; case .rest: FitTheme.blue; case .review: .red; case .scheduled: .clear }
+    }
+}
+
+private struct WorkoutDayStateBadge: View {
+    let state: WorkoutDayVisualState
+    var body: some View {
+        if state != .scheduled {
+            Text(state.label).font(.system(size: 9, weight: .bold)).tracking(0.4)
+                .foregroundStyle(state.color)
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(state.color.opacity(0.14), in: Capsule())
+        }
+    }
 }
 
 // MARK: - Sessão de treino (séries + descanso)
@@ -51,13 +109,34 @@ struct WorkoutPlanView: View {
 enum WorkoutHistoryStore {
     private static let key = "workout-completed-dates"
 
-    static func recordCompletionToday() {
+    static func recordCompletionToday(dayId: String, percentage: Int = 100) {
         let today = Date.now.formatted(.iso8601.year().month().day())
         var dates = UserDefaults.standard.stringArray(forKey: key) ?? []
-        guard !dates.contains(today) else { return }
-        dates.append(today)
+        if !dates.contains(today) { dates.append(today) }
         UserDefaults.standard.set(dates, forKey: key)
+        UserDefaults.standard.set(min(max(percentage, 1), 100), forKey: "workout-completion-\(today)")
+        UserDefaults.standard.set(min(max(percentage, 1), 100), forKey: finalizedKey(dayId: dayId, date: today))
     }
+
+    static func finalizedPercentageToday(dayId: String) -> Int? {
+        let today = Date.now.formatted(.iso8601.year().month().day())
+        let key = finalizedKey(dayId: dayId, date: today)
+        if UserDefaults.standard.object(forKey: key) != nil { return UserDefaults.standard.integer(forKey: key) }
+
+        // Migra registros feitos por versões anteriores, que salvavam somente
+        // a porcentagem global do dia e não identificavam o treino finalizado.
+        let legacyKey = "workout-completion-\(today)"
+        let sessionKey = "workout-session-\(dayId)-\(today)"
+        if UserDefaults.standard.object(forKey: legacyKey) != nil,
+           !(UserDefaults.standard.stringArray(forKey: sessionKey) ?? []).isEmpty {
+            let percentage = UserDefaults.standard.integer(forKey: legacyKey)
+            UserDefaults.standard.set(percentage, forKey: key)
+            return percentage
+        }
+        return nil
+    }
+
+    private static func finalizedKey(dayId: String, date: String) -> String { "workout-finalized-\(dayId)-\(date)" }
 
     static func completedDates() -> [Date] {
         (UserDefaults.standard.stringArray(forKey: key) ?? []).compactMap {
@@ -71,6 +150,28 @@ enum WorkoutHistoryStore {
     }
 
     static var totalWorkouts: Int { completedDates().count }
+
+    static var isCompletedToday: Bool {
+        completedDates().contains { Calendar.current.isDateInToday($0) }
+    }
+
+    static var currentStreak: Int {
+        let calendar = Calendar.current
+        let days = Set(completedDates().map { calendar.startOfDay(for: $0) })
+        var cursor = calendar.startOfDay(for: .now)
+        if !days.contains(cursor), let yesterday = calendar.date(byAdding: .day, value: -1, to: cursor) { cursor = yesterday }
+        var streak = 0
+        while days.contains(cursor) {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        return streak
+    }
+
+    static var nextMilestone: Int {
+        [1, 5, 10, 25, 50, 100].first(where: { $0 > totalWorkouts }) ?? (((totalWorkouts / 100) + 1) * 100)
+    }
 }
 
 /// Persiste as séries concluídas do dia no aparelho, zerando a cada data.
@@ -85,6 +186,11 @@ final class WorkoutSessionStore: ObservableObject {
         if let saved = UserDefaults.standard.stringArray(forKey: storageKey) {
             completed = Set(saved)
         }
+    }
+
+    static func hasProgressToday(dayId: String) -> Bool {
+        let today = Date.now.formatted(.iso8601.year().month().day())
+        return !(UserDefaults.standard.stringArray(forKey: "workout-session-\(dayId)-\(today)") ?? []).isEmpty
     }
 
     /// Momento da primeira série marcada hoje (para medir a duração da sessão).
@@ -116,6 +222,7 @@ final class WorkoutSessionStore: ObservableObject {
 
 struct WorkoutDayDetailView: View {
     @Environment(\.apiClient) private var api
+    @Environment(\.dismiss) private var dismiss
     let day: WorkoutDay
 
     @StateObject private var store: WorkoutSessionStore
@@ -128,10 +235,13 @@ struct WorkoutDayDetailView: View {
     @State private var previousLogs: [String: [Int: SetLogEntry]] = [:]
     @State private var prs: [String: Double] = [:]
     @State private var prBanner: String?
+    @State private var showPartialConfirmation = false
+    @State private var finalizedPercentage: Int?
 
     init(day: WorkoutDay) {
         self.day = day
         _store = StateObject(wrappedValue: WorkoutSessionStore(dayId: day.id))
+        _finalizedPercentage = State(initialValue: WorkoutHistoryStore.finalizedPercentageToday(dayId: day.id))
     }
 
     private var totalSets: Int { day.exercises.reduce(0) { $0 + $1.sets } }
@@ -176,6 +286,29 @@ struct WorkoutDayDetailView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 8) {
+                    if let finalizedPercentage {
+                        Label(finalizedPercentage >= 100 ? "TREINO CONCLUÍDO" : "TREINO PARCIAL REGISTRADO • \(finalizedPercentage)%", systemImage: finalizedPercentage >= 100 ? "checkmark.seal.fill" : "flag.checkered")
+                            .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .foregroundStyle(.white).background(FitTheme.green, in: RoundedRectangle(cornerRadius: 16))
+                    } else {
+                        Button {
+                            if allDone { finishWorkout() }
+                            else { showPartialConfirmation = true }
+                        } label: {
+                            Label(allDone ? "FINALIZAR TREINO" : (doneSets > 0 ? "FINALIZAR TREINO PARCIAL" : "CONCLUA AO MENOS UMA SÉRIE"), systemImage: allDone ? "checkmark.seal.fill" : (doneSets > 0 ? "flag.checkered" : "lock.fill"))
+                                .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(.vertical, 14)
+                        }
+                        .buttonStyle(.plain).foregroundStyle(doneSets > 0 ? .white : FitTheme.secondaryText)
+                        .background(doneSets > 0 ? FitTheme.orange : FitTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+                        .disabled(doneSets == 0)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .background(.ultraThinMaterial)
+            }
 
             if let remaining = restRemaining {
                 RestTimerOverlay(
@@ -187,25 +320,33 @@ struct WorkoutDayDetailView: View {
             }
         }
         .fitScreen()
-        .navigationTitle(day.name)
+        .navigationTitle(day.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .sensoryFeedback(.success, trigger: allDone) { _, done in done }
         .onChange(of: allDone) { _, done in
-            if done {
-                WorkoutHistoryStore.recordCompletionToday()
-                stopRest()
-                showSummary = true
-            }
+            if done && finalizedPercentage == nil { finishWorkout() }
+        }
+        .alert("Finalizar treino parcial?", isPresented: $showPartialConfirmation) {
+            Button("Finalizar com \(completionPercentage)% concluído") { finishWorkout() }
+            Button("Continuar treinando", role: .cancel) {}
+        } message: {
+            Text("Você concluiu \(doneSets) de \(totalSets) séries. O treino será contabilizado como parcial.")
         }
         .sheet(item: $detailExercise) { exercise in
             ExerciseDetailSheet(exercise: exercise)
         }
         .sheet(isPresented: $showSummary) {
             WorkoutSummarySheet(
-                dayName: day.name,
+                dayName: day.displayName,
                 exercises: day.exercises.count,
-                sets: totalSets,
-                startedAt: store.startedAt
+                completedSets: doneSets,
+                totalSets: totalSets,
+                startedAt: store.startedAt,
+                onClose: {
+                    showSummary = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { dismiss() }
+                }
             )
             .presentationDetents([.medium])
         }
@@ -227,13 +368,28 @@ struct WorkoutDayDetailView: View {
     }
 
     private var allDone: Bool { totalSets > 0 && doneSets == totalSets }
+    private var completionPercentage: Int { totalSets > 0 ? Int((Double(doneSets) / Double(totalSets) * 100).rounded()) : 0 }
+
+    private func finishWorkout() {
+        guard doneSets > 0, finalizedPercentage == nil else { return }
+        finalizedPercentage = completionPercentage
+        stopRest()
+        WorkoutHistoryStore.recordCompletionToday(dayId: day.id, percentage: completionPercentage)
+        showSummary = true
+
+        struct Body: Encodable { let dayId: String; let completedSets: Int; let totalSets: Int }
+        struct Result: Decodable, Sendable { let percentage: Int }
+        let body = Body(dayId: day.id, completedSets: doneSets, totalSets: totalSets)
+        Task { let _: Result? = try? await api.post("/api/student/workout/complete", body: body) }
+    }
 
     private func exerciseKey(_ exercise: ExerciseItem) -> String {
         exercise.exerciseId ?? exercise.id
     }
 
     private func defaultReps(_ exercise: ExerciseItem) -> String {
-        let prefix = exercise.reps.prefix { $0.isNumber }
+        let cleaned = exercise.displayReps
+        let prefix = cleaned.prefix { $0.isNumber }
         return prefix.isEmpty ? "" : String(prefix)
     }
 
@@ -286,7 +442,7 @@ struct WorkoutDayDetailView: View {
         let reps = Int(input.reps) ?? 0
 
         if marked {
-            startRest(seconds: exercise.rest)
+            startRest(seconds: exercise.restAfterSet(setIndex))
             if weight > 0, weight > (prs[key] ?? 0) {
                 prs[key] = weight
                 withAnimation(.snappy) { prBanner = exercise.name }
@@ -404,13 +560,14 @@ private struct ExerciseSessionRow: View {
     let previous: [Int: SetLogEntry]
     let onSetToggled: (Int, Bool) -> Void
     let onShowDetail: () -> Void
+    @State private var showMissingReps = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Button(action: onShowDetail) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 7) {
-                        Text(exercise.name).font(.headline).foregroundStyle(.white)
+                        Text(exercise.name).font(.headline).foregroundStyle(FitTheme.primaryText)
                         if exercise.videoUrl?.isEmpty == false {
                             Image(systemName: "play.circle.fill").font(.subheadline).foregroundStyle(FitTheme.orange)
                         }
@@ -421,7 +578,7 @@ private struct ExerciseSessionRow: View {
                             .font(.caption.bold())
                             .foregroundStyle(done == exercise.sets ? FitTheme.green : FitTheme.secondaryText)
                     }
-                    Text("Meta: \(exercise.sets) × \(exercise.reps) • \(exercise.rest)s de descanso")
+                    Text("Meta: \(exercise.sets) × \(exercise.displayReps) • \(exercise.rest)s de descanso")
                         .font(.caption).foregroundStyle(FitTheme.orange)
                     if let equipment = exercise.equipment, !equipment.isEmpty {
                         Text(equipment).font(.caption2).foregroundStyle(FitTheme.secondaryText)
@@ -459,6 +616,7 @@ private struct ExerciseSessionRow: View {
             .textFieldStyle(.roundedBorder)
             .font(.subheadline)
             .disabled(done)
+            .accessibilityLabel("Carga da série \(index + 1), em quilos")
 
             Text("kg ×").font(.caption).foregroundStyle(FitTheme.secondaryText)
 
@@ -471,6 +629,7 @@ private struct ExerciseSessionRow: View {
             .textFieldStyle(.roundedBorder)
             .font(.subheadline)
             .disabled(done)
+            .accessibilityLabel("Repetições da série \(index + 1)")
 
             if let prev = previous[index] {
                 Text("ant: \(prev.weight > 0 ? "\(prev.weight == prev.weight.rounded() ? String(Int(prev.weight)) : String(format: "%.1f", prev.weight))kg" : "—") × \(prev.reps)")
@@ -482,6 +641,10 @@ private struct ExerciseSessionRow: View {
             Spacer()
 
             Button {
+                if !done {
+                    let reps = Int(inputs[indexSafe: index]?.reps ?? "") ?? 0
+                    guard reps > 0 else { showMissingReps = true; return }
+                }
                 let marked = store.toggle(exercise: exercise.id, set: index)
                 onSetToggled(index, marked)
             } label: {
@@ -490,6 +653,11 @@ private struct ExerciseSessionRow: View {
                     .foregroundStyle(done ? FitTheme.green : FitTheme.secondaryText)
             }
             .buttonStyle(.plain)
+        }
+        .alert("Informe as repetições", isPresented: $showMissingReps) {
+            Button("Entendi", role: .cancel) {}
+        } message: {
+            Text("Digite quantas repetições você realizou antes de concluir esta série.")
         }
     }
 }
@@ -559,8 +727,12 @@ struct TodayWorkoutSessionView: View {
     private func load() async {
         do {
             let plan: WorkoutPlan = try await api.get("/api/student/workout-plan")
-            day = plan.workoutDays.first { $0.id == dayId } ?? plan.workoutDays.first
-            if day == nil { error = "Nenhum dia de treino encontrado no seu plano." }
+            guard let selected = plan.workoutDays.first(where: { $0.id == dayId }) ?? plan.workoutDays.first else {
+                error = "Nenhum dia de treino encontrado no seu plano."
+                return
+            }
+            day = selected
+            error = nil
         } catch { self.error = error.localizedDescription }
     }
 }
@@ -593,7 +765,7 @@ struct ExerciseDetailSheet: View {
 
                     HStack(spacing: 12) {
                         MetricPill(icon: "square.stack.3d.up", value: "\(exercise.sets)", label: "séries")
-                        MetricPill(icon: "repeat", value: exercise.reps, label: "repetições", tint: FitTheme.green)
+                        MetricPill(icon: "repeat", value: exercise.displayReps, label: "repetições", tint: FitTheme.green)
                         MetricPill(icon: "timer", value: "\(exercise.rest)s", label: "descanso", tint: FitTheme.blue)
                     }
 
@@ -639,11 +811,15 @@ struct ExerciseDetailSheet: View {
 // MARK: - Resumo pós-treino
 
 struct WorkoutSummarySheet: View {
-    @Environment(\.dismiss) private var dismiss
     let dayName: String
     let exercises: Int
-    let sets: Int
+    let completedSets: Int
+    let totalSets: Int
     let startedAt: Date?
+    let onClose: () -> Void
+
+    private var percentage: Int { totalSets > 0 ? Int((Double(completedSets) / Double(totalSets) * 100).rounded()) : 0 }
+    private var isComplete: Bool { completedSets == totalSets && totalSets > 0 }
 
     private var durationText: String {
         guard let startedAt else { return "—" }
@@ -653,22 +829,23 @@ struct WorkoutSummarySheet: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            Image(systemName: "trophy.fill")
+            Image(systemName: isComplete ? "trophy.fill" : "flag.checkered")
                 .font(.system(size: 54))
                 .foregroundStyle(FitTheme.orange)
                 .padding(.top, 26)
             VStack(spacing: 6) {
-                Text("Treino concluído!").font(.title2.bold())
+                Text(isComplete ? "Treino concluído!" : "Treino parcial registrado").font(.title2.bold())
                 Text(dayName).foregroundStyle(FitTheme.secondaryText)
+                Text("\(percentage)% do treino realizado").font(.subheadline.bold()).foregroundStyle(isComplete ? FitTheme.green : FitTheme.orange)
             }
             HStack(spacing: 12) {
                 MetricPill(icon: "list.bullet", value: "\(exercises)", label: "exercícios")
-                MetricPill(icon: "checkmark.circle.fill", value: "\(sets)", label: "séries", tint: FitTheme.green)
+                MetricPill(icon: "checkmark.circle.fill", value: "\(completedSets)/\(totalSets)", label: "séries", tint: FitTheme.green)
                 MetricPill(icon: "clock.fill", value: durationText, label: "duração", tint: FitTheme.blue)
             }
             .padding(.horizontal, 20)
             Button {
-                dismiss()
+                onClose()
             } label: {
                 Text("Fechar")
                     .font(.headline)

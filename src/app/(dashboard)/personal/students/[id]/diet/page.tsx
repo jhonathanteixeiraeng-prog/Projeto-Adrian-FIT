@@ -629,16 +629,19 @@ export default function StudentDietPage() {
                         name: m.name,
                         time: m.time,
                         notes: m.notes,
-                        foods: m.foods.map(f => ({
-                            name: f.name,
-                            quantity: f.quantity,
-                            notes: f.notes,
-                            portion: f.portion,
-                            calories: f.calories,
-                            protein: f.protein,
-                            carbs: f.carbs,
-                            fat: f.fat,
-                        })),
+                        foods: m.foods.map(f => {
+                            const factor = parseQuantityFactor(f.quantity, f.portion) ?? 1;
+                            return {
+                                name: f.name,
+                                quantity: factor,
+                                notes: f.notes,
+                                portion: f.portion,
+                                calories: f.calories,
+                                protein: f.protein,
+                                carbs: f.carbs,
+                                fat: f.fat,
+                            };
+                        }),
                     })),
                 }),
             });

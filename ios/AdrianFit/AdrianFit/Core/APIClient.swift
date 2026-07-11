@@ -158,7 +158,20 @@ struct APIClient: Sendable {
     }
 
     private func perform(_ request: URLRequest) async throws -> Data {
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            switch error.code {
+            case .notConnectedToInternet, .networkConnectionLost:
+                throw APIError.server("Sem conexão com a internet. Verifique sua rede e tente novamente.")
+            case .timedOut:
+                throw APIError.server("O servidor demorou para responder. Tente novamente em instantes.")
+            default:
+                throw APIError.server("Não foi possível conectar ao servidor. Tente novamente.")
+            }
+        }
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         if http.statusCode == 401 { throw APIError.unauthenticated }
         guard (200..<400).contains(http.statusCode) else {

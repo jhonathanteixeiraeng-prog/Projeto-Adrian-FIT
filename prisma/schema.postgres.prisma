@@ -193,6 +193,7 @@ model WorkoutItem {
   sets         Int        // Número de séries
   reps         String     // "10-12" ou "15"
   rest         Int        // Segundos de descanso
+  restBySet    String?     // JSON com descanso individual por série
   notes        String?
   order        Int        @default(0)
 }

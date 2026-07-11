@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { normalizeDietFood } from '@/lib/diet-normalizer';
 
 const foodItemSchema = z.object({
     id: z.string().optional(),
@@ -48,13 +49,18 @@ export async function GET(request: NextRequest) {
             orderBy: { createdAt: 'desc' },
         });
 
-        // Parse JSON foods
+        // Parse JSON foods and normalize legacy formats
         const formattedTemplates = templates.map(template => ({
             ...template,
-            meals: template.meals.map(meal => ({
-                ...meal,
-                items: JSON.parse(meal.foods),
-            })),
+            meals: template.meals.map(meal => {
+                const rawItems = JSON.parse(meal.foods);
+                return {
+                    ...meal,
+                    items: Array.isArray(rawItems)
+                        ? rawItems.map((item: any) => normalizeDietFood(item))
+                        : rawItems,
+                };
+            }),
         }));
 
         return NextResponse.json({ success: true, data: formattedTemplates });
@@ -81,12 +87,17 @@ export async function POST(request: NextRequest) {
         let totalCarbs = 0;
         let totalFat = 0;
 
-        validatedData.meals.forEach(meal => {
+        const normalizedMeals = validatedData.meals.map(meal => ({
+            ...meal,
+            items: meal.items.map(item => normalizeDietFood(item)),
+        }));
+
+        normalizedMeals.forEach(meal => {
             meal.items.forEach(item => {
-                totalCalories += item.calories * item.quantity;
-                totalProtein += item.protein * item.quantity;
-                totalCarbs += item.carbs * item.quantity;
-                totalFat += item.fat * item.quantity;
+                totalCalories += item.totalCalories;
+                totalProtein += item.totalProtein;
+                totalCarbs += item.totalCarbs;
+                totalFat += item.totalFat;
             });
         });
 
@@ -99,7 +110,7 @@ export async function POST(request: NextRequest) {
                 carbs: Math.round(totalCarbs),
                 fat: Math.round(totalFat),
                 meals: {
-                    create: validatedData.meals.map((meal, index) => ({
+                    create: normalizedMeals.map((meal, index) => ({
                         name: meal.name,
                         time: meal.time,
                         order: index,
@@ -118,7 +129,7 @@ export async function POST(request: NextRequest) {
             ...template,
             meals: template.meals.map(meal => ({
                 ...meal,
-                items: JSON.parse(meal.foods),
+                items: JSON.parse(meal.foods).map((item: any) => normalizeDietFood(item)),
             })),
         };
 

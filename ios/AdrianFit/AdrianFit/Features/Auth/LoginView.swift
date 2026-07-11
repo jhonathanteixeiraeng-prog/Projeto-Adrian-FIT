@@ -110,6 +110,6 @@ private struct LoginField: View {
         .padding(.horizontal, 16)
         .frame(height: 58)
         .background(FitTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.08)) }
+        .overlay { RoundedRectangle(cornerRadius: 18).stroke(FitTheme.separator.opacity(0.4)) }
     }
 }

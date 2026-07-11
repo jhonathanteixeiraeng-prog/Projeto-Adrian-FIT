@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { normalizeDietMeal } from '@/lib/diet-normalizer';
 
 function toNumber(value: unknown, fallback = 0) {
     if (typeof value === 'number') {
@@ -181,20 +182,16 @@ export async function GET(request: NextRequest) {
         let formattedDiet = null;
 
         if (activeDiet) {
-            const formattedMeals = activeDiet.meals.map((meal: any) => {
+            const normalizedMeals = activeDiet.meals.map((meal: any) => {
                 const foods = typeof meal.foods === 'string' ? JSON.parse(meal.foods) : (meal.foods || []);
-                const totalCalories = (foods || []).reduce((acc: number, food: any) => {
-                    const factor = parseQuantityFactor(food?.quantity, food?.portion);
-                    return acc + (toNumber(food?.calories, 0) * factor);
-                }, 0);
-
-                return {
-                    ...meal,
-                    foods,
-                    calories: Math.round(totalCalories),
-                    completed: false // TODO: Check completions
-                };
+                return normalizeDietMeal({ ...meal, foods });
             });
+
+            const formattedMeals = normalizedMeals.map((meal: any) => ({
+                ...meal,
+                calories: Math.round(meal.foods.reduce((acc: number, food: any) => acc + (food.totalCalories || 0), 0)),
+                completed: false // TODO: Check completions
+            }));
 
             formattedDiet = {
                 ...activeDiet,

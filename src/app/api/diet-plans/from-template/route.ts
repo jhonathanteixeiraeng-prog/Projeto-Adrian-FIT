@@ -3,12 +3,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { normalizeDietFood } from '@/lib/diet-normalizer';
 
 const cloneTemplateSchema = z.object({
     templateId: z.string().min(1, 'Template ID é obrigatório'),
     studentId: z.string().min(1, 'Aluno é obrigatório'),
     startDate: z.string(),
     endDate: z.string(),
+    targetCalories: z.number().int().min(800).max(6000),
 });
 
 export async function POST(request: NextRequest) {
@@ -35,7 +37,35 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
         }
 
-        // Create Diet Plan from Template
+        const normalizedMeals = template.meals.map((meal) => {
+            const rawFoods = JSON.parse(meal.foods || '[]');
+            return { meal, foods: Array.isArray(rawFoods) ? rawFoods.map(normalizeDietFood) : [] };
+        });
+        const baseCalories = normalizedMeals.reduce(
+            (total, entry) => total + entry.foods.reduce((sum, food) => sum + food.totalCalories, 0),
+            0
+        );
+        if (baseCalories <= 0) {
+            return NextResponse.json({ error: 'O modelo não possui calorias válidas para recalcular' }, { status: 400 });
+        }
+
+        const scale = validatedData.targetCalories / baseCalories;
+        let protein = 0;
+        let carbs = 0;
+        let fat = 0;
+        const scaledMeals = normalizedMeals.map(({ meal, foods }) => {
+            const scaledFoods = foods.map((food) => {
+                const quantity = Math.round(food.quantity * scale * 100) / 100;
+                const scaled = normalizeDietFood({ ...food, quantity });
+                protein += scaled.totalProtein;
+                carbs += scaled.totalCarbs;
+                fat += scaled.totalFat;
+                return scaled;
+            });
+            return { meal, foods: scaledFoods };
+        });
+
+        // Create Diet Plan from Template with quantities scaled to the prescription.
         const dietPlan = await prisma.dietPlan.create({
             data: {
                 title: template.title,
@@ -45,17 +75,17 @@ export async function POST(request: NextRequest) {
                 endDate: new Date(validatedData.endDate),
                 active: true,
                 version: 1,
-                calories: template.calories,
-                protein: template.protein,
-                carbs: template.carbs,
-                fat: template.fat,
+                calories: validatedData.targetCalories,
+                protein: Math.round(protein),
+                carbs: Math.round(carbs),
+                fat: Math.round(fat),
                 meals: {
-                    create: template.meals.map((meal) => ({
+                    create: scaledMeals.map(({ meal, foods }) => ({
                         name: meal.name,
                         time: meal.time,
                         order: meal.order,
                         notes: meal.notes,
-                        foods: meal.foods, // JSON copy
+                        foods: JSON.stringify(foods),
                     })),
                 },
             },
@@ -64,7 +94,7 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        return NextResponse.json(dietPlan, { status: 201 });
+        return NextResponse.json({ ...dietPlan, scaling: { baseCalories: Math.round(baseCalories), targetCalories: validatedData.targetCalories, factor: scale } }, { status: 201 });
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.errors[0].message }, { status: 400 });

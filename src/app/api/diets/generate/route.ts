@@ -17,13 +17,31 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { studentId, goal } = body as { studentId?: string; goal?: string };
+        const { studentId, goal, calories, protein, carbs, fat } = body as {
+            studentId?: string; goal?: string; calories?: number; protein?: number; carbs?: number; fat?: number;
+        };
 
         if (!studentId) {
             return NextResponse.json(
                 { success: false, error: 'Aluno é obrigatório' },
                 { status: 400 }
             );
+        }
+
+        const ranges = [
+            ['calorias', calories, 800, 6000], ['proteínas', protein, 20, 400],
+            ['carboidratos', carbs, 20, 800], ['gorduras', fat, 10, 300],
+        ] as const;
+        for (const [label, value, min, max] of ranges) {
+            if (value !== undefined && (!Number.isFinite(value) || value < min || value > max)) {
+                return NextResponse.json({ success: false, error: `Meta de ${label} inválida` }, { status: 400 });
+            }
+        }
+        if (calories && protein && carbs && fat) {
+            const macroCalories = protein * 4 + carbs * 4 + fat * 9;
+            if (Math.abs(macroCalories - calories) / calories > 0.15) {
+                return NextResponse.json({ success: false, error: 'Os macronutrientes precisam ser compatíveis com a meta calórica (tolerância de 15%).' }, { status: 400 });
+            }
         }
 
         const student = await prisma.student.findFirst({
@@ -73,6 +91,10 @@ export async function POST(request: NextRequest) {
                 | 'SEDENTARY' | 'LIGHT' | 'MODERATE' | 'ACTIVE' | 'VERY_ACTIVE') || 'MODERATE',
             goal: resolvedGoal,
             restrictions: student.anamnesis?.restrictions || '',
+            targetCalories: calories,
+            targetProtein: protein,
+            targetCarbs: carbs,
+            targetFat: fat,
         });
 
         return NextResponse.json({ success: true, data: plan });

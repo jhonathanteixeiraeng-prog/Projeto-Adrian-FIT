@@ -16,6 +16,24 @@ struct WorkoutPlanEditorView: View {
     @State private var pickerDayId: UUID?
     @State private var showSaved = false
 
+    private var safetyIssue: String? {
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Informe o título do plano." }
+        if days.isEmpty { return "Adicione pelo menos um dia de treino." }
+        for day in days {
+            if day.items.isEmpty { return "Adicione ao menos um exercício em \(day.name)." }
+            for item in day.items {
+                let reps = item.reps.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if reps.isEmpty || reps == "reps" || reps.contains("definir") { return "Informe as repetições de \(item.exerciseName)." }
+                if !(1...12).contains(item.sets) { return "Revise as séries de \(item.exerciseName)." }
+                if !(0...600).contains(item.rest) { return "Revise o descanso de \(item.exerciseName)." }
+                if item.customRest && (item.restBySet.count != item.sets || item.restBySet.contains(where: { !(0...600).contains($0) })) {
+                    return "Revise os descansos por série de \(item.exerciseName)."
+                }
+            }
+        }
+        return nil
+    }
+
     var body: some View {
         Group {
             if loading { ProgressView("Carregando treino…").frame(maxWidth: .infinity, maxHeight: .infinity) }
@@ -29,7 +47,7 @@ struct WorkoutPlanEditorView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button(saving ? "Salvando…" : "Salvar") { Task { await save() } }
-                    .disabled(saving || loading)
+                    .disabled(saving || loading || safetyIssue != nil)
                     .fontWeight(.semibold)
             }
         }
@@ -53,6 +71,11 @@ struct WorkoutPlanEditorView: View {
             Section {
                 TextField("Título do plano", text: $title)
                     .font(.headline)
+                if let safetyIssue {
+                    Label(safetyIssue, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             } header: { Text("Plano") }
                 .listRowBackground(FitTheme.surface)
 
@@ -121,7 +144,7 @@ struct WorkoutPlanEditorView: View {
             exerciseId: exercise.id,
             exerciseName: exercise.name,
             muscleGroup: exercise.muscleGroup,
-            sets: 3, reps: "12", rest: 60, notes: ""
+            sets: 3, reps: "12", rest: 60, customRest: false, restBySet: [60, 60, 60], notes: ""
         ))
     }
 
@@ -141,6 +164,8 @@ struct WorkoutPlanEditorView: View {
                             exerciseName: item.exercise.name,
                             muscleGroup: item.exercise.muscleGroup,
                             sets: item.sets, reps: item.reps, rest: item.rest,
+                            customRest: item.restBySet != nil,
+                            restBySet: decodeRests(item.restBySet, sets: item.sets, fallback: item.rest),
                             notes: item.notes ?? ""
                         )
                     }
@@ -151,6 +176,7 @@ struct WorkoutPlanEditorView: View {
     }
 
     private func save() async {
+        if let safetyIssue { error = safetyIssue; return }
         saving = true
         defer { saving = false }
         let body = WorkoutPlanUpdateBody(
@@ -160,7 +186,13 @@ struct WorkoutPlanEditorView: View {
                 WorkoutDayBody(
                     name: day.name.isEmpty ? "Dia de treino" : day.name,
                     dayOfWeek: day.dayOfWeek,
-                    items: day.items.map { WorkoutItemBody(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, rest: $0.rest, notes: $0.notes) }
+                    items: day.items.map { item in
+                        WorkoutItemBody(
+                            exerciseId: item.exerciseId, sets: item.sets, reps: item.reps, rest: item.rest,
+                            restBySet: item.customRest ? encodeRests(item.restBySet) : nil,
+                            notes: item.notes
+                        )
+                    }
                 )
             }
         )
@@ -168,6 +200,18 @@ struct WorkoutPlanEditorView: View {
             let _: WorkoutPlanDetail = try await api.put("/api/workout-plans/\(planId)", body: body)
             showSaved = true
         } catch { self.error = error.localizedDescription }
+    }
+
+    private func decodeRests(_ value: String?, sets: Int, fallback: Int) -> [Int] {
+        guard let value, let data = value.data(using: .utf8), let decoded = try? JSONDecoder().decode([Int].self, from: data) else {
+            return Array(repeating: fallback, count: sets)
+        }
+        return (0..<sets).map { decoded.indices.contains($0) ? decoded[$0] : fallback }
+    }
+
+    private func encodeRests(_ values: [Int]) -> String? {
+        guard let data = try? JSONEncoder().encode(values) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }
 
@@ -199,9 +243,44 @@ private struct ExerciseEditorRow: View {
                     Text("\(item.rest)s descanso").font(.caption)
                 }
                 .fixedSize()
+                .disabled(item.customRest)
+            }
+            Picker("Descanso", selection: $item.customRest) {
+                Text("Mesmo em todas").tag(false)
+                Text("Por série").tag(true)
+            }
+            .pickerStyle(.segmented)
+
+            if item.customRest {
+                VStack(spacing: 8) {
+                    ForEach(0..<item.sets, id: \.self) { index in
+                        Stepper(value: restBinding(index), in: 0...600, step: 15) {
+                            HStack {
+                                Text(index == 0 ? "Após aquecimento/série 1" : "Após série \(index + 1)")
+                                Spacer()
+                                Text("\(restValue(index))s").monospacedDigit().foregroundStyle(FitTheme.orange)
+                            }.font(.caption)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(FitTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 12))
             }
         }
         .padding(.vertical, 4)
+        .onChange(of: item.sets) { _, sets in
+            if item.restBySet.count < sets { item.restBySet.append(contentsOf: Array(repeating: item.rest, count: sets - item.restBySet.count)) }
+            else if item.restBySet.count > sets { item.restBySet = Array(item.restBySet.prefix(sets)) }
+        }
+    }
+
+    private func restValue(_ index: Int) -> Int { item.restBySet.indices.contains(index) ? item.restBySet[index] : item.rest }
+
+    private func restBinding(_ index: Int) -> Binding<Int> {
+        Binding(get: { restValue(index) }, set: { value in
+            while item.restBySet.count <= index { item.restBySet.append(item.rest) }
+            item.restBySet[index] = value
+        })
     }
 }
 
@@ -228,7 +307,7 @@ struct ExercisePickerView: View {
                             dismiss()
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(exercise.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                Text(exercise.name).font(.subheadline.weight(.semibold)).foregroundStyle(FitTheme.primaryText)
                                 HStack(spacing: 8) {
                                     Text(exercise.muscleGroup)
                                     if let equipment = exercise.equipment, !equipment.isEmpty { Text("· \(equipment)") }

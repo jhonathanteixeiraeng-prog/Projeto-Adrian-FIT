@@ -7,25 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		09691D4CB913C389F59325DE /* StudentProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */; };
 		228D862FAEE22B26C2D191E4 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */; };
-		AA10000000000000000B0006 /* ExercisesLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0006 /* ExercisesLibraryView.swift */; };
-		AA10000000000000000B0007 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0007 /* NotificationsView.swift */; };
-		AA10000000000000000B0005 /* StudentFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0005 /* StudentFormView.swift */; };
-		AA10000000000000000B0004 /* StudentProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0004 /* StudentProgressView.swift */; };
-		AA10000000000000000B0001 /* EditingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0001 /* EditingModels.swift */; };
-		AA10000000000000000B0002 /* WorkoutPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0002 /* WorkoutPlanEditorView.swift */; };
-		AA10000000000000000B0003 /* DietPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0003 /* DietPlanEditorView.swift */; };
+		25F2F21CAE87A9F22D3AD2CF /* DietPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5B2A6EE3658D054E31DCB9 /* DietPlanEditorView.swift */; };
 		29BF72AA95DBD403E22D5F40 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 49CE12635CF08E9242E49655 /* Assets.xcassets */; };
+		309D779D17748975878C82DA /* ReminderPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D04A1EB0ABEBDAB47164AF82 /* ReminderPreferencesView.swift */; };
+		37B0B2A62D0666D544D224E8 /* ProgressPhotosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282505F33B3A7F95F84F99C0 /* ProgressPhotosView.swift */; };
 		3B2EB812A280C641B4B4E32D /* DietPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC72FA13486BD5EA02350A05 /* DietPlanView.swift */; };
 		406427EA9F74BA8B0535EF81 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02B08CCC7BC0230A9575B914 /* LoginView.swift */; };
 		483E8DCC5F0316EE2B540E0B /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461A38547D890B6CA0441458 /* APIClient.swift */; };
 		5496DA5A451D02FBD77D6E28 /* StudentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9820640308665F0E60F707B /* StudentsView.swift */; };
 		5C83D19CA0C29752E86410D1 /* PlansHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E7D3BFB45923E1F61FE1B6 /* PlansHubView.swift */; };
+		7438AC0D439AA027716A5187 /* ExercisesLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50838CCB841DA9EBDE469D7 /* ExercisesLibraryView.swift */; };
 		765729F5322E3808016A8993 /* ChatViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */; };
+		8429C62D34B7A2273CC6F784 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */; };
 		8E1F8108FB4BEFE3372ECD64 /* StudentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */; };
 		9B455621DFA2797D90F5751E /* PersonalDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */; };
 		9F73CB08EA5FCAEF1F25680D /* AdrianFitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3E81491D666CBB30693A68 /* AdrianFitApp.swift */; };
 		A0C86F90EF024264B76F051B /* FitTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB93C07918F87807C96E24D /* FitTheme.swift */; };
+		B30175165B22A937E3CD01BC /* StudentFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807FBFDF34C86C3960595F23 /* StudentFormView.swift */; };
+		B6761BDD4D807DE66CF58A19 /* EditingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */; };
+		BA6EE04CBAB4B2A28A250130 /* WorkoutPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4752B74E84FC0783BCED7044 /* WorkoutPlanEditorView.swift */; };
 		C65E0401BD137633FA759B3F /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F50CA8CBBD4E648AE826F4 /* Models.swift */; };
 		D8DC13F5B92CCD791E642044 /* WorkoutPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */; };
 		D9151447A57EDD37379B2EB8 /* AppShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72A6AC5D3E7BD10994F51710 /* AppShell.swift */; };
@@ -36,27 +38,30 @@
 		02B08CCC7BC0230A9575B914 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalDashboardView.swift; sourceTree = "<group>"; };
 		1A3E81491D666CBB30693A68 /* AdrianFitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdrianFitApp.swift; sourceTree = "<group>"; };
+		282505F33B3A7F95F84F99C0 /* ProgressPhotosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressPhotosView.swift; sourceTree = "<group>"; };
+		3A86196C767B9C7BC99F2822 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		461A38547D890B6CA0441458 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		4752B74E84FC0783BCED7044 /* WorkoutPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlanEditorView.swift; sourceTree = "<group>"; };
 		49CE12635CF08E9242E49655 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentHomeView.swift; sourceTree = "<group>"; };
 		6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlanView.swift; sourceTree = "<group>"; };
 		72A6AC5D3E7BD10994F51710 /* AppShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShell.swift; sourceTree = "<group>"; };
+		7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViews.swift; sourceTree = "<group>"; };
+		807FBFDF34C86C3960595F23 /* StudentFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentFormView.swift; sourceTree = "<group>"; };
 		9072D2471734ED866A3D5E21 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		AE5FD95549E1539FDA881A26 /* AdrianFit.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AdrianFit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC72FA13486BD5EA02350A05 /* DietPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietPlanView.swift; sourceTree = "<group>"; };
+		D04A1EB0ABEBDAB47164AF82 /* ReminderPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderPreferencesView.swift; sourceTree = "<group>"; };
 		D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		D9820640308665F0E60F707B /* StudentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentsView.swift; sourceTree = "<group>"; };
 		D9F50CA8CBBD4E648AE826F4 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		ECB93C07918F87807C96E24D /* FitTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitTheme.swift; sourceTree = "<group>"; };
+		F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProgressView.swift; sourceTree = "<group>"; };
+		F50838CCB841DA9EBDE469D7 /* ExercisesLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisesLibraryView.swift; sourceTree = "<group>"; };
+		F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingModels.swift; sourceTree = "<group>"; };
 		F7E7D3BFB45923E1F61FE1B6 /* PlansHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlansHubView.swift; sourceTree = "<group>"; };
-		AA10000000000000000E0001 /* EditingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingModels.swift; sourceTree = "<group>"; };
-		AA10000000000000000E0002 /* WorkoutPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlanEditorView.swift; sourceTree = "<group>"; };
-		AA10000000000000000E0003 /* DietPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietPlanEditorView.swift; sourceTree = "<group>"; };
-		AA10000000000000000E0004 /* StudentProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProgressView.swift; sourceTree = "<group>"; };
-		AA10000000000000000E0005 /* StudentFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentFormView.swift; sourceTree = "<group>"; };
-		AA10000000000000000E0006 /* ExercisesLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisesLibraryView.swift; sourceTree = "<group>"; };
-		AA10000000000000000E0007 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+		FF5B2A6EE3658D054E31DCB9 /* DietPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietPlanEditorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -64,8 +69,10 @@
 			isa = PBXGroup;
 			children = (
 				BC72FA13486BD5EA02350A05 /* DietPlanView.swift */,
-				AA10000000000000000E0004 /* StudentProgressView.swift */,
+				282505F33B3A7F95F84F99C0 /* ProgressPhotosView.swift */,
+				D04A1EB0ABEBDAB47164AF82 /* ReminderPreferencesView.swift */,
 				4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */,
+				F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */,
 				6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */,
 			);
 			path = Student;
@@ -103,7 +110,7 @@
 			isa = PBXGroup;
 			children = (
 				461A38547D890B6CA0441458 /* APIClient.swift */,
-				AA10000000000000000E0001 /* EditingModels.swift */,
+				F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */,
 				ECB93C07918F87807C96E24D /* FitTheme.swift */,
 				D9F50CA8CBBD4E648AE826F4 /* Models.swift */,
 				D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */,
@@ -114,13 +121,13 @@
 		D73BDD1C81496E5BD6270808 /* Personal */ = {
 			isa = PBXGroup;
 			children = (
+				FF5B2A6EE3658D054E31DCB9 /* DietPlanEditorView.swift */,
+				F50838CCB841DA9EBDE469D7 /* ExercisesLibraryView.swift */,
 				02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */,
-				AA10000000000000000E0002 /* WorkoutPlanEditorView.swift */,
-				AA10000000000000000E0003 /* DietPlanEditorView.swift */,
 				F7E7D3BFB45923E1F61FE1B6 /* PlansHubView.swift */,
+				807FBFDF34C86C3960595F23 /* StudentFormView.swift */,
 				D9820640308665F0E60F707B /* StudentsView.swift */,
-				AA10000000000000000E0006 /* ExercisesLibraryView.swift */,
-				AA10000000000000000E0005 /* StudentFormView.swift */,
+				4752B74E84FC0783BCED7044 /* WorkoutPlanEditorView.swift */,
 			);
 			path = Personal;
 			sourceTree = "<group>";
@@ -129,7 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */,
-				AA10000000000000000E0007 /* NotificationsView.swift */,
+				7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */,
 				9072D2471734ED866A3D5E21 /* ProfileView.swift */,
 			);
 			path = Shared;
@@ -147,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				49CE12635CF08E9242E49655 /* Assets.xcassets */,
+				3A86196C767B9C7BC99F2822 /* Info.plist */,
 				7248789CB7ADF8D090E59C5F /* App */,
 				C5A093E32FFBFA46BC3FB3E6 /* Core */,
 				AD10CF1261E622A05E6C8A35 /* Features */,
@@ -236,23 +244,25 @@
 				9F73CB08EA5FCAEF1F25680D /* AdrianFitApp.swift in Sources */,
 				D9151447A57EDD37379B2EB8 /* AppShell.swift in Sources */,
 				765729F5322E3808016A8993 /* ChatViews.swift in Sources */,
+				25F2F21CAE87A9F22D3AD2CF /* DietPlanEditorView.swift in Sources */,
 				3B2EB812A280C641B4B4E32D /* DietPlanView.swift in Sources */,
+				B6761BDD4D807DE66CF58A19 /* EditingModels.swift in Sources */,
+				7438AC0D439AA027716A5187 /* ExercisesLibraryView.swift in Sources */,
 				A0C86F90EF024264B76F051B /* FitTheme.swift in Sources */,
 				406427EA9F74BA8B0535EF81 /* LoginView.swift in Sources */,
 				C65E0401BD137633FA759B3F /* Models.swift in Sources */,
+				8429C62D34B7A2273CC6F784 /* NotificationsView.swift in Sources */,
 				9B455621DFA2797D90F5751E /* PersonalDashboardView.swift in Sources */,
 				5C83D19CA0C29752E86410D1 /* PlansHubView.swift in Sources */,
 				FB86131448B3561F3BD3481D /* ProfileView.swift in Sources */,
+				37B0B2A62D0666D544D224E8 /* ProgressPhotosView.swift in Sources */,
+				309D779D17748975878C82DA /* ReminderPreferencesView.swift in Sources */,
 				228D862FAEE22B26C2D191E4 /* SessionStore.swift in Sources */,
-				AA10000000000000000B0006 /* ExercisesLibraryView.swift in Sources */,
-				AA10000000000000000B0007 /* NotificationsView.swift in Sources */,
-				AA10000000000000000B0005 /* StudentFormView.swift in Sources */,
-				AA10000000000000000B0004 /* StudentProgressView.swift in Sources */,
-				AA10000000000000000B0001 /* EditingModels.swift in Sources */,
-				AA10000000000000000B0002 /* WorkoutPlanEditorView.swift in Sources */,
-				AA10000000000000000B0003 /* DietPlanEditorView.swift in Sources */,
+				B30175165B22A937E3CD01BC /* StudentFormView.swift in Sources */,
 				8E1F8108FB4BEFE3372ECD64 /* StudentHomeView.swift in Sources */,
+				09691D4CB913C389F59325DE /* StudentProgressView.swift in Sources */,
 				5496DA5A451D02FBD77D6E28 /* StudentsView.swift in Sources */,
+				BA6EE04CBAB4B2A28A250130 /* WorkoutPlanEditorView.swift in Sources */,
 				D8DC13F5B92CCD791E642044 /* WorkoutPlanView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -330,6 +340,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AdrianFit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -352,6 +363,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AdrianFit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

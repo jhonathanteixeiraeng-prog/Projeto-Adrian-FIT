@@ -36,16 +36,8 @@ struct StudentProgressView: View {
     var body: some View {
         Group {
             if loading && checkins.isEmpty { ProgressView("Carregando progresso…").frame(maxWidth: .infinity, maxHeight: .infinity) }
-            else if checkins.isEmpty {
-                ContentUnavailableView {
-                    Label("Sem check-ins ainda", systemImage: "chart.line.uptrend.xyaxis")
-                } description: {
-                    Text(error ?? "Envie seu primeiro check-in semanal para acompanhar sua evolução.")
-                } actions: {
-                    Button("Fazer check-in") { showCheckin = true }
-                        .buttonStyle(.borderedProminent).tint(FitTheme.orange)
-                }
-            } else { content }
+            else if checkins.isEmpty { emptyProgress }
+            else { content }
         }
         .fitScreen()
         .navigationTitle("Progresso")
@@ -63,6 +55,63 @@ struct StudentProgressView: View {
         .refreshable { await load() }
     }
 
+    private var emptyProgress: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Sua evolução começa aqui")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                    Text(error ?? "Registre seu primeiro check-in para criar sua linha de base e acompanhar mudanças reais ao longo das semanas.")
+                        .foregroundStyle(FitTheme.secondaryText)
+                }
+
+                HStack(spacing: 12) {
+                    MetricPill(icon: "checkmark.circle.fill", value: "\(WorkoutHistoryStore.workoutsThisWeek)", label: "treinos na semana", tint: FitTheme.green)
+                    MetricPill(icon: "flame.fill", value: "\(WorkoutHistoryStore.totalWorkouts)", label: "treinos no total", tint: FitTheme.orange)
+                }
+
+                NavigationLink { ProgressPhotosView() } label: {
+                    ProgressPhotosEntry()
+                }.buttonStyle(.plain)
+
+                SurfaceCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Label("PRIMEIRO CHECK-IN", systemImage: "flag.checkered")
+                            .font(.caption.bold())
+                            .foregroundStyle(FitTheme.orange)
+                        Text("Crie sua linha de base")
+                            .font(.title3.bold())
+                        Text("Peso, sono, energia e aderência serão comparados semana a semana com seus treinos.")
+                            .font(.subheadline)
+                            .foregroundStyle(FitTheme.secondaryText)
+                        Button {
+                            showCheckin = true
+                        } label: {
+                            Label("FAZER CHECK-IN", systemImage: "plus.circle.fill")
+                                .font(.subheadline.bold())
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white)
+                        .background(FitTheme.orange, in: RoundedRectangle(cornerRadius: 15))
+                    }
+                }
+
+                SurfaceCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeading(title: "O que você acompanhará")
+                        ProgressFeature(icon: "scalemass", title: "Peso e medidas", detail: "Tendência ao longo das semanas")
+                        ProgressFeature(icon: "dumbbell.fill", title: "Consistência", detail: "Treinos e aderência ao plano")
+                        ProgressFeature(icon: "chart.line.uptrend.xyaxis", title: "Desempenho", detail: "Cargas, séries e recordes pessoais")
+                    }
+                }
+            }
+            .padding(20)
+            .padding(.bottom, 110)
+        }
+    }
+
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -73,6 +122,11 @@ struct StudentProgressView: View {
                         MetricPill(icon: "fork.knife", value: "\(last.dietAdherence)%", label: "adesão dieta", tint: FitTheme.blue)
                     }
                 }
+
+
+                NavigationLink { ProgressPhotosView() } label: {
+                    ProgressPhotosEntry()
+                }.buttonStyle(.plain)
 
                 SurfaceCard {
                     VStack(alignment: .leading, spacing: 14) {
@@ -137,7 +191,7 @@ struct StudentProgressView: View {
                         }
                     }
                 }
-            }.padding(20)
+            }.padding(20).padding(.bottom, 110)
         }
     }
 
@@ -146,6 +200,42 @@ struct StudentProgressView: View {
         defer { loading = false }
         do { checkins = try await api.get("/api/checkins"); error = nil }
         catch { self.error = error.localizedDescription }
+    }
+}
+
+private struct ProgressPhotosEntry: View {
+    var body: some View {
+        SurfaceCard {
+            HStack(spacing: 14) {
+                Image(systemName: "camera.fill").font(.title2).foregroundStyle(FitTheme.orange)
+                    .frame(width: 48, height: 48).background(FitTheme.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 15))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Fotos de evolução").font(.headline).foregroundStyle(FitTheme.primaryText)
+                    Text("Crie sua linha do tempo visual").font(.caption).foregroundStyle(FitTheme.secondaryText)
+                }
+                Spacer(); Image(systemName: "chevron.right").foregroundStyle(FitTheme.secondaryText)
+            }
+        }
+    }
+}
+
+private struct ProgressFeature: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .frame(width: 34, height: 34)
+                .background(FitTheme.orange.opacity(0.14), in: Circle())
+                .foregroundStyle(FitTheme.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(detail).font(.caption).foregroundStyle(FitTheme.secondaryText)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -194,9 +284,9 @@ struct CheckinFormView: View {
                 .listRowBackground(FitTheme.surface)
 
                 Section("Como você se sentiu na semana") {
-                    LevelPicker(title: "Energia", icon: "bolt.fill", level: $energyLevel)
-                    LevelPicker(title: "Fome", icon: "fork.knife", level: $hungerLevel)
-                    LevelPicker(title: "Estresse", icon: "brain.head.profile", level: $stressLevel)
+                    LevelPicker(title: "Energia", icon: "bolt.fill", lowLabel: "baixa", highLabel: "alta", level: $energyLevel)
+                    LevelPicker(title: "Fome", icon: "fork.knife", lowLabel: "pouca", highLabel: "muita", level: $hungerLevel)
+                    LevelPicker(title: "Estresse", icon: "brain.head.profile", lowLabel: "baixo", highLabel: "alto", level: $stressLevel)
                 }
                 .listRowBackground(FitTheme.surface)
 
@@ -223,6 +313,9 @@ struct CheckinFormView: View {
                 Section("Observações para o personal") {
                     TextField("Como foi a semana? Dificuldades, vitórias…", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
+                    Text("Seu personal recebe esse check-in e ele também alimenta a tela de progresso.")
+                        .font(.caption)
+                        .foregroundStyle(FitTheme.secondaryText)
                 }
                 .listRowBackground(FitTheme.surface)
 
@@ -280,6 +373,8 @@ struct CheckinFormView: View {
 private struct LevelPicker: View {
     let title: String
     let icon: String
+    let lowLabel: String
+    let highLabel: String
     @Binding var level: Int
 
     var body: some View {
@@ -301,8 +396,16 @@ private struct LevelPicker: View {
                             .foregroundStyle(level == value ? .white : FitTheme.secondaryText)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("\(title): \(value) de 5")
                 }
             }
+            HStack {
+                Text(lowLabel)
+                Spacer()
+                Text(highLabel)
+            }
+            .font(.caption2)
+            .foregroundStyle(FitTheme.secondaryText)
         }
         .padding(.vertical, 2)
     }

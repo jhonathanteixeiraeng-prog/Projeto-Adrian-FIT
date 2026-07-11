@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { normalizeDietFood } from '@/lib/diet-normalizer';
 
 type NutritionInfo = {
     name: string;
@@ -253,7 +254,7 @@ export async function POST(
                                 nutrition = nutritionCache.get(cacheKey) ?? null;
                             }
 
-                            return {
+                            const rawFood = {
                                 name: food.name,
                                 quantity: food.quantity || '',
                                 notes: food.notes || '',
@@ -263,6 +264,7 @@ export async function POST(
                                 carbs: providedCarbs ?? nutrition?.carbs ?? null,
                                 fat: providedFat ?? nutrition?.fat ?? null,
                             };
+                            return normalizeDietFood(rawFood);
                         })
                 );
 

@@ -40,7 +40,7 @@ private struct PlanCard: View {
                     .frame(width: 54, height: 54)
                     .overlay { Image(systemName: icon).font(.title2).foregroundStyle(color) }
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(title).font(.headline).foregroundStyle(.white)
+                    Text(title).font(.headline).foregroundStyle(FitTheme.primaryText)
                     Text(subtitle).font(.caption).foregroundStyle(FitTheme.secondaryText)
                 }
                 Spacer()
@@ -215,7 +215,7 @@ private struct PlanListRow: View {
             Circle().fill(color.opacity(0.14)).frame(width: 44, height: 44)
                 .overlay { Image(systemName: active ? "checkmark" : "pause").foregroundStyle(color) }
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.headline).foregroundStyle(.white)
+                Text(title).font(.headline).foregroundStyle(FitTheme.primaryText)
                 Text(student).font(.caption).foregroundStyle(FitTheme.secondaryText)
                 Text(detail).font(.caption2).foregroundStyle(color)
             }
@@ -354,9 +354,8 @@ private struct WorkoutTemplateDetailView: View {
 }
 
 private struct DietTemplateDetailView: View {
-    @Environment(\.apiClient) private var api
     let template: DietTemplateSummary
-    @State private var showStudentPicker = false
+    @State private var showAssignment = false
     @State private var feedback: String?
 
     var body: some View {
@@ -371,12 +370,12 @@ private struct DietTemplateDetailView: View {
         }.scrollContentBackground(.hidden).fitScreen().navigationTitle(template.title)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Aplicar a aluno") { showStudentPicker = true }.fontWeight(.semibold)
+                Button("Aplicar a aluno") { showAssignment = true }.fontWeight(.semibold)
             }
         }
-        .sheet(isPresented: $showStudentPicker) {
-            StudentPickerView { student in
-                Task { await apply(to: student) }
+        .sheet(isPresented: $showAssignment) {
+            DietTemplateAssignmentView(template: template) { studentName, calories in
+                feedback = "Dieta \"\(template.title)\" aplicada a \(studentName) com meta de \(calories) kcal."
             }
         }
         .alert("Aplicar modelo", isPresented: Binding(get: { feedback != nil }, set: { if !$0 { feedback = nil } })) {
@@ -384,25 +383,96 @@ private struct DietTemplateDetailView: View {
         } message: { Text(feedback ?? "") }
     }
 
-    private func apply(to student: StudentListItem) async {
-        struct Body: Encodable {
-            let templateId: String
-            let studentId: String
-            let startDate: String
-            let endDate: String
+}
+
+private struct DietTemplateAssignmentView: View {
+    @Environment(\.apiClient) private var api
+    @Environment(\.dismiss) private var dismiss
+    let template: DietTemplateSummary
+    let onApplied: (String, Int) -> Void
+
+    @State private var students: [StudentListItem] = []
+    @State private var studentId = ""
+    @State private var targetCalories = ""
+    @State private var loading = true
+    @State private var saving = false
+    @State private var error: String?
+
+    private var calories: Int { Int(targetCalories) ?? 0 }
+    private var baseCalories: Int { max(template.calories ?? 0, 1) }
+    private var factor: Double { Double(calories) / Double(baseCalories) }
+    private var valid: Bool { !studentId.isEmpty && (800...6000).contains(calories) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Prescrição") {
+                    Picker("Aluno", selection: $studentId) {
+                        Text("Selecione").tag("")
+                        ForEach(students) { Text($0.user.name).tag($0.id) }
+                    }
+                    HStack {
+                        Label("Meta diária", systemImage: "flame.fill")
+                        Spacer()
+                        TextField("Ex.: 2200", text: $targetCalories)
+                            .keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 100)
+                        Text("kcal").foregroundStyle(FitTheme.secondaryText)
+                    }
+                }
+                .listRowBackground(FitTheme.surface)
+
+                Section("Prévia recalculada") {
+                    AssignmentPreviewRow(label: "Modelo original", value: "\(template.calories ?? 0) kcal")
+                    AssignmentPreviewRow(label: "Nova meta", value: valid ? "\(calories) kcal" : "—")
+                    AssignmentPreviewRow(label: "Proteínas", value: valid ? "~\(Int(Double(template.protein ?? 0) * factor)) g" : "—")
+                    AssignmentPreviewRow(label: "Carboidratos", value: valid ? "~\(Int(Double(template.carbs ?? 0) * factor)) g" : "—")
+                    AssignmentPreviewRow(label: "Gorduras", value: valid ? "~\(Int(Double(template.fat ?? 0) * factor)) g" : "—")
+                    Text("As quantidades de todos os alimentos serão ajustadas proporcionalmente, preservando a distribuição das refeições.")
+                        .font(.caption).foregroundStyle(FitTheme.secondaryText)
+                }
+                .listRowBackground(FitTheme.surface)
+
+                if let error { Section { Text(error).foregroundStyle(.red).font(.caption) }.listRowBackground(FitTheme.surface) }
+            }
+            .scrollContentBackground(.hidden).fitScreen()
+            .navigationTitle("Aplicar dieta-modelo").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "Aplicando…" : "Aplicar") { Task { await apply() } }.disabled(!valid || saving || loading)
+                }
+            }
+            .task { await loadStudents() }
         }
-        let body = Body(
-            templateId: template.id,
-            studentId: student.id,
-            startDate: PlanDates.iso(daysFromNow: 0),
-            endDate: PlanDates.iso(daysFromNow: 90)
-        )
-        do {
-            // POST /api/diet-plans/from-template devolve o objeto direto, sem envelope.
-            let _: IdentifiedValue = try await api.postRaw("/api/diet-plans/from-template", body: body)
-            feedback = "Dieta \"\(template.title)\" aplicada a \(student.user.name)."
-        } catch { feedback = error.localizedDescription }
     }
+
+    private func loadStudents() async {
+        do { students = try await api.get("/api/students"); error = nil }
+        catch { self.error = error.localizedDescription }
+        targetCalories = String(template.calories ?? 2000)
+        loading = false
+    }
+
+    private func apply() async {
+        guard let student = students.first(where: { $0.id == studentId }) else { return }
+        saving = true
+        defer { saving = false }
+        struct Body: Encodable { let templateId: String; let studentId: String; let startDate: String; let endDate: String; let targetCalories: Int }
+        do {
+            let _: IdentifiedValue = try await api.postRaw("/api/diet-plans/from-template", body: Body(
+                templateId: template.id, studentId: student.id,
+                startDate: PlanDates.iso(daysFromNow: 0), endDate: PlanDates.iso(daysFromNow: 90), targetCalories: calories
+            ))
+            onApplied(student.user.name, calories)
+            dismiss()
+        } catch { self.error = error.localizedDescription }
+    }
+}
+
+private struct AssignmentPreviewRow: View {
+    let label: String
+    let value: String
+    var body: some View { HStack { Text(label); Spacer(); Text(value).fontWeight(.semibold).foregroundStyle(FitTheme.orange) } }
 }
 
 enum PlanDates {
@@ -443,7 +513,7 @@ struct StudentPickerView: View {
                                 Circle().fill(FitTheme.orange.opacity(0.16)).frame(width: 40, height: 40)
                                     .overlay { Text(student.user.name.prefix(1)).font(.subheadline.bold()).foregroundStyle(FitTheme.orange) }
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(student.user.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                    Text(student.user.name).font(.subheadline.weight(.semibold)).foregroundStyle(FitTheme.primaryText)
                                     Text(student.user.email).font(.caption2).foregroundStyle(FitTheme.secondaryText)
                                 }
                             }

@@ -33,8 +33,18 @@ struct ProfileView: View {
                             ProfileRow(icon: "person.text.rectangle", title: "Dados pessoais")
                         }
                         Divider().overlay(Color.white.opacity(0.08))
+                        NavigationLink { AppearanceSettingsView() } label: {
+                            ProfileRow(icon: "circle.lefthalf.filled", title: "Aparência")
+                        }
+                        Divider().overlay(FitTheme.separator.opacity(0.45))
                         NavigationLink { NotificationsView(role: user.role) } label: {
                             ProfileRow(icon: "bell", title: "Notificações")
+                        }
+                        if user.role == .student {
+                            Divider().overlay(Color.white.opacity(0.08))
+                            NavigationLink { ReminderPreferencesView() } label: {
+                                ProfileRow(icon: "clock.badge", title: "Lembretes")
+                            }
                         }
                         Divider().overlay(Color.white.opacity(0.08))
                         Button { showPassword = true } label: {
@@ -71,13 +81,40 @@ private struct ProfileRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon).frame(width: 24).foregroundStyle(FitTheme.orange)
-            Text(title).foregroundStyle(.white)
+            Text(title).foregroundStyle(FitTheme.primaryText)
             Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(FitTheme.secondaryText)
         }
         .padding(.vertical, 15)
         .frame(maxWidth: .infinity)
         // Sem contentShape, o espaço entre o título e a seta não recebe toque.
         .contentShape(Rectangle())
+    }
+}
+
+private struct AppearanceSettingsView: View {
+    @AppStorage("app-appearance") private var appearance = AppAppearance.system.rawValue
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(AppAppearance.allCases) { option in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { appearance = option.rawValue }
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: option.icon).frame(width: 28).foregroundStyle(FitTheme.orange)
+                            Text(option.title).foregroundStyle(FitTheme.primaryText)
+                            Spacer()
+                            if appearance == option.rawValue { Image(systemName: "checkmark.circle.fill").foregroundStyle(FitTheme.orange) }
+                        }.padding(.vertical, 7).contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                }
+            } header: { Text("Tema do aplicativo") }
+              footer: { Text("No modo Automático, o Adrian Fit acompanha a aparência configurada no iPhone.") }
+              .listRowBackground(FitTheme.surface)
+        }
+        .scrollContentBackground(.hidden).fitScreen()
+        .navigationTitle("Aparência").navigationBarTitleDisplayMode(.inline)
     }
 }
 

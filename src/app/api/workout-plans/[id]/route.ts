@@ -102,6 +102,7 @@ export async function PUT(
                                 sets: item.sets,
                                 reps: item.reps,
                                 rest: item.rest,
+                                restBySet: item.restBySet || null,
                                 notes: item.notes || '',
                                 order: itemIndex,
                             })),

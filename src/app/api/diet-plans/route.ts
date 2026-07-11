@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { normalizeDietFood } from '@/lib/diet-normalizer';
 
 const mealItemSchema = z.object({
     id: z.string().optional(),
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
             ...plan,
             meals: plan.meals.map(meal => ({
                 ...meal,
-                items: JSON.parse(meal.foods),
+                items: JSON.parse(meal.foods).map((item: any) => normalizeDietFood(item)),
             }))
         }));
 
@@ -118,16 +119,21 @@ export async function POST(request: NextRequest) {
         let totalCarbs = 0;
         let totalFat = 0;
 
-        if (validatedData.meals) {
-            validatedData.meals.forEach(meal => {
-                meal.items.forEach(item => {
-                    totalCalories += item.calories * item.quantity;
-                    totalProtein += item.protein * item.quantity;
-                    totalCarbs += item.carbs * item.quantity;
-                    totalFat += item.fat * item.quantity;
-                });
+        const normalizedMeals = validatedData.meals
+            ? validatedData.meals.map(meal => ({
+                ...meal,
+                items: meal.items.map(item => normalizeDietFood(item)),
+            }))
+            : [];
+
+        normalizedMeals.forEach(meal => {
+            meal.items.forEach(item => {
+                totalCalories += item.totalCalories;
+                totalProtein += item.totalProtein;
+                totalCarbs += item.totalCarbs;
+                totalFat += item.totalFat;
             });
-        }
+        });
 
         const dietPlan = await prisma.dietPlan.create({
             data: {
@@ -142,8 +148,8 @@ export async function POST(request: NextRequest) {
                 protein: validatedData.targetProtein || Math.round(totalProtein),
                 carbs: validatedData.targetCarbs || Math.round(totalCarbs),
                 fat: validatedData.targetFat || Math.round(totalFat),
-                meals: validatedData.meals ? {
-                    create: validatedData.meals.map((meal, mealIndex) => ({
+                meals: normalizedMeals.length > 0 ? {
+                    create: normalizedMeals.map((meal, mealIndex) => ({
                         name: meal.name,
                         time: meal.time,
                         order: mealIndex,
@@ -176,7 +182,7 @@ export async function POST(request: NextRequest) {
                         carbs: Math.round(totalCarbs),
                         fat: Math.round(totalFat),
                         meals: {
-                            create: validatedData.meals.map((meal, index) => ({
+                            create: normalizedMeals.map((meal, index) => ({
                                 name: meal.name,
                                 time: meal.time,
                                 order: index,
@@ -197,7 +203,7 @@ export async function POST(request: NextRequest) {
             ...dietPlan,
             meals: dietPlan.meals.map(meal => ({
                 ...meal,
-                items: JSON.parse(meal.foods),
+                items: JSON.parse(meal.foods).map((item: any) => normalizeDietFood(item)),
             }))
         };
 

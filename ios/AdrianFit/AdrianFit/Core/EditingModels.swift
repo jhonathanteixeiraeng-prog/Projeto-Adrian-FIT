@@ -34,6 +34,7 @@ struct WorkoutItemDetail: Codable, Identifiable, Sendable {
     let sets: Int
     let reps: String
     let rest: Int
+    let restBySet: String?
     let notes: String?
     let exercise: Exercise
 }
@@ -57,6 +58,7 @@ struct WorkoutItemBody: Encodable {
     let sets: Int
     let reps: String
     let rest: Int
+    let restBySet: String?
     let notes: String
 }
 
@@ -77,6 +79,8 @@ struct EditableWorkoutItem: Identifiable, Hashable {
     var sets: Int
     var reps: String
     var rest: Int
+    var customRest: Bool
+    var restBySet: [Int]
     var notes: String
 }
 

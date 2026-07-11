@@ -1,0 +1,456 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		09691D4CB913C389F59325DE /* StudentProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */; };
+		228D862FAEE22B26C2D191E4 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */; };
+		25F2F21CAE87A9F22D3AD2CF /* DietPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5B2A6EE3658D054E31DCB9 /* DietPlanEditorView.swift */; };
+		29BF72AA95DBD403E22D5F40 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 49CE12635CF08E9242E49655 /* Assets.xcassets */; };
+		3B2EB812A280C641B4B4E32D /* DietPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC72FA13486BD5EA02350A05 /* DietPlanView.swift */; };
+		406427EA9F74BA8B0535EF81 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02B08CCC7BC0230A9575B914 /* LoginView.swift */; };
+		483E8DCC5F0316EE2B540E0B /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461A38547D890B6CA0441458 /* APIClient.swift */; };
+		5496DA5A451D02FBD77D6E28 /* StudentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9820640308665F0E60F707B /* StudentsView.swift */; };
+		5C83D19CA0C29752E86410D1 /* PlansHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E7D3BFB45923E1F61FE1B6 /* PlansHubView.swift */; };
+		7438AC0D439AA027716A5187 /* ExercisesLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50838CCB841DA9EBDE469D7 /* ExercisesLibraryView.swift */; };
+		765729F5322E3808016A8993 /* ChatViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */; };
+		8429C62D34B7A2273CC6F784 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */; };
+		8E1F8108FB4BEFE3372ECD64 /* StudentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */; };
+		9B455621DFA2797D90F5751E /* PersonalDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */; };
+		9F73CB08EA5FCAEF1F25680D /* AdrianFitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3E81491D666CBB30693A68 /* AdrianFitApp.swift */; };
+		A0C86F90EF024264B76F051B /* FitTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB93C07918F87807C96E24D /* FitTheme.swift */; };
+		B30175165B22A937E3CD01BC /* StudentFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807FBFDF34C86C3960595F23 /* StudentFormView.swift */; };
+		B6761BDD4D807DE66CF58A19 /* EditingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */; };
+		BA6EE04CBAB4B2A28A250130 /* WorkoutPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4752B74E84FC0783BCED7044 /* WorkoutPlanEditorView.swift */; };
+		C65E0401BD137633FA759B3F /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F50CA8CBBD4E648AE826F4 /* Models.swift */; };
+		D8DC13F5B92CCD791E642044 /* WorkoutPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */; };
+		D9151447A57EDD37379B2EB8 /* AppShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72A6AC5D3E7BD10994F51710 /* AppShell.swift */; };
+		FB86131448B3561F3BD3481D /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9072D2471734ED866A3D5E21 /* ProfileView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		02B08CCC7BC0230A9575B914 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalDashboardView.swift; sourceTree = "<group>"; };
+		1A3E81491D666CBB30693A68 /* AdrianFitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdrianFitApp.swift; sourceTree = "<group>"; };
+		3A86196C767B9C7BC99F2822 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		461A38547D890B6CA0441458 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		4752B74E84FC0783BCED7044 /* WorkoutPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlanEditorView.swift; sourceTree = "<group>"; };
+		49CE12635CF08E9242E49655 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentHomeView.swift; sourceTree = "<group>"; };
+		6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlanView.swift; sourceTree = "<group>"; };
+		72A6AC5D3E7BD10994F51710 /* AppShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShell.swift; sourceTree = "<group>"; };
+		7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+		7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViews.swift; sourceTree = "<group>"; };
+		807FBFDF34C86C3960595F23 /* StudentFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentFormView.swift; sourceTree = "<group>"; };
+		9072D2471734ED866A3D5E21 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		AE5FD95549E1539FDA881A26 /* AdrianFit.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AdrianFit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC72FA13486BD5EA02350A05 /* DietPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietPlanView.swift; sourceTree = "<group>"; };
+		D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		D9820640308665F0E60F707B /* StudentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentsView.swift; sourceTree = "<group>"; };
+		D9F50CA8CBBD4E648AE826F4 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		ECB93C07918F87807C96E24D /* FitTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitTheme.swift; sourceTree = "<group>"; };
+		F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProgressView.swift; sourceTree = "<group>"; };
+		F50838CCB841DA9EBDE469D7 /* ExercisesLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisesLibraryView.swift; sourceTree = "<group>"; };
+		F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingModels.swift; sourceTree = "<group>"; };
+		F7E7D3BFB45923E1F61FE1B6 /* PlansHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlansHubView.swift; sourceTree = "<group>"; };
+		FF5B2A6EE3658D054E31DCB9 /* DietPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietPlanEditorView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		2CD36D6CA1D2AA06463B13D2 /* Student */ = {
+			isa = PBXGroup;
+			children = (
+				BC72FA13486BD5EA02350A05 /* DietPlanView.swift */,
+				4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */,
+				F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */,
+				6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */,
+			);
+			path = Student;
+			sourceTree = "<group>";
+		};
+		7248789CB7ADF8D090E59C5F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1A3E81491D666CBB30693A68 /* AdrianFitApp.swift */,
+				72A6AC5D3E7BD10994F51710 /* AppShell.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		84ED19BA83FFFBEA5081C095 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AE5FD95549E1539FDA881A26 /* AdrianFit.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AD10CF1261E622A05E6C8A35 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				F96FCFF268C85A2704E1D04D /* Auth */,
+				D73BDD1C81496E5BD6270808 /* Personal */,
+				DD502FC445D19F8A3C25674C /* Shared */,
+				2CD36D6CA1D2AA06463B13D2 /* Student */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		C5A093E32FFBFA46BC3FB3E6 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				461A38547D890B6CA0441458 /* APIClient.swift */,
+				F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */,
+				ECB93C07918F87807C96E24D /* FitTheme.swift */,
+				D9F50CA8CBBD4E648AE826F4 /* Models.swift */,
+				D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		D73BDD1C81496E5BD6270808 /* Personal */ = {
+			isa = PBXGroup;
+			children = (
+				FF5B2A6EE3658D054E31DCB9 /* DietPlanEditorView.swift */,
+				F50838CCB841DA9EBDE469D7 /* ExercisesLibraryView.swift */,
+				02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */,
+				F7E7D3BFB45923E1F61FE1B6 /* PlansHubView.swift */,
+				807FBFDF34C86C3960595F23 /* StudentFormView.swift */,
+				D9820640308665F0E60F707B /* StudentsView.swift */,
+				4752B74E84FC0783BCED7044 /* WorkoutPlanEditorView.swift */,
+			);
+			path = Personal;
+			sourceTree = "<group>";
+		};
+		DD502FC445D19F8A3C25674C /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */,
+				7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */,
+				9072D2471734ED866A3D5E21 /* ProfileView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		EC5475E7AE641C9974189DFA = {
+			isa = PBXGroup;
+			children = (
+				F398ECD92488819B2FDADABF /* AdrianFit */,
+				84ED19BA83FFFBEA5081C095 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F398ECD92488819B2FDADABF /* AdrianFit */ = {
+			isa = PBXGroup;
+			children = (
+				49CE12635CF08E9242E49655 /* Assets.xcassets */,
+				3A86196C767B9C7BC99F2822 /* Info.plist */,
+				7248789CB7ADF8D090E59C5F /* App */,
+				C5A093E32FFBFA46BC3FB3E6 /* Core */,
+				AD10CF1261E622A05E6C8A35 /* Features */,
+			);
+			path = AdrianFit;
+			sourceTree = "<group>";
+		};
+		F96FCFF268C85A2704E1D04D /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				02B08CCC7BC0230A9575B914 /* LoginView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		030A39E07332FDE158B5B901 /* AdrianFit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7CF7F0E087D286E45E3EA43A /* Build configuration list for PBXNativeTarget "AdrianFit" */;
+			buildPhases = (
+				C2D448743F5F1C6D5DC2D99B /* Sources */,
+				D3F0D9FC43884CEB032EAD0F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AdrianFit;
+			packageProductDependencies = (
+			);
+			productName = AdrianFit;
+			productReference = AE5FD95549E1539FDA881A26 /* AdrianFit.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6ACAA4CCBCA514F32E6DA52C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					030A39E07332FDE158B5B901 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 2229C73440A2A7B59B8FAA51 /* Build configuration list for PBXProject "AdrianFit" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = EC5475E7AE641C9974189DFA;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 84ED19BA83FFFBEA5081C095 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				030A39E07332FDE158B5B901 /* AdrianFit */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D3F0D9FC43884CEB032EAD0F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				29BF72AA95DBD403E22D5F40 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C2D448743F5F1C6D5DC2D99B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				483E8DCC5F0316EE2B540E0B /* APIClient.swift in Sources */,
+				9F73CB08EA5FCAEF1F25680D /* AdrianFitApp.swift in Sources */,
+				D9151447A57EDD37379B2EB8 /* AppShell.swift in Sources */,
+				765729F5322E3808016A8993 /* ChatViews.swift in Sources */,
+				25F2F21CAE87A9F22D3AD2CF /* DietPlanEditorView.swift in Sources */,
+				3B2EB812A280C641B4B4E32D /* DietPlanView.swift in Sources */,
+				B6761BDD4D807DE66CF58A19 /* EditingModels.swift in Sources */,
+				7438AC0D439AA027716A5187 /* ExercisesLibraryView.swift in Sources */,
+				A0C86F90EF024264B76F051B /* FitTheme.swift in Sources */,
+				406427EA9F74BA8B0535EF81 /* LoginView.swift in Sources */,
+				C65E0401BD137633FA759B3F /* Models.swift in Sources */,
+				8429C62D34B7A2273CC6F784 /* NotificationsView.swift in Sources */,
+				9B455621DFA2797D90F5751E /* PersonalDashboardView.swift in Sources */,
+				5C83D19CA0C29752E86410D1 /* PlansHubView.swift in Sources */,
+				FB86131448B3561F3BD3481D /* ProfileView.swift in Sources */,
+				228D862FAEE22B26C2D191E4 /* SessionStore.swift in Sources */,
+				B30175165B22A937E3CD01BC /* StudentFormView.swift in Sources */,
+				8E1F8108FB4BEFE3372ECD64 /* StudentHomeView.swift in Sources */,
+				09691D4CB913C389F59325DE /* StudentProgressView.swift in Sources */,
+				5496DA5A451D02FBD77D6E28 /* StudentsView.swift in Sources */,
+				BA6EE04CBAB4B2A28A250130 /* WorkoutPlanEditorView.swift in Sources */,
+				D8DC13F5B92CCD791E642044 /* WorkoutPlanView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2E74C2995027D7CCDD373AD3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		5313050B1923A12E5B09C258 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AdrianFit/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit;
+				PRODUCT_NAME = "Adrian Fit";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		68E4B4A0B9F90F237E108F28 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AdrianFit/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit;
+				PRODUCT_NAME = "Adrian Fit";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		CE3DAB0BE7F6AB915EAD7443 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2229C73440A2A7B59B8FAA51 /* Build configuration list for PBXProject "AdrianFit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2E74C2995027D7CCDD373AD3 /* Debug */,
+				CE3DAB0BE7F6AB915EAD7443 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7CF7F0E087D286E45E3EA43A /* Build configuration list for PBXNativeTarget "AdrianFit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				68E4B4A0B9F90F237E108F28 /* Debug */,
+				5313050B1923A12E5B09C258 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6ACAA4CCBCA514F32E6DA52C /* Project object */;
+}

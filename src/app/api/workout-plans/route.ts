@@ -9,6 +9,7 @@ const workoutItemSchema = z.object({
     sets: z.number().min(1),
     reps: z.string(),
     rest: z.number().min(0),
+    restBySet: z.string().nullable().optional(),
     notes: z.string().optional(),
     order: z.number(),
 });
@@ -119,6 +120,7 @@ export async function POST(request: NextRequest) {
                                 sets: item.sets,
                                 reps: item.reps,
                                 rest: item.rest,
+                                restBySet: item.restBySet || null,
                                 notes: item.notes || '',
                                 order: itemIndex,
                             })),
@@ -170,6 +172,7 @@ export async function POST(request: NextRequest) {
                                     sets: item.sets,
                                     reps: item.reps,
                                     rest: item.rest,
+                                    restBySet: item.restBySet || null,
                                     notes: item.notes || '',
                                     order: itemIndex,
                                 })),

@@ -42,7 +42,7 @@ struct ExercisesLibraryView: View {
                 List(filtered) { exercise in
                     Button { editing = exercise } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(exercise.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                            Text(exercise.name).font(.subheadline.weight(.semibold)).foregroundStyle(FitTheme.primaryText)
                             HStack(spacing: 8) {
                                 Text(exercise.muscleGroup)
                                 if let difficulty = exercise.difficulty {

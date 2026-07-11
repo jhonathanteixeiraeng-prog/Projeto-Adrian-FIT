@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { normalizeDietMeal } from '@/lib/diet-normalizer';
 
 export async function GET(request: NextRequest) {
     try {
@@ -68,9 +69,12 @@ export async function GET(request: NextRequest) {
 
             const formattedMeals = planWithMeals.meals.map((meal: any) => {
                 const { completions, ...rest } = meal;
-                return {
+                const normalized = normalizeDietMeal({
                     ...rest,
                     foods: typeof meal.foods === 'string' ? JSON.parse(meal.foods) : meal.foods,
+                });
+                return {
+                    ...normalized,
                     completed: Array.isArray(completions) && completions.length > 0,
                 };
             });

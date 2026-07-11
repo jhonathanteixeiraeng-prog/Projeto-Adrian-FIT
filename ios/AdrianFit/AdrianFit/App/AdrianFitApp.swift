@@ -3,13 +3,14 @@ import SwiftUI
 @main
 struct AdrianFitApp: App {
     @State private var session = SessionStore()
+    @AppStorage("app-appearance") private var appearance = AppAppearance.system.rawValue
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(session)
                 .environment(\.apiClient, .live)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(AppAppearance(rawValue: appearance)?.colorScheme)
         }
     }
 }

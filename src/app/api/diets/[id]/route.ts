@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { normalizeDietMeal } from '@/lib/diet-normalizer';
 
 // GET /api/diets/[id] - Get a specific diet plan
 export async function GET(
@@ -47,7 +48,11 @@ export async function GET(
             );
         }
 
-        return NextResponse.json({ success: true, data: dietPlan });
+        const normalizedPlan = {
+            ...dietPlan,
+            meals: dietPlan.meals.map((meal: any) => normalizeDietMeal(meal)),
+        };
+        return NextResponse.json({ success: true, data: normalizedPlan });
     } catch (error) {
         console.error('Error fetching diet plan:', error);
         return NextResponse.json(
@@ -93,13 +98,16 @@ export async function PUT(
         }
 
         // Prepare meals for creation
-        const preparedMeals = meals.map((meal: any, index: number) => ({
-            name: meal.name,
-            time: meal.time,
-            notes: meal.notes,
-            order: index,
-            foods: JSON.stringify(meal.foods || []), // Serialize foods to JSON string
-        }));
+        const preparedMeals = meals.map((meal: any, index: number) => {
+            const normalizedFoods = (meal.foods || []).map((food: any) => normalizeDietMeal({ foods: [food] }).foods[0]);
+            return {
+                name: meal.name,
+                time: meal.time,
+                notes: meal.notes,
+                order: index,
+                foods: JSON.stringify(normalizedFoods), // Serialize foods to JSON string
+            };
+        });
 
         // Update transaction
         const updatedPlan = await prisma.$transaction(async (tx) => {

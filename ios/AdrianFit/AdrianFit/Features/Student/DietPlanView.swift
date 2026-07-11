@@ -13,11 +13,13 @@ struct DietPlanView: View {
             if let plan {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
-                        Text(plan.title).font(.largeTitle.bold())
+                        Text(plan.title).font(.system(size: 30, weight: .bold, design: .rounded))
                         dayProgress(plan)
                         SectionHeading(title: "Refeições de hoje")
                         ForEach(plan.meals) { meal in mealCard(meal) }
-                    }.padding(20)
+                    }
+                    .padding(20)
+                    .padding(.bottom, 124)
                 }
             } else if let error { ContentUnavailableView("Dieta indisponível", systemImage: "fork.knife", description: Text(error)) }
             else { ProgressView() }
@@ -37,11 +39,19 @@ struct DietPlanView: View {
     private func totals(of meal: DietMeal) -> DayTotals {
         var result = DayTotals()
         for food in meal.foods {
-            let qty = food.quantity?.value ?? 1
-            result.calories += (food.calories?.value ?? 0) * qty
-            result.protein += (food.protein?.value ?? 0) * qty
-            result.carbs += (food.carbs?.value ?? 0) * qty
-            result.fat += (food.fat?.value ?? 0) * qty
+            // Preferimos totais calculados pelo backend; fallback para quantity * macros.
+            if let totalCalories = food.totalCalories?.value, totalCalories > 0 {
+                result.calories += totalCalories
+                result.protein += food.totalProtein?.value ?? 0
+                result.carbs += food.totalCarbs?.value ?? 0
+                result.fat += food.totalFat?.value ?? 0
+            } else {
+                let qty = (food.quantity?.value ?? 1) > 0 ? (food.quantity?.value ?? 1) : 1
+                result.calories += (food.calories?.value ?? 0) * qty
+                result.protein += (food.protein?.value ?? 0) * qty
+                result.carbs += (food.carbs?.value ?? 0) * qty
+                result.fat += (food.fat?.value ?? 0) * qty
+            }
         }
         return result
     }
@@ -114,6 +124,7 @@ struct DietPlanView: View {
                             .foregroundStyle(isCompleted ? FitTheme.green : FitTheme.secondaryText)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(isCompleted ? "Marcar \(meal.name) como não consumida" : "Marcar \(meal.name) como consumida")
 
                     Button { withAnimation(.snappy) { toggle(meal.id) } } label: {
                         HStack {
@@ -137,18 +148,29 @@ struct DietPlanView: View {
                         VStack(alignment: .leading, spacing: 5) {
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(food.name).font(.subheadline.weight(.semibold))
+                                    Text(food.studentFriendlyName).font(.subheadline.weight(.semibold))
                                     Text(portionText(food)).font(.caption).foregroundStyle(FitTheme.secondaryText)
                                 }
                                 Spacer()
-                                if let calories = food.calories?.value, let quantity = food.quantity?.value {
-                                    Text("\(Int(calories * quantity)) kcal").font(.caption).foregroundStyle(FitTheme.secondaryText)
+                                let foodCalories: Double = {
+                                    if let total = food.totalCalories?.value, total > 0 { return total }
+                                    let qty = (food.quantity?.value ?? 1) > 0 ? (food.quantity?.value ?? 1) : 1
+                                    return (food.calories?.value ?? 0) * qty
+                                }()
+                                if foodCalories > 0 {
+                                    Text("\(Int(foodCalories)) kcal").font(.caption).foregroundStyle(FitTheme.secondaryText)
                                 }
                             }
-                            if let substitution = food.substitutionText {
+                            if let substitution = food.studentSubstitutionText {
                                 Label(substitution, systemImage: "arrow.triangle.2.circlepath")
                                     .font(.caption2)
                                     .foregroundStyle(FitTheme.blue)
+                                    .padding(.top, 1)
+                            }
+                            if food.needsNutritionReview {
+                                Label(food.reviewMessage, systemImage: "exclamationmark.triangle.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(FitTheme.orangeSoft)
                                     .padding(.top, 1)
                             }
                         }
@@ -160,9 +182,7 @@ struct DietPlanView: View {
     }
 
     private func portionText(_ food: DietFood) -> String {
-        let quantity = food.quantity?.value ?? 1
-        let formatted = quantity.rounded() == quantity ? String(Int(quantity)) : String(format: "%.1f", quantity)
-        return "\(formatted) × \(food.portion ?? "porção")"
+        food.studentPortionText
     }
 
     private func toggle(_ id: String) { if expanded.contains(id) { expanded.remove(id) } else { expanded.insert(id) } }
@@ -189,10 +209,32 @@ struct DietPlanView: View {
 
     private func load() async {
         do {
-            plan = try await api.get("/api/student/diet")
+            let loaded: DietPlan = try await api.get("/api/student/diet")
+            if let issue = nutritionSafetyIssue(loaded) {
+                plan = nil
+                error = issue
+                return
+            }
+            plan = loaded
             expanded = Set(plan?.meals.prefix(1).map(\.id) ?? [])
             completedIds = Set(plan?.meals.filter { $0.completed == true }.map(\.id) ?? [])
         } catch { self.error = error.localizedDescription }
+    }
+
+    private func nutritionSafetyIssue(_ plan: DietPlan) -> String? {
+        if let calories = plan.calories, !(800...6_000).contains(calories) {
+            return "Seu plano alimentar foi bloqueado temporariamente porque as metas precisam de revisão pelo personal."
+        }
+        for meal in plan.meals {
+            for food in meal.foods {
+                let quantity = food.quantity?.value ?? 0
+                let totalCalories = food.totalCalories?.value ?? ((food.calories?.value ?? 0) * quantity)
+                if quantity <= 0 || quantity > 20 || totalCalories <= 0 || totalCalories > 2_500 {
+                    return "Seu plano alimentar foi bloqueado temporariamente porque há porções ou calorias que precisam de revisão pelo personal."
+                }
+            }
+        }
+        return nil
     }
 }
 

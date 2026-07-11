@@ -23,6 +23,10 @@ interface StudentData {
     foods?: FoodInput[];
     // Restrições alimentares em texto livre (campo Student.restrictions).
     restrictions?: string;
+    targetCalories?: number;
+    targetProtein?: number;
+    targetCarbs?: number;
+    targetFat?: number;
 }
 
 interface MealPlan {
@@ -391,66 +395,41 @@ function totalsOf(items: PlanItem[]) {
 
 // Ajusta as quantidades (em passos de porção caseira) até aproximar as
 // calorias e a proteína das metas, dentro dos limites práticos de porção.
-function fitMacros(items: PlanItem[], targetCalories: number, targetProtein: number) {
-    const calTolerance = targetCalories * 0.05;
-    const proteinTolerance = Math.max(targetProtein * 0.05, 5);
-
-    const proteinDensity = (food: TacoFood) =>
-        food.calories > 0 ? food.protein / food.calories : 0;
-
+function fitMacros(items: PlanItem[], targets: { calories: number; protein: number; carbs?: number; fat?: number }) {
     const canIncrease = (item: PlanItem) => item.quantity + item.food.step <= item.food.maxQty + 1e-9;
     const canDecrease = (item: PlanItem) => item.quantity - item.food.step >= item.food.step - 1e-9;
 
-    for (let iteration = 0; iteration < 120; iteration++) {
-        const totals = totalsOf(items);
-        const proteinGap = targetProtein - totals.protein;
-        const calorieGap = targetCalories - totals.calories;
+    const score = (totals: ReturnType<typeof totalsOf>) => {
+        const errors = [
+            (totals.calories - targets.calories) / Math.max(targets.calories, 1),
+            (totals.protein - targets.protein) / Math.max(targets.protein, 1),
+        ];
+        if (targets.carbs) errors.push((totals.carbs - targets.carbs) / targets.carbs);
+        if (targets.fat) errors.push((totals.fat - targets.fat) / targets.fat);
+        return errors.reduce((sum, error) => sum + error * error, 0);
+    };
 
-        let adjusted = false;
-
-        if (proteinGap > proteinTolerance) {
-            // Falta proteína: aumenta a fonte mais proteica disponível.
-            const candidates = items
-                .filter(canIncrease)
-                .filter((item) => proteinDensity(item.food) > 0.05)
-                .sort((a, b) => proteinDensity(b.food) - proteinDensity(a.food));
-            if (candidates.length > 0) {
-                candidates[0].quantity = roundToStep(candidates[0].quantity + candidates[0].food.step, candidates[0].food.step);
-                adjusted = true;
-            }
-        } else if (proteinGap < -proteinTolerance) {
-            const candidates = items
-                .filter(canDecrease)
-                .filter((item) => proteinDensity(item.food) > 0.05)
-                .sort((a, b) => proteinDensity(b.food) - proteinDensity(a.food));
-            if (candidates.length > 0) {
-                candidates[0].quantity = roundToStep(candidates[0].quantity - candidates[0].food.step, candidates[0].food.step);
-                adjusted = true;
-            }
-        }
-
-        if (!adjusted) {
-            if (calorieGap > calTolerance) {
-                // Faltam calorias: aumenta fontes de energia (pouca proteína).
-                const candidates = items
-                    .filter(canIncrease)
-                    .sort((a, b) => proteinDensity(a.food) - proteinDensity(b.food));
-                if (candidates.length > 0) {
-                    candidates[0].quantity = roundToStep(candidates[0].quantity + candidates[0].food.step, candidates[0].food.step);
-                    adjusted = true;
-                }
-            } else if (calorieGap < -calTolerance) {
-                const candidates = items
-                    .filter(canDecrease)
-                    .sort((a, b) => proteinDensity(a.food) - proteinDensity(b.food));
-                if (candidates.length > 0) {
-                    candidates[0].quantity = roundToStep(candidates[0].quantity - candidates[0].food.step, candidates[0].food.step);
-                    adjusted = true;
+    for (let iteration = 0; iteration < 300; iteration++) {
+        let bestScore = score(totalsOf(items));
+        let best: { item: PlanItem; quantity: number } | null = null;
+        for (const item of items) {
+            const options = [
+                canIncrease(item) ? item.quantity + item.food.step : null,
+                canDecrease(item) ? item.quantity - item.food.step : null,
+            ].filter((value): value is number => value !== null);
+            for (const quantity of options) {
+                const original = item.quantity;
+                item.quantity = roundToStep(quantity, item.food.step);
+                const candidateScore = score(totalsOf(items));
+                item.quantity = original;
+                if (candidateScore + 1e-8 < bestScore) {
+                    bestScore = candidateScore;
+                    best = { item, quantity };
                 }
             }
         }
-
-        if (!adjusted) break;
+        if (!best) break;
+        best.item.quantity = roundToStep(best.quantity, best.item.food.step);
     }
 }
 
@@ -488,14 +467,16 @@ function buildSubstitutionNote(item: PlanItem, availableFoods: TacoFood[]): stri
 export function generateDietPlan(data: StudentData): MealPlan {
     const bmr = calculateBMR(data.weight, data.height, data.age, data.gender);
     const tdee = calculateTDEE(bmr, data.activityLevel);
-    const targetCalories = calculateTargetCalories(tdee, data.goal);
+    const targetCalories = data.targetCalories ?? calculateTargetCalories(tdee, data.goal);
     const availableFoods = getAvailableFoods(data.restrictions);
 
     const proteinRatio = data.goal === 'WEIGHT_LOSS' ? 0.35 : 0.3;
 
     // Teto fisiológico de ~2,2g/kg: evita metas de proteína irreais quando o
     // gasto calórico é alto em relação ao peso corporal.
-    const targetProtein = Math.min((targetCalories * proteinRatio) / 4, data.weight * 2.2);
+    const targetProtein = data.targetProtein ?? Math.min((targetCalories * proteinRatio) / 4, data.weight * 2.2);
+    const targetFat = data.targetFat ?? (targetCalories * 0.25) / 9;
+    const targetCarbs = data.targetCarbs ?? Math.max((targetCalories - targetProtein * 4 - targetFat * 9) / 4, 20);
 
     const mealsStructure = [
         { name: 'Café da Manhã', time: '07:00', type: 'BREAKFAST', ratio: 0.25 },
@@ -537,7 +518,7 @@ export function generateDietPlan(data: StudentData): MealPlan {
         }
     });
 
-    fitMacros(items, targetCalories, targetProtein);
+    fitMacros(items, { calories: targetCalories, protein: targetProtein, carbs: data.targetCarbs ? targetCarbs : undefined, fat: data.targetFat ? targetFat : undefined });
 
     const generatedMeals: GeneratedMeal[] = mealsStructure.map((structure, mealIndex) => ({
         name: structure.name,

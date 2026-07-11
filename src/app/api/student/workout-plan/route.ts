@@ -71,6 +71,10 @@ export async function GET(request: NextRequest) {
                     sets: item.sets,
                     reps: item.reps,
                     rest: item.rest,
+                    restBySet: (() => {
+                        try { return item.restBySet ? JSON.parse(item.restBySet) : null; }
+                        catch { return null; }
+                    })(),
                     notes: item.notes,
                     videoUrl: item.exercise.videoUrl,
                     instructions: item.exercise.instructions,

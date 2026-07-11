@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { normalizeDietFood } from '@/lib/diet-normalizer';
 
 function normalizeText(value: string) {
     return value
@@ -331,7 +332,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 3. Update foods array
-        const newFoodItem = {
+        const rawNewFoodItem = {
             name: newFood.name,
             quantity: formattedQuantity,
             portion: String(newFood?.portion || '100g'),
@@ -355,6 +356,7 @@ export async function POST(request: NextRequest) {
             },
         };
 
+        const newFoodItem = normalizeDietFood(rawNewFoodItem);
         foods[originalFoodIndex] = newFoodItem;
 
         // 4. Save to DB

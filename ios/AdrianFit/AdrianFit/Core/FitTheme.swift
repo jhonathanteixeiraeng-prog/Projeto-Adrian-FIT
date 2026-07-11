@@ -1,14 +1,30 @@
 import SwiftUI
+import UIKit
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    var id: String { rawValue }
+    var title: String { switch self { case .system: "Automático"; case .light: "Claro"; case .dark: "Escuro" } }
+    var icon: String { switch self { case .system: "circle.lefthalf.filled"; case .light: "sun.max.fill"; case .dark: "moon.stars.fill" } }
+    var colorScheme: ColorScheme? { switch self { case .system: nil; case .light: .light; case .dark: .dark } }
+}
 
 enum FitTheme {
     static let orange = Color(red: 1, green: 0.38, blue: 0.07)
     static let orangeSoft = Color(red: 1, green: 0.55, blue: 0.24)
-    static let background = Color(red: 0.035, green: 0.035, blue: 0.042)
-    static let surface = Color(red: 0.085, green: 0.085, blue: 0.10)
-    static let surfaceRaised = Color(red: 0.12, green: 0.12, blue: 0.14)
-    static let secondaryText = Color.white.opacity(0.58)
+    static let background = adaptive(light: UIColor(red: 0.965, green: 0.965, blue: 0.975, alpha: 1), dark: UIColor(red: 0.035, green: 0.035, blue: 0.042, alpha: 1))
+    static let surface = adaptive(light: .white, dark: UIColor(red: 0.085, green: 0.085, blue: 0.10, alpha: 1))
+    static let surfaceRaised = adaptive(light: UIColor(red: 0.92, green: 0.92, blue: 0.94, alpha: 1), dark: UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1))
+    static let primaryText = Color(uiColor: .label)
+    static let secondaryText = Color(uiColor: .secondaryLabel)
+    static let separator = Color(uiColor: .separator)
     static let green = Color(red: 0.30, green: 0.83, blue: 0.55)
     static let blue = Color(red: 0.30, green: 0.62, blue: 1)
+
+    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
+        Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
 }
 
 struct BrandMark: View {
@@ -36,7 +52,7 @@ struct SurfaceCard<Content: View>: View {
             .background(FitTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(0.06))
+                    .stroke(FitTheme.separator.opacity(0.35))
             }
     }
 }
@@ -77,4 +93,3 @@ extension View {
         self.background(FitTheme.background.ignoresSafeArea())
     }
 }
-
