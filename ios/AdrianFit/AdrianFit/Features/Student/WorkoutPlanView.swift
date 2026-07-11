@@ -45,6 +45,32 @@ struct WorkoutPlanView: View {
 
 // MARK: - Sessão de treino (séries + descanso)
 
+/// Histórico local de treinos concluídos (datas), usado nas métricas da Home.
+enum WorkoutHistoryStore {
+    private static let key = "workout-completed-dates"
+
+    static func recordCompletionToday() {
+        let today = Date.now.formatted(.iso8601.year().month().day())
+        var dates = UserDefaults.standard.stringArray(forKey: key) ?? []
+        guard !dates.contains(today) else { return }
+        dates.append(today)
+        UserDefaults.standard.set(dates, forKey: key)
+    }
+
+    static func completedDates() -> [Date] {
+        (UserDefaults.standard.stringArray(forKey: key) ?? []).compactMap {
+            try? Date($0, strategy: .iso8601.year().month().day())
+        }
+    }
+
+    static var workoutsThisWeek: Int {
+        let calendar = Calendar.current
+        return completedDates().filter { calendar.isDate($0, equalTo: .now, toGranularity: .weekOfYear) }.count
+    }
+
+    static var totalWorkouts: Int { completedDates().count }
+}
+
 /// Persiste as séries concluídas do dia no aparelho, zerando a cada data.
 @MainActor
 final class WorkoutSessionStore: ObservableObject {
@@ -133,8 +159,14 @@ struct WorkoutDayDetailView: View {
         .fitScreen()
         .navigationTitle(day.name)
         .navigationBarTitleDisplayMode(.inline)
+        .sensoryFeedback(.success, trigger: allDone) { _, done in done }
+        .onChange(of: allDone) { _, done in
+            if done { WorkoutHistoryStore.recordCompletionToday() }
+        }
         .onDisappear { stopRest() }
     }
+
+    private var allDone: Bool { totalSets > 0 && doneSets == totalSets }
 
     private func startRest(seconds: Int) {
         guard seconds > 0 else { return }
@@ -242,5 +274,33 @@ private struct RestTimerOverlay: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.55).ignoresSafeArea())
         .transition(.opacity)
+    }
+}
+
+
+/// Abre a sessão de treino (com séries e timer) a partir do dia indicado —
+/// usado pela Home, que só conhece o id do dia de treino.
+struct TodayWorkoutSessionView: View {
+    @Environment(\.apiClient) private var api
+    let dayId: String
+
+    @State private var day: WorkoutDay?
+    @State private var error: String?
+
+    var body: some View {
+        Group {
+            if let day { WorkoutDayDetailView(day: day) }
+            else if let error { ContentUnavailableView("Treino indisponível", systemImage: "dumbbell", description: Text(error)) }
+            else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).fitScreen() }
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        do {
+            let plan: WorkoutPlan = try await api.get("/api/student/workout-plan")
+            day = plan.workoutDays.first { $0.id == dayId } ?? plan.workoutDays.first
+            if day == nil { error = "Nenhum dia de treino encontrado no seu plano." }
+        } catch { self.error = error.localizedDescription }
     }
 }

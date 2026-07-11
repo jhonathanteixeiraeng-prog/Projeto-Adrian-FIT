@@ -6,6 +6,8 @@ struct StudentHomeView: View {
     @State private var dashboard: StudentDashboard?
     @State private var isLoading = true
     @State private var error: String?
+    @State private var personalUserId: String?
+    @State private var localStats = (week: 0, total: 0)
 
     var body: some View {
         ScrollView {
@@ -48,7 +50,7 @@ struct StudentHomeView: View {
     @ViewBuilder
     private func dashboardContent(_ data: StudentDashboard) -> some View {
         if let workout = data.workout {
-            NavigationLink { WorkoutSessionView(workout: workout) } label: {
+            NavigationLink { TodayWorkoutSessionView(dayId: workout.id) } label: {
                 SurfaceCard {
                     VStack(alignment: .leading, spacing: 18) {
                         HStack {
@@ -73,8 +75,8 @@ struct StudentHomeView: View {
         }
 
         HStack(spacing: 12) {
-            MetricPill(icon: "flame.fill", value: "\(data.stats.streak)", label: "dias seguidos", tint: FitTheme.orange)
-            MetricPill(icon: "checkmark.circle.fill", value: "\(data.stats.weeklyWorkouts)/\(data.stats.weeklyGoal)", label: "treinos na semana", tint: FitTheme.green)
+            MetricPill(icon: "checkmark.circle.fill", value: "\(localStats.week)", label: "treinos esta semana", tint: FitTheme.green)
+            MetricPill(icon: "flame.fill", value: "\(localStats.total)", label: "treinos concluídos", tint: FitTheme.orange)
         }
 
         if let meals = data.diet?.meals {
@@ -98,55 +100,42 @@ struct StudentHomeView: View {
             }
         }
 
-        SurfaceCard {
-            HStack(spacing: 14) {
-                Image(systemName: "person.crop.circle.badge.checkmark").font(.title).foregroundStyle(FitTheme.blue)
-                VStack(alignment: .leading) {
-                    Text(data.personal.name).font(.headline)
-                    Text(data.personal.brandName).font(.caption).foregroundStyle(FitTheme.secondaryText)
+        NavigationLink {
+            if let personalUserId {
+                ConversationView(contactId: personalUserId, contactName: data.personal.name)
+            } else {
+                ContentUnavailableView("Chat indisponível", systemImage: "bubble.left", description: Text("Não foi possível localizar seu personal. Puxe para atualizar."))
+                    .fitScreen()
+            }
+        } label: {
+            SurfaceCard {
+                HStack(spacing: 14) {
+                    Image(systemName: "person.crop.circle.badge.checkmark").font(.title).foregroundStyle(FitTheme.blue)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(data.personal.name).font(.headline).foregroundStyle(.white)
+                        Text("Enviar mensagem").font(.caption).foregroundStyle(FitTheme.orange)
+                    }
+                    Spacer()
+                    Image(systemName: "message.fill").foregroundStyle(FitTheme.orange)
                 }
-                Spacer()
-                Image(systemName: "message.fill").foregroundStyle(FitTheme.orange)
             }
         }
+        .buttonStyle(.plain)
     }
 
     private func load() async {
         isLoading = dashboard == nil
         defer { isLoading = false }
-        do { dashboard = try await api.get("/api/student/dashboard"); error = nil }
-        catch { self.error = error.localizedDescription }
+        localStats = (WorkoutHistoryStore.workoutsThisWeek, WorkoutHistoryStore.totalWorkouts)
+        do {
+            dashboard = try await api.get("/api/student/dashboard")
+            error = nil
+        } catch { self.error = error.localizedDescription }
+
+        struct PersonalContact: Codable, Sendable { let user: PersonalContactUser }
+        struct PersonalContactUser: Codable, Sendable { let id: String }
+        if let contact: PersonalContact = try? await api.get("/api/student/personal") {
+            personalUserId = contact.user.id
+        }
     }
-}
-
-struct WorkoutSessionView: View {
-    let workout: TodayWorkout
-    @State private var completed: Set<String> = []
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text(workout.name).font(.largeTitle.bold())
-                Text("Toque em cada exercício ao concluir.").foregroundStyle(FitTheme.secondaryText)
-                ForEach(Array(workout.exercises.enumerated()), id: \.element.id) { index, exercise in
-                    Button { withAnimation(.snappy) { toggle(exercise.id) } } label: {
-                        HStack(spacing: 14) {
-                            Text(String(format: "%02d", index + 1)).font(.caption.bold()).foregroundStyle(FitTheme.orange)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(exercise.name).font(.headline).foregroundStyle(.white)
-                                Text("\(exercise.sets) séries × \(exercise.reps)  •  \(exercise.rest)s descanso")
-                                    .font(.caption).foregroundStyle(FitTheme.secondaryText)
-                            }
-                            Spacer()
-                            Image(systemName: completed.contains(exercise.id) ? "checkmark.circle.fill" : "circle")
-                                .font(.title2).foregroundStyle(completed.contains(exercise.id) ? FitTheme.green : FitTheme.secondaryText)
-                        }
-                        .padding(17).background(FitTheme.surface, in: RoundedRectangle(cornerRadius: 20))
-                    }.buttonStyle(.plain)
-                }
-            }.padding(20)
-        }.fitScreen().navigationTitle("Sessão").navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func toggle(_ id: String) { if completed.contains(id) { completed.remove(id) } else { completed.insert(id) } }
 }
