@@ -76,6 +76,7 @@ model Student {
   checkins       Checkin[]
   progressPhotos ProgressPhoto[]
   foodSubstitutions FoodSubstitutionHistory[]
+  setLogs        SetLog[]
 }
 
 // ==========================================
@@ -180,6 +181,7 @@ model Exercise {
 
   workoutItems         WorkoutItem[]
   workoutTemplateItems WorkoutTemplateItem[]
+  setLogs              SetLog[]
 }
 
 model WorkoutItem {
@@ -252,6 +254,23 @@ model MealCompletion {
 
   @@unique([mealId, studentId, completedAt])
 }
+
+model SetLog {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  dayId      String   // WorkoutDay usado para agrupar a sessão
+  setIndex   Int
+  weight     Float    // kg (0 = peso corporal)
+  reps       Int
+  date       DateTime @default(now())
+
+  @@index([studentId, exerciseId, date])
+  @@index([studentId, dayId, date])
+}
+
 
 // ==========================================
 // CHECK-INS & PROGRESS

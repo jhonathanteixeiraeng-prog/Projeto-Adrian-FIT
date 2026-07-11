@@ -115,6 +115,7 @@ final class WorkoutSessionStore: ObservableObject {
 }
 
 struct WorkoutDayDetailView: View {
+    @Environment(\.apiClient) private var api
     let day: WorkoutDay
 
     @StateObject private var store: WorkoutSessionStore
@@ -123,6 +124,10 @@ struct WorkoutDayDetailView: View {
     @State private var restTask: Task<Void, Never>?
     @State private var showSummary = false
     @State private var detailExercise: ExerciseItem?
+    @State private var setInputs: [String: [SetInput]] = [:]
+    @State private var previousLogs: [String: [Int: SetLogEntry]] = [:]
+    @State private var prs: [String: Double] = [:]
+    @State private var prBanner: String?
 
     init(day: WorkoutDay) {
         self.day = day
@@ -158,7 +163,12 @@ struct WorkoutDayDetailView: View {
                         ExerciseSessionRow(
                             exercise: exercise,
                             store: store,
-                            onSetCompleted: { rest in startRest(seconds: rest) },
+                            inputs: Binding(
+                                get: { setInputs[exercise.id] ?? (0..<exercise.sets).map { _ in SetInput(weight: "", reps: defaultReps(exercise)) } },
+                                set: { setInputs[exercise.id] = $0 }
+                            ),
+                            previous: previousLogs[exerciseKey(exercise)] ?? [:],
+                            onSetToggled: { index, marked in handleSetToggle(exercise: exercise, setIndex: index, marked: marked) },
                             onShowDetail: { detailExercise = exercise }
                         )
                     }
@@ -200,9 +210,105 @@ struct WorkoutDayDetailView: View {
             .presentationDetents([.medium])
         }
         .onDisappear { stopRest() }
+        .task { await loadLogs() }
+        .overlay(alignment: .top) {
+            if let prBanner {
+                Label("Novo recorde em \(prBanner)!", systemImage: "trophy.fill")
+                    .font(.subheadline.bold())
+                    .padding(.horizontal, 18).padding(.vertical, 11)
+                    .background(FitTheme.orange, in: Capsule())
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 14)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .sensoryFeedback(.impact(weight: .heavy), trigger: prBanner)
     }
 
     private var allDone: Bool { totalSets > 0 && doneSets == totalSets }
+
+    private func exerciseKey(_ exercise: ExerciseItem) -> String {
+        exercise.exerciseId ?? exercise.id
+    }
+
+    private func defaultReps(_ exercise: ExerciseItem) -> String {
+        let prefix = exercise.reps.prefix { $0.isNumber }
+        return prefix.isEmpty ? "" : String(prefix)
+    }
+
+    private func loadLogs() async {
+        do {
+            let logs: SessionLogs = try await api.get("/api/student/set-logs?dayId=\(day.id)")
+            var previous: [String: [Int: SetLogEntry]] = [:]
+            for entry in logs.previous {
+                previous[entry.exerciseId, default: [:]][entry.setIndex] = entry
+            }
+            previousLogs = previous
+            prs = Dictionary(uniqueKeysWithValues: logs.prs.map { ($0.exerciseId, $0.weight) })
+
+            var today: [String: [Int: SetLogEntry]] = [:]
+            for entry in logs.today {
+                today[entry.exerciseId, default: [:]][entry.setIndex] = entry
+            }
+
+            for exercise in day.exercises {
+                let key = exerciseKey(exercise)
+                var inputs: [SetInput] = []
+                for index in 0..<exercise.sets {
+                    if let log = today[key]?[index] ?? previous[key]?[index] {
+                        inputs.append(SetInput(
+                            weight: log.weight > 0 ? formatWeight(log.weight) : "",
+                            reps: log.reps > 0 ? String(log.reps) : defaultReps(exercise)
+                        ))
+                    } else {
+                        inputs.append(SetInput(weight: "", reps: defaultReps(exercise)))
+                    }
+                }
+                setInputs[exercise.id] = inputs
+            }
+        } catch {
+            // Sem logs (primeira vez ou offline): preenche apenas as reps do plano.
+            for exercise in day.exercises where setInputs[exercise.id] == nil {
+                setInputs[exercise.id] = (0..<exercise.sets).map { _ in SetInput(weight: "", reps: defaultReps(exercise)) }
+            }
+        }
+    }
+
+    private func formatWeight(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(value).replacingOccurrences(of: ".", with: ",")
+    }
+
+    private func handleSetToggle(exercise: ExerciseItem, setIndex: Int, marked: Bool) {
+        let key = exerciseKey(exercise)
+        let input = setInputs[exercise.id]?[indexSafe: setIndex] ?? SetInput(weight: "", reps: "")
+        let weight = Double(input.weight.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let reps = Int(input.reps) ?? 0
+
+        if marked {
+            startRest(seconds: exercise.rest)
+            if weight > 0, weight > (prs[key] ?? 0) {
+                prs[key] = weight
+                withAnimation(.snappy) { prBanner = exercise.name }
+                Task {
+                    try? await Task.sleep(for: .seconds(3))
+                    withAnimation(.snappy) { if prBanner == exercise.name { prBanner = nil } }
+                }
+            }
+        }
+
+        struct Body: Encodable {
+            let exerciseId: String
+            let dayId: String
+            let setIndex: Int
+            let weight: Double
+            let reps: Int
+            let remove: Bool
+        }
+        struct Saved: Codable { let id: String?; let removed: Bool? }
+        let body = Body(exerciseId: key, dayId: day.id, setIndex: setIndex, weight: weight, reps: reps, remove: !marked)
+        Task { let _: Saved? = try? await api.post("/api/student/set-logs", body: body) }
+    }
 
     private func startRest(seconds: Int) {
         guard seconds > 0 else { return }
@@ -262,10 +368,41 @@ enum RestNotifier {
     }
 }
 
+struct SetInput: Hashable {
+    var weight: String
+    var reps: String
+}
+
+struct SetLogEntry: Codable, Sendable {
+    let exerciseId: String
+    let setIndex: Int
+    let weight: Double
+    let reps: Int
+}
+
+struct ExercisePR: Codable, Sendable {
+    let exerciseId: String
+    let weight: Double
+}
+
+struct SessionLogs: Codable, Sendable {
+    let today: [SetLogEntry]
+    let previous: [SetLogEntry]
+    let prs: [ExercisePR]
+}
+
+extension Array {
+    subscript(indexSafe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}
+
 private struct ExerciseSessionRow: View {
     let exercise: ExerciseItem
     @ObservedObject var store: WorkoutSessionStore
-    let onSetCompleted: (Int) -> Void
+    @Binding var inputs: [SetInput]
+    let previous: [Int: SetLogEntry]
+    let onSetToggled: (Int, Bool) -> Void
     let onShowDetail: () -> Void
 
     var body: some View {
@@ -284,7 +421,7 @@ private struct ExerciseSessionRow: View {
                             .font(.caption.bold())
                             .foregroundStyle(done == exercise.sets ? FitTheme.green : FitTheme.secondaryText)
                     }
-                    Text("\(exercise.sets) séries × \(exercise.reps) • \(exercise.rest)s de descanso")
+                    Text("Meta: \(exercise.sets) × \(exercise.reps) • \(exercise.rest)s de descanso")
                         .font(.caption).foregroundStyle(FitTheme.orange)
                     if let equipment = exercise.equipment, !equipment.isEmpty {
                         Text(equipment).font(.caption2).foregroundStyle(FitTheme.secondaryText)
@@ -294,27 +431,66 @@ private struct ExerciseSessionRow: View {
             }
             .buttonStyle(.plain)
 
-            HStack(spacing: 10) {
+            VStack(spacing: 8) {
                 ForEach(0..<exercise.sets, id: \.self) { index in
-                    let done = store.isDone(exercise: exercise.id, set: index)
-                    Button {
-                        let marked = store.toggle(exercise: exercise.id, set: index)
-                        if marked { onSetCompleted(exercise.rest) }
-                    } label: {
-                        Text("\(index + 1)")
-                            .font(.subheadline.weight(.bold))
-                            .frame(width: 40, height: 40)
-                            .background(done ? FitTheme.green : FitTheme.surfaceRaised, in: Circle())
-                            .foregroundStyle(done ? .white : FitTheme.secondaryText)
-                            .overlay { Circle().stroke(done ? FitTheme.green : Color.white.opacity(0.12)) }
-                    }
-                    .buttonStyle(.plain)
+                    setRow(index)
                 }
-                Spacer()
             }
-
         }
         .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private func setRow(_ index: Int) -> some View {
+        let done = store.isDone(exercise: exercise.id, set: index)
+        HStack(spacing: 10) {
+            Text("\(index + 1)")
+                .font(.caption.bold())
+                .frame(width: 24, height: 24)
+                .background(done ? FitTheme.green.opacity(0.2) : FitTheme.surfaceRaised, in: Circle())
+                .foregroundStyle(done ? FitTheme.green : FitTheme.secondaryText)
+
+            TextField("kg", text: Binding(
+                get: { inputs[indexSafe: index]?.weight ?? "" },
+                set: { if inputs.indices.contains(index) { inputs[index].weight = $0 } }
+            ))
+            .keyboardType(.decimalPad)
+            .frame(width: 58)
+            .textFieldStyle(.roundedBorder)
+            .font(.subheadline)
+            .disabled(done)
+
+            Text("kg ×").font(.caption).foregroundStyle(FitTheme.secondaryText)
+
+            TextField("reps", text: Binding(
+                get: { inputs[indexSafe: index]?.reps ?? "" },
+                set: { if inputs.indices.contains(index) { inputs[index].reps = $0 } }
+            ))
+            .keyboardType(.numberPad)
+            .frame(width: 48)
+            .textFieldStyle(.roundedBorder)
+            .font(.subheadline)
+            .disabled(done)
+
+            if let prev = previous[index] {
+                Text("ant: \(prev.weight > 0 ? "\(prev.weight == prev.weight.rounded() ? String(Int(prev.weight)) : String(format: "%.1f", prev.weight))kg" : "—") × \(prev.reps)")
+                    .font(.caption2)
+                    .foregroundStyle(FitTheme.secondaryText)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button {
+                let marked = store.toggle(exercise: exercise.id, set: index)
+                onSetToggled(index, marked)
+            } label: {
+                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(done ? FitTheme.green : FitTheme.secondaryText)
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 

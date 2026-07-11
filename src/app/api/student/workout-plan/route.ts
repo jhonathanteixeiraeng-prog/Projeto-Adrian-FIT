@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
                 dayOfWeek: day.dayOfWeek,
                 exercises: day.items.map(item => ({
                     id: item.id,
+                    exerciseId: item.exerciseId,
                     name: item.exercise.name,
                     muscleGroup: item.exercise.muscleGroup,
                     sets: item.sets,

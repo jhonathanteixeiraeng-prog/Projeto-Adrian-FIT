@@ -76,6 +76,7 @@ struct WorkoutDay: Codable, Identifiable, Sendable {
 
 struct ExerciseItem: Codable, Identifiable, Sendable {
     let id: String
+    let exerciseId: String?
     let name: String
     let muscleGroup: String
     let sets: Int
