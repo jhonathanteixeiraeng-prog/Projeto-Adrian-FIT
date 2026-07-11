@@ -16,6 +16,9 @@ struct PlansHubView: View {
                 NavigationLink { TemplatesListView() } label: {
                     PlanCard(icon: "square.stack.3d.up.fill", title: "Modelos", subtitle: "Reutilize estruturas que funcionam", color: FitTheme.blue)
                 }
+                NavigationLink { ExercisesLibraryView() } label: {
+                    PlanCard(icon: "figure.strengthtraining.traditional", title: "Exercícios", subtitle: "Biblioteca com execução, vídeos e dicas", color: FitTheme.orangeSoft)
+                }
             }.padding(20)
         }
         .fitScreen()

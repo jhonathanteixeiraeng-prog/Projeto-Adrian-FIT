@@ -87,8 +87,17 @@ struct APIClient: Sendable {
 
     /// PUT para rotas que respondem apenas { success, message } sem data.
     func putAck<Body: Encodable>(_ path: String, body: Body) async throws {
+        try await sendAck(path: path, method: "PUT", body: body)
+    }
+
+    /// PATCH para rotas que respondem apenas { success, message } sem data.
+    func patchAck<Body: Encodable>(_ path: String, body: Body) async throws {
+        try await sendAck(path: path, method: "PATCH", body: body)
+    }
+
+    private func sendAck<Body: Encodable>(path: String, method: String, body: Body) async throws {
         var request = URLRequest(url: url(for: path))
-        request.httpMethod = "PUT"
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         let data = try await perform(request)
@@ -109,8 +118,17 @@ struct APIClient: Sendable {
 
     /// POST para rotas que retornam o objeto direto, sem envelope.
     func postRaw<Body: Encodable, Value: Decodable & Sendable>(_ path: String, body: Body, as type: Value.Type = Value.self) async throws -> Value {
+        try await sendRaw(path: path, method: "POST", body: body)
+    }
+
+    /// PUT para rotas que retornam o objeto direto, sem envelope.
+    func putRaw<Body: Encodable, Value: Decodable & Sendable>(_ path: String, body: Body, as type: Value.Type = Value.self) async throws -> Value {
+        try await sendRaw(path: path, method: "PUT", body: body)
+    }
+
+    private func sendRaw<Body: Encodable, Value: Decodable & Sendable>(path: String, method: String, body: Body) async throws -> Value {
         var request = URLRequest(url: url(for: path))
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         let data = try await perform(request)
