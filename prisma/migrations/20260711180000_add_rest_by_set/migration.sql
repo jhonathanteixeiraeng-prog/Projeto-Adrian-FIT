@@ -1,1 +1,1 @@
-ALTER TABLE "WorkoutItem" ADD COLUMN "restBySet" TEXT;
+ALTER TABLE "WorkoutItem" ADD COLUMN IF NOT EXISTS "restBySet" TEXT;
