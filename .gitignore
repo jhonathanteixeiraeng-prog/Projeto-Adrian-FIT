@@ -38,3 +38,4 @@ PACOTE-SERVIDOR/
 # Local database (development)
 prisma/*.db
 prisma/*.db-*
+.vercel
