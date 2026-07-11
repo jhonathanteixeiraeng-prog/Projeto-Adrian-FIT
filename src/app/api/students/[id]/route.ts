@@ -125,7 +125,34 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { name, phone, birthDate, gender, height, weight, goal, status } = body;
+        const { name, phone, birthDate, gender, height, weight, goal, status, anamnesis } = body;
+
+        // Upsert da anamnese quando enviada (restrições alimentares, lesões etc.)
+        if (anamnesis && typeof anamnesis === 'object') {
+            const activityLevels = ['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIVE'];
+            const activityLevel = activityLevels.includes(anamnesis.activityLevel)
+                ? anamnesis.activityLevel
+                : undefined;
+
+            await prisma.anamnesis.upsert({
+                where: { studentId: params.id },
+                update: {
+                    restrictions: anamnesis.restrictions ?? undefined,
+                    injuries: anamnesis.injuries ?? undefined,
+                    medications: anamnesis.medications ?? undefined,
+                    notes: anamnesis.notes ?? undefined,
+                    activityLevel,
+                },
+                create: {
+                    studentId: params.id,
+                    restrictions: anamnesis.restrictions || null,
+                    injuries: anamnesis.injuries || null,
+                    medications: anamnesis.medications || null,
+                    notes: anamnesis.notes || null,
+                    activityLevel: activityLevel || 'MODERATE',
+                },
+            });
+        }
 
         const updatedStudent = await prisma.student.update({
             where: { id: params.id },

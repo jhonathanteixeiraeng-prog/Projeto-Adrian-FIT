@@ -10,6 +10,8 @@ struct StudentsView: View {
         query.isEmpty ? students : students.filter { $0.user.name.localizedCaseInsensitiveContains(query) || $0.user.email.localizedCaseInsensitiveContains(query) }
     }
 
+    @State private var showNewStudent = false
+
     var body: some View {
         Group {
             if let error, students.isEmpty { ContentUnavailableView("Alunos indisponíveis", systemImage: "person.2.slash", description: Text(error)) }
@@ -22,6 +24,16 @@ struct StudentsView: View {
         }
         .fitScreen().navigationTitle("Alunos")
         .searchable(text: $query, prompt: "Nome ou e-mail")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showNewStudent = true } label: {
+                    Label("Novo aluno", systemImage: "person.badge.plus").fontWeight(.semibold)
+                }
+            }
+        }
+        .sheet(isPresented: $showNewStudent) {
+            NewStudentFormView { Task { await load() } }
+        }
         .refreshable { await load() }.task { await load() }
     }
 
@@ -59,6 +71,7 @@ private struct StudentDetailView: View {
     @State private var route: StudentEditorRoute?
     @State private var creating = false
     @State private var error: String?
+    @State private var showEditStudent = false
 
     var body: some View {
         ScrollView {
@@ -120,6 +133,14 @@ private struct StudentDetailView: View {
             }.padding(20)
         }
         .fitScreen().navigationTitle("Aluno").navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Editar") { showEditStudent = true }.fontWeight(.semibold)
+            }
+        }
+        .sheet(isPresented: $showEditStudent) {
+            EditStudentFormView(studentId: student.id)
+        }
         .onAppear {
             if workoutPlan == nil { workoutPlan = student.workoutPlans.first }
             if dietPlan == nil { dietPlan = student.dietPlans.first }

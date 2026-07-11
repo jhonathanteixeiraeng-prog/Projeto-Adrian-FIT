@@ -1,6 +1,11 @@
 import Foundation
 import SwiftUI
 
+struct APIAck: Decodable, Sendable {
+    let success: Bool
+    let error: String?
+}
+
 enum APIError: LocalizedError {
     case invalidResponse
     case server(String)
@@ -78,6 +83,17 @@ struct APIClient: Sendable {
 
     func put<Body: Encodable, Value: Decodable & Sendable>(_ path: String, body: Body, as type: Value.Type = Value.self) async throws -> Value {
         try await send(path: path, method: "PUT", body: body)
+    }
+
+    /// PUT para rotas que respondem apenas { success, message } sem data.
+    func putAck<Body: Encodable>(_ path: String, body: Body) async throws {
+        var request = URLRequest(url: url(for: path))
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        let data = try await perform(request)
+        let ack = try decoder.decode(APIAck.self, from: data)
+        guard ack.success else { throw APIError.server(ack.error ?? "Não foi possível concluir a ação.") }
     }
 
     func delete(_ path: String) async throws {
