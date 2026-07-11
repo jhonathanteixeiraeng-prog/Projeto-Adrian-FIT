@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
         const student = await prisma.student.findFirst({
             where: { id: studentId, personalId: session.user.personalId },
             include: {
-                user: { select: { birthDate: true } },
                 anamnesis: true,
             },
         });
@@ -41,7 +40,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const birthDate = student.birthDate || student.user?.birthDate;
+        const birthDate = student.birthDate;
         if (!student.weight || !student.height || !birthDate) {
             return NextResponse.json(
                 {
