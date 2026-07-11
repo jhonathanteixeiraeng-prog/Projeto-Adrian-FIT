@@ -73,7 +73,11 @@ private struct ProfileRow: View {
             Image(systemName: icon).frame(width: 24).foregroundStyle(FitTheme.orange)
             Text(title).foregroundStyle(.white)
             Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(FitTheme.secondaryText)
-        }.padding(.vertical, 15)
+        }
+        .padding(.vertical, 15)
+        .frame(maxWidth: .infinity)
+        // Sem contentShape, o espaço entre o título e a seta não recebe toque.
+        .contentShape(Rectangle())
     }
 }
 
