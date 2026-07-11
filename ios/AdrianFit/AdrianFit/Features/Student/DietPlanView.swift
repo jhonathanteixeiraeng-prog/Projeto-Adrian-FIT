@@ -7,6 +7,7 @@ struct DietPlanView: View {
     @State private var completedIds: Set<String> = []
     @State private var error: String?
     @State private var lastCompleted: String?
+    @State private var waterCups = WaterStore.todayCount
 
     var body: some View {
         Group {
@@ -15,6 +16,7 @@ struct DietPlanView: View {
                     LazyVStack(alignment: .leading, spacing: 16) {
                         Text(plan.title).font(.system(size: 30, weight: .bold, design: .rounded))
                         dayProgress(plan)
+                        waterCard
                         SectionHeading(title: "Refeições de hoje")
                         ForEach(plan.meals) { meal in mealCard(meal) }
                     }
@@ -254,6 +256,61 @@ private struct MacroLine: View {
             }
             ProgressView(value: min(value, target), total: max(target, 1))
                 .tint(tint)
+        }
+    }
+}
+
+
+// MARK: - Água
+
+/// Copos de água do dia, guardados no aparelho (zera a cada data).
+enum WaterStore {
+    static let goal = 8 // copos de 250ml (~2L)
+
+    private static var key: String {
+        "water-\(Date.now.formatted(.iso8601.year().month().day()))"
+    }
+
+    static var todayCount: Int {
+        UserDefaults.standard.integer(forKey: key)
+    }
+
+    static func set(_ value: Int) {
+        UserDefaults.standard.set(max(0, min(value, 20)), forKey: key)
+    }
+}
+
+extension DietPlanView {
+    var waterCard: some View {
+        SurfaceCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Água", systemImage: "drop.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(FitTheme.blue)
+                    Spacer()
+                    Text("\(waterCups) de \(WaterStore.goal) copos • \(Int(Double(waterCups) * 0.25 * 10) / 10 == 0 ? "0" : String(format: "%.2g", Double(waterCups) * 0.25))L")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(FitTheme.secondaryText)
+                }
+                HStack(spacing: 9) {
+                    ForEach(0..<WaterStore.goal, id: \.self) { index in
+                        Button {
+                            let newValue = index < waterCups ? index : index + 1
+                            waterCups = newValue
+                            WaterStore.set(newValue)
+                        } label: {
+                            Image(systemName: index < waterCups ? "drop.fill" : "drop")
+                                .font(.title3)
+                                .foregroundStyle(index < waterCups ? FitTheme.blue : FitTheme.secondaryText.opacity(0.6))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Copo \(index + 1)\(index < waterCups ? ", bebido" : "")")
+                    }
+                }
+                .sensoryFeedback(.impact(weight: .light), trigger: waterCups)
+            }
         }
     }
 }

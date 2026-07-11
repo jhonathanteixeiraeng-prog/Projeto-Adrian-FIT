@@ -8,6 +8,10 @@ struct StudentHomeView: View {
     @State private var error: String?
     @State private var personalUserId: String?
     @State private var localStats = (week: 0, total: 0)
+    @State private var weeklyGoal = 0
+    @State private var dietPlan: DietPlan?
+    @State private var completedMealIds: Set<String> = []
+    @State private var mealToggleFeedback: String?
 
     var body: some View {
         ScrollView {
@@ -22,6 +26,7 @@ struct StudentHomeView: View {
         }
         .fitScreen()
         .toolbar(.hidden, for: .navigationBar)
+        .sensoryFeedback(.success, trigger: mealToggleFeedback)
         .refreshable { await load() }
         .task { await load() }
     }
@@ -75,8 +80,18 @@ struct StudentHomeView: View {
         }
 
         HStack(spacing: 12) {
-            MetricPill(icon: "checkmark.circle.fill", value: "\(localStats.week)", label: "treinos esta semana", tint: FitTheme.green)
-            MetricPill(icon: "flame.fill", value: "\(max(data.stats.streak, WorkoutHistoryStore.currentStreak))", label: "dias de sequência", tint: FitTheme.orange)
+            MetricPill(
+                icon: "checkmark.circle.fill",
+                value: weeklyGoal > 0 ? "\(localStats.week)/\(weeklyGoal)" : "\(localStats.week)",
+                label: "treinos na semana",
+                tint: localStats.week >= weeklyGoal && weeklyGoal > 0 ? FitTheme.green : FitTheme.orange
+            )
+            MetricPill(
+                icon: "flame.fill",
+                value: "\(WorkoutHistoryStore.weeklyStreak(goal: max(weeklyGoal, 1)))",
+                label: "semanas na meta",
+                tint: FitTheme.orange
+            )
         }
 
 
@@ -144,7 +159,19 @@ struct StudentHomeView: View {
         }
         .buttonStyle(.plain)
 
-        if let meals = data.diet?.meals {
+        if let plan = dietPlan, !plan.meals.isEmpty {
+            HStack {
+                SectionHeading(title: "Refeições de hoje")
+                Spacer()
+                Text("\(completedMealIds.count) de \(plan.meals.count)")
+                    .font(.caption.bold()).foregroundStyle(FitTheme.secondaryText)
+            }
+            VStack(spacing: 10) {
+                ForEach(plan.meals) { meal in
+                    homeMealRow(meal, isNext: meal.id == nextMealId(plan))
+                }
+            }
+        } else if let meals = data.diet?.meals, !meals.isEmpty {
             SectionHeading(title: "Próximas refeições")
             VStack(spacing: 10) {
                 ForEach(meals.prefix(3)) { meal in
@@ -167,20 +194,119 @@ struct StudentHomeView: View {
 
     }
 
+    // MARK: - Refeições na Home
+
+    private func nextMealId(_ plan: DietPlan) -> String? {
+        let pending = plan.meals.filter { !completedMealIds.contains($0.id) }
+        guard !pending.isEmpty else { return nil }
+        let now = Calendar.current.dateComponents([.hour, .minute], from: .now)
+        let nowMinutes = (now.hour ?? 0) * 60 + (now.minute ?? 0)
+        func minutes(_ time: String) -> Int {
+            let parts = time.split(separator: ":").compactMap { Int($0) }
+            return parts.count >= 2 ? parts[0] * 60 + parts[1] : 0
+        }
+        return pending.first { minutes($0.time) >= nowMinutes - 45 }?.id ?? pending.last?.id
+    }
+
+    @ViewBuilder
+    private func homeMealRow(_ meal: DietMeal, isNext: Bool) -> some View {
+        let isCompleted = completedMealIds.contains(meal.id)
+        HStack(spacing: 14) {
+            Button {
+                Task { await toggleMeal(meal) }
+            } label: {
+                Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundStyle(isCompleted ? FitTheme.green : FitTheme.secondaryText)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isCompleted ? "Desmarcar \(meal.name)" : "Marcar \(meal.name) como consumida")
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 7) {
+                    Text(meal.name)
+                        .font(.headline)
+                        .foregroundStyle(isCompleted ? FitTheme.secondaryText : FitTheme.primaryText)
+                        .strikethrough(isCompleted, color: FitTheme.secondaryText)
+                    if isNext {
+                        Text("PRÓXIMA")
+                            .font(.system(size: 9, weight: .bold)).tracking(0.4)
+                            .padding(.horizontal, 7).padding(.vertical, 4)
+                            .background(FitTheme.orange.opacity(0.16), in: Capsule())
+                            .foregroundStyle(FitTheme.orange)
+                    }
+                }
+                Text(meal.foods.prefix(2).map { $0.studentFriendlyName }.joined(separator: " • "))
+                    .font(.caption).foregroundStyle(FitTheme.secondaryText).lineLimit(1)
+            }
+            Spacer()
+            Text(meal.time).font(.subheadline.monospacedDigit()).foregroundStyle(FitTheme.secondaryText)
+        }
+        .padding(15)
+        .background(FitTheme.surface, in: RoundedRectangle(cornerRadius: 19))
+        .overlay {
+            if isNext {
+                RoundedRectangle(cornerRadius: 19).stroke(FitTheme.orange.opacity(0.55), lineWidth: 1.5)
+            }
+        }
+        .opacity(isCompleted ? 0.75 : 1)
+    }
+
+    private func toggleMeal(_ meal: DietMeal) async {
+        let marking = !completedMealIds.contains(meal.id)
+        withAnimation(.snappy) {
+            if marking { completedMealIds.insert(meal.id) } else { completedMealIds.remove(meal.id) }
+        }
+        if marking { mealToggleFeedback = meal.id }
+        struct Body: Encodable { let mealId: String; let completed: Bool }
+        struct Result: Codable { let mealId: String; let completed: Bool }
+        do {
+            let _: Result = try await api.post("/api/student/diet/complete", body: Body(mealId: meal.id, completed: marking))
+        } catch {
+            withAnimation(.snappy) {
+                if marking { completedMealIds.remove(meal.id) } else { completedMealIds.insert(meal.id) }
+            }
+        }
+    }
+
     private func todayWorkoutCard(_ workout: TodayWorkout) -> some View {
-        SurfaceCard {
+        let finalized = WorkoutHistoryStore.finalizedPercentageToday(dayId: workout.id)
+        let doneToday = WorkoutSessionStore.doneSetsCountToday(dayId: workout.id)
+        let totalSets = workout.exercises.reduce(0) { $0 + $1.sets }
+
+        return SurfaceCard {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    Label("TREINO DE HOJE", systemImage: "bolt.fill").font(.caption.bold()).foregroundStyle(FitTheme.orange)
+                    if finalized != nil {
+                        Label("TREINO DE HOJE FEITO", systemImage: "checkmark.seal.fill").font(.caption.bold()).foregroundStyle(FitTheme.green)
+                    } else if doneToday > 0 {
+                        Label("TREINO EM ANDAMENTO", systemImage: "bolt.fill").font(.caption.bold()).foregroundStyle(FitTheme.orange)
+                    } else {
+                        Label("TREINO DE HOJE", systemImage: "bolt.fill").font(.caption.bold()).foregroundStyle(FitTheme.orange)
+                    }
                     Spacer(); Image(systemName: "arrow.up.right").foregroundStyle(FitTheme.secondaryText)
                 }
                 Text(workout.displayName).font(.title2.bold()).foregroundStyle(FitTheme.primaryText)
                 HStack(spacing: 18) {
                     Label("\(workout.exercises.count) exercícios", systemImage: "list.bullet")
-                    Label("~\(max(25, workout.exercises.count * 7)) min", systemImage: "clock")
+                    if doneToday > 0 && finalized == nil {
+                        Label("\(doneToday)/\(totalSets) séries", systemImage: "checkmark.circle")
+                    } else {
+                        Label("~\(max(25, workout.exercises.count * 7)) min", systemImage: "clock")
+                    }
                 }.font(.subheadline).foregroundStyle(FitTheme.secondaryText)
-                Text("COMEÇAR TREINO").font(.caption.bold()).tracking(0.8).foregroundStyle(.white)
-                    .padding(.horizontal, 16).padding(.vertical, 11).background(FitTheme.orange, in: Capsule())
+
+                if let finalized {
+                    Text(finalized >= 100 ? "CONCLUÍDO • REVER TREINO" : "PARCIAL \(finalized)% • REVER TREINO")
+                        .font(.caption.bold()).tracking(0.8).foregroundStyle(.white)
+                        .padding(.horizontal, 16).padding(.vertical, 11).background(FitTheme.green, in: Capsule())
+                } else if doneToday > 0 {
+                    Text("CONTINUAR TREINO").font(.caption.bold()).tracking(0.8).foregroundStyle(.white)
+                        .padding(.horizontal, 16).padding(.vertical, 11).background(FitTheme.orange, in: Capsule())
+                } else {
+                    Text("COMEÇAR TREINO").font(.caption.bold()).tracking(0.8).foregroundStyle(.white)
+                        .padding(.horizontal, 16).padding(.vertical, 11).background(FitTheme.orange, in: Capsule())
+                }
             }
         }
     }
@@ -208,6 +334,15 @@ struct StudentHomeView: View {
         struct PersonalContactUser: Codable, Sendable { let id: String }
         if let contact: PersonalContact = try? await api.get("/api/student/personal") {
             personalUserId = contact.user.id
+        }
+
+        if let plan: WorkoutPlan = try? await api.get("/api/student/workout-plan") {
+            weeklyGoal = plan.workoutDays.filter { !$0.isRestDay && !$0.exercises.isEmpty }.count
+        }
+
+        if let diet: DietPlan = try? await api.get("/api/student/diet") {
+            dietPlan = diet
+            completedMealIds = Set(diet.meals.filter { $0.completed == true }.map(\.id))
         }
     }
 

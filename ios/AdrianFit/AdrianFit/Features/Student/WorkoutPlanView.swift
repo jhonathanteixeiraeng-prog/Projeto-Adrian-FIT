@@ -172,6 +172,25 @@ enum WorkoutHistoryStore {
     static var nextMilestone: Int {
         [1, 5, 10, 25, 50, 100].first(where: { $0 > totalWorkouts }) ?? (((totalWorkouts / 100) + 1) * 100)
     }
+
+    /// Semanas consecutivas batendo a meta de treinos. A semana atual conta
+    /// quando a meta já foi atingida; caso contrário não quebra a sequência.
+    static func weeklyStreak(goal: Int) -> Int {
+        guard goal > 0 else { return 0 }
+        let calendar = Calendar.current
+        let dates = completedDates()
+        func workouts(inWeekOf reference: Date) -> Int {
+            dates.filter { calendar.isDate($0, equalTo: reference, toGranularity: .weekOfYear) }.count
+        }
+        var streak = 0
+        var cursor = Date.now
+        if workouts(inWeekOf: cursor) >= goal { streak += 1 }
+        while let previous = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: cursor) {
+            cursor = previous
+            if workouts(inWeekOf: cursor) >= goal { streak += 1 } else { break }
+        }
+        return streak
+    }
 }
 
 /// Persiste as séries concluídas do dia no aparelho, zerando a cada data.
@@ -189,8 +208,12 @@ final class WorkoutSessionStore: ObservableObject {
     }
 
     static func hasProgressToday(dayId: String) -> Bool {
+        doneSetsCountToday(dayId: dayId) > 0
+    }
+
+    static func doneSetsCountToday(dayId: String) -> Int {
         let today = Date.now.formatted(.iso8601.year().month().day())
-        return !(UserDefaults.standard.stringArray(forKey: "workout-session-\(dayId)-\(today)") ?? []).isEmpty
+        return (UserDefaults.standard.stringArray(forKey: "workout-session-\(dayId)-\(today)") ?? []).count
     }
 
     /// Momento da primeira série marcada hoje (para medir a duração da sessão).
