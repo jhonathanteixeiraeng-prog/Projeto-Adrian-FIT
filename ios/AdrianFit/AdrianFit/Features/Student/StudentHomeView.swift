@@ -66,7 +66,7 @@ struct StudentHomeView: View {
                             HStack {
                                 Label("PREENCHIMENTO NECESSÁRIO", systemImage: "exclamationmark.triangle.fill").font(.caption.bold()).foregroundStyle(.red)
                             }
-                            Text(workout.displayName).font(.title2.bold()).foregroundStyle(FitTheme.primaryText)
+                            Text(workout.compactName).font(.title2.bold()).foregroundStyle(FitTheme.primaryText)
                             Text(workout.prescriptionIssue ?? "Existem dados incompletos no treino.")
                                 .font(.subheadline).foregroundStyle(FitTheme.secondaryText)
                             Label("ABRIR E INFORMAR REPETIÇÕES", systemImage: "square.and.pencil")
@@ -286,7 +286,7 @@ struct StudentHomeView: View {
                     }
                     Spacer(); Image(systemName: "arrow.up.right").foregroundStyle(FitTheme.secondaryText)
                 }
-                Text(workout.displayName).font(.title2.bold()).foregroundStyle(FitTheme.primaryText)
+                Text(workout.compactName).font(.title2.bold()).foregroundStyle(FitTheme.primaryText)
                 HStack(spacing: 18) {
                     Label("\(workout.exercises.count) exercícios", systemImage: "list.bullet")
                     if doneToday > 0 && finalized == nil {

@@ -23,7 +23,7 @@ struct WorkoutPlanView: View {
                                             Text("\(day.exercises.count)").font(.title2.bold()).foregroundStyle(FitTheme.primaryText)
                                         }.frame(width: 48)
                                         VStack(alignment: .leading, spacing: 5) {
-                                            Text(day.displayName).font(.headline).foregroundStyle(FitTheme.primaryText)
+                                            Text(day.compactName).font(.headline).foregroundStyle(FitTheme.primaryText)
                                             Text(muscleSummary(for: day))
                                                 .font(.caption).foregroundStyle(FitTheme.secondaryText).lineLimit(1)
                                         }
@@ -343,7 +343,7 @@ struct WorkoutDayDetailView: View {
             }
         }
         .fitScreen()
-        .navigationTitle(day.displayName)
+        .navigationTitle(day.compactName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .sensoryFeedback(.success, trigger: allDone) { _, done in done }
@@ -361,7 +361,7 @@ struct WorkoutDayDetailView: View {
         }
         .sheet(isPresented: $showSummary) {
             WorkoutSummarySheet(
-                dayName: day.displayName,
+                dayName: day.compactName,
                 exercises: day.exercises.count,
                 completedSets: doneSets,
                 totalSets: totalSets,

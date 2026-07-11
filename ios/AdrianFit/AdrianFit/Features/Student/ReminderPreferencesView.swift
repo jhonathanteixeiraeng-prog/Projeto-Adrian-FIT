@@ -2,6 +2,7 @@ import SwiftUI
 @preconcurrency import UserNotifications
 
 struct ReminderPreferencesView: View {
+    @Environment(\.apiClient) private var api
     @AppStorage("reminder-workout") private var workoutEnabled = false
     @AppStorage("reminder-meal") private var mealEnabled = false
     @AppStorage("reminder-checkin") private var checkinEnabled = false
@@ -18,7 +19,7 @@ struct ReminderPreferencesView: View {
                 Toggle(isOn: binding(for: .meal)) { Label("Plano alimentar", systemImage: "fork.knife") }
                 Toggle(isOn: binding(for: .checkin)) { Label("Check-in semanal", systemImage: "chart.line.uptrend.xyaxis") }
             } header: { Text("Lembretes do aluno") }
-              footer: { Text("Treino no horário escolhido, alimentação ao meio-dia e check-in aos domingos às 18h.") }
+              footer: { Text("Treino no horário escolhido, refeições nos horários do seu plano alimentar e check-in aos domingos às 18h.") }
               .listRowBackground(FitTheme.surface)
 
             if permissionDenied {
@@ -54,28 +55,67 @@ struct ReminderPreferencesView: View {
 
     private func configure(_ kind: Kind, enabled: Bool) async {
         let center = UNUserNotificationCenter.current()
-        let id = identifier(kind)
-        center.removePendingNotificationRequests(withIdentifiers: [id])
+        let pending = await center.pendingNotificationRequests().map(\.identifier)
+        center.removePendingNotificationRequests(withIdentifiers: pending.filter { $0.hasPrefix(identifier(kind)) })
         guard enabled else { return }
         do {
             guard try await center.requestAuthorization(options: [.alert, .sound, .badge]) else { permissionDenied = true; return }
-            let content = UNMutableNotificationContent()
-            content.sound = .default
-            let components: DateComponents
+
             switch kind {
             case .workout:
-                content.title = "Hora do seu treino"; content.body = "Seu treino está pronto. Vamos manter a sequência?"
-                components = DateComponents(hour: workoutHour)
+                let content = UNMutableNotificationContent()
+                content.sound = .default
+                content.title = "Hora do seu treino"
+                content.body = "Seu treino está pronto. Vamos manter a sequência?"
+                try await center.add(UNNotificationRequest(
+                    identifier: identifier(kind),
+                    content: content,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: DateComponents(hour: workoutHour), repeats: true)
+                ))
+
             case .meal:
-                content.title = "Seu plano alimentar"; content.body = "Confira a próxima refeição e mantenha o plano em dia."
-                components = DateComponents(hour: 12)
+                try await scheduleMealReminders(center: center)
+
             case .checkin:
-                content.title = "Check-in semanal"; content.body = "Registre seu progresso e compartilhe a semana com seu personal."
-                components = DateComponents(hour: 18, weekday: 1)
+                let content = UNMutableNotificationContent()
+                content.sound = .default
+                content.title = "Check-in semanal"
+                content.body = "Registre seu progresso e compartilhe a semana com seu personal."
+                try await center.add(UNNotificationRequest(
+                    identifier: identifier(kind),
+                    content: content,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: DateComponents(hour: 18, weekday: 1), repeats: true)
+                ))
             }
-            let request = UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true))
-            try await center.add(request); permissionDenied = false
+            permissionDenied = false
         } catch { permissionDenied = true }
+    }
+
+    /// Agenda um lembrete por refeição, nos horários reais do plano do aluno.
+    private func scheduleMealReminders(center: UNUserNotificationCenter) async throws {
+        var meals: [(name: String, hour: Int, minute: Int)] = []
+        if let plan: DietPlan = try? await api.get("/api/student/diet") {
+            meals = plan.meals.compactMap { meal in
+                let parts = meal.time.split(separator: ":").compactMap { Int($0) }
+                guard parts.count >= 2, (0...23).contains(parts[0]), (0...59).contains(parts[1]) else { return nil }
+                return (meal.name, parts[0], parts[1])
+            }
+        }
+        if meals.isEmpty {
+            meals = [("Sua refeição", 12, 0)] // fallback quando não há plano carregável
+        }
+
+        for (index, meal) in meals.prefix(10).enumerated() {
+            let content = UNMutableNotificationContent()
+            content.sound = .default
+            content.title = meal.name
+            content.body = "Hora da refeição do seu plano. Bom apetite! 🍽️"
+            try await center.add(UNNotificationRequest(
+                identifier: "\(identifier(.meal)).\(index)",
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: DateComponents(hour: meal.hour, minute: meal.minute), repeats: true)
+            ))
+        }
     }
 
     private func identifier(_ kind: Kind) -> String {

@@ -71,7 +71,47 @@ enum FitnessCopy {
     }
 }
 
-extension TodayWorkout { var displayName: String { FitnessCopy.workoutName(name) } }
+extension FitnessCopy {
+    /// Versão curta para barras de navegação e cards: remove o prefixo de dia
+    /// da semana ("SABADO - ...") e limita a dois grupos musculares.
+    static func compactWorkoutName(_ value: String) -> String {
+        let normalized = workoutName(value)
+        var content = normalized
+
+        for separator in [" - ", " – ", " — ", ": ", " | "] where normalized.contains(separator) {
+            let parts = normalized.components(separatedBy: separator)
+            if parts.count >= 2, isWeekdayLike(parts[0]) {
+                content = parts.dropFirst().joined(separator: separator)
+                break
+            }
+        }
+
+        content = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let groups = content
+            .replacingOccurrences(of: " e ", with: ", ")
+            .components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        if groups.count > 2 {
+            content = groups.prefix(2).joined(separator: ", ") + " +\(groups.count - 2)"
+        }
+
+        guard let first = content.first else { return "Treino" }
+        return String(first).uppercased() + content.dropFirst()
+    }
+
+    private static func isWeekdayLike(_ text: String) -> Bool {
+        let folded = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "pt_BR"))
+            .trimmingCharacters(in: .whitespaces)
+        let weekdays = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"]
+        return weekdays.contains { folded.hasPrefix($0) } || folded.hasSuffix("feira")
+    }
+}
+
+extension TodayWorkout {
+    var displayName: String { FitnessCopy.workoutName(name) }
+    var compactName: String { FitnessCopy.compactWorkoutName(name) }
+}
 
 struct TodayExercise: Codable, Identifiable, Sendable {
     let id: String
@@ -99,6 +139,8 @@ struct WorkoutPlan: Codable, Identifiable, Sendable {
 }
 
 extension WorkoutPlan { var displayTitle: String { FitnessCopy.workoutName(title) } }
+
+extension WorkoutDay { var compactName: String { FitnessCopy.compactWorkoutName(name) } }
 
 struct WorkoutDay: Codable, Identifiable, Sendable {
     let id: String
