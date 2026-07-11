@@ -117,6 +117,14 @@ struct DietFood: Codable, Identifiable, Sendable {
     let protein: FlexibleNumber?
     let carbs: FlexibleNumber?
     let fat: FlexibleNumber?
+    let notes: String?
+    let substitutionNote: String?
+
+    /// Sugestão de troca vinda do gerador (gravada em notes ou substitutionNote).
+    var substitutionText: String? {
+        let candidates = [substitutionNote, notes]
+        return candidates.compactMap { $0 }.first { $0.localizedCaseInsensitiveContains("substitu") }
+    }
 }
 
 struct FlexibleNumber: Codable, Sendable {

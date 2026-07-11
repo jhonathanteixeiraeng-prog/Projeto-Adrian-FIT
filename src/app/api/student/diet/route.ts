@@ -29,6 +29,9 @@ export async function GET(request: NextRequest) {
             );
         }
 
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
         const dietPlan = await prisma.dietPlan.findFirst({
             where: {
                 studentId: student.id,
@@ -37,6 +40,14 @@ export async function GET(request: NextRequest) {
             include: {
                 meals: {
                     orderBy: { order: 'asc' },
+                    include: {
+                        completions: {
+                            where: {
+                                studentId: student.id,
+                                completedAt: { gte: startOfDay },
+                            },
+                        },
+                    },
                 },
             },
         });
@@ -55,10 +66,14 @@ export async function GET(request: NextRequest) {
             // Need to cast dietPlan or meals to any because Prisma types might be tricky with the JSON parsing transform
             const planWithMeals = dietPlan as any;
 
-            const formattedMeals = planWithMeals.meals.map((meal: any) => ({
-                ...meal,
-                foods: typeof meal.foods === 'string' ? JSON.parse(meal.foods) : meal.foods
-            }));
+            const formattedMeals = planWithMeals.meals.map((meal: any) => {
+                const { completions, ...rest } = meal;
+                return {
+                    ...rest,
+                    foods: typeof meal.foods === 'string' ? JSON.parse(meal.foods) : meal.foods,
+                    completed: Array.isArray(completions) && completions.length > 0,
+                };
+            });
 
             return NextResponse.json({
                 success: true,
