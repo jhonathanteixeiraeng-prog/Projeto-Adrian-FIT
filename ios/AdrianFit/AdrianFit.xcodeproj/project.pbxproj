@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		228D862FAEE22B26C2D191E4 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */; };
+		AA10000000000000000B0004 /* StudentProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0004 /* StudentProgressView.swift */; };
 		AA10000000000000000B0001 /* EditingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0001 /* EditingModels.swift */; };
 		AA10000000000000000B0002 /* WorkoutPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0002 /* WorkoutPlanEditorView.swift */; };
 		AA10000000000000000B0003 /* DietPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000E0003 /* DietPlanEditorView.swift */; };
@@ -49,6 +50,7 @@
 		AA10000000000000000E0001 /* EditingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingModels.swift; sourceTree = "<group>"; };
 		AA10000000000000000E0002 /* WorkoutPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlanEditorView.swift; sourceTree = "<group>"; };
 		AA10000000000000000E0003 /* DietPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietPlanEditorView.swift; sourceTree = "<group>"; };
+		AA10000000000000000E0004 /* StudentProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProgressView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -56,6 +58,7 @@
 			isa = PBXGroup;
 			children = (
 				BC72FA13486BD5EA02350A05 /* DietPlanView.swift */,
+				AA10000000000000000E0004 /* StudentProgressView.swift */,
 				4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */,
 				6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */,
 			);
@@ -232,6 +235,7 @@
 				5C83D19CA0C29752E86410D1 /* PlansHubView.swift in Sources */,
 				FB86131448B3561F3BD3481D /* ProfileView.swift in Sources */,
 				228D862FAEE22B26C2D191E4 /* SessionStore.swift in Sources */,
+				AA10000000000000000B0004 /* StudentProgressView.swift in Sources */,
 				AA10000000000000000B0001 /* EditingModels.swift in Sources */,
 				AA10000000000000000B0002 /* WorkoutPlanEditorView.swift in Sources */,
 				AA10000000000000000B0003 /* DietPlanEditorView.swift in Sources */,

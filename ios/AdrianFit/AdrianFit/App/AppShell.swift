@@ -20,6 +20,8 @@ private struct StudentShell: View {
                 .tabItem { Label("Treino", systemImage: "dumbbell.fill") }
             NavigationStack { DietPlanView() }
                 .tabItem { Label("Dieta", systemImage: "fork.knife") }
+            NavigationStack { StudentProgressView() }
+                .tabItem { Label("Progresso", systemImage: "chart.line.uptrend.xyaxis") }
             NavigationStack { ProfileView(user: user) }
                 .tabItem { Label("Perfil", systemImage: "person.crop.circle") }
         }
