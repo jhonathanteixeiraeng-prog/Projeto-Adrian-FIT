@@ -52,6 +52,14 @@ private struct WorkoutPlansListView: View {
     @State private var plans: [PersonalWorkoutPlan] = []
     @State private var error: String?
     @State private var loading = true
+    @State private var pendingDelete: String?
+
+    private func deletePlan() async {
+        guard let id = pendingDelete else { return }
+        pendingDelete = nil
+        do { try await api.delete("/api/workout-plans/\(id)"); await load() }
+        catch { self.error = error.localizedDescription }
+    }
 
     var body: some View {
         AsyncPlanList(title: "Planos de treino", icon: "dumbbell", loading: loading, isEmpty: plans.isEmpty, error: error) {
@@ -59,8 +67,15 @@ private struct WorkoutPlansListView: View {
                 NavigationLink { WorkoutPlanSummaryView(plan: plan) } label: {
                     PlanListRow(title: plan.title, student: plan.student.user.name, detail: "\(plan.count?.workoutDays ?? 0) dias de treino", active: plan.active, color: FitTheme.orange)
                 }
+                .swipeActions {
+                    Button(role: .destructive) { pendingDelete = plan.id } label: { Label("Excluir", systemImage: "trash") }
+                }
             }
         }
+        .confirmationDialog("Excluir plano de treino?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
+            Button("Excluir", role: .destructive) { Task { await deletePlan() } }
+            Button("Cancelar", role: .cancel) { pendingDelete = nil }
+        } message: { Text("O aluno perde o acesso a este treino. Essa ação não pode ser desfeita.") }
         .task { await load() }
         .refreshable { await load() }
     }
@@ -78,6 +93,14 @@ private struct DietPlansListView: View {
     @State private var plans: [PersonalDietPlan] = []
     @State private var error: String?
     @State private var loading = true
+    @State private var pendingDelete: String?
+
+    private func deletePlan() async {
+        guard let id = pendingDelete else { return }
+        pendingDelete = nil
+        do { try await api.delete("/api/diets/\(id)"); await load() }
+        catch { self.error = error.localizedDescription }
+    }
 
     var body: some View {
         AsyncPlanList(title: "Planos alimentares", icon: "fork.knife", loading: loading, isEmpty: plans.isEmpty, error: error) {
@@ -85,8 +108,15 @@ private struct DietPlansListView: View {
                 NavigationLink { DietPlanSummaryView(plan: plan) } label: {
                     PlanListRow(title: plan.title, student: plan.student.user.name, detail: "\(plan.meals.count) refeições • \(plan.calories ?? 0) kcal", active: plan.active, color: FitTheme.green)
                 }
+                .swipeActions {
+                    Button(role: .destructive) { pendingDelete = plan.id } label: { Label("Excluir", systemImage: "trash") }
+                }
             }
         }
+        .confirmationDialog("Excluir plano alimentar?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
+            Button("Excluir", role: .destructive) { Task { await deletePlan() } }
+            Button("Cancelar", role: .cancel) { pendingDelete = nil }
+        } message: { Text("O aluno perde o acesso a esta dieta. Essa ação não pode ser desfeita.") }
         .task { await load() }
         .refreshable { await load() }
     }
@@ -191,7 +221,9 @@ private struct PlanListRow: View {
 }
 
 private struct WorkoutPlanSummaryView: View {
+    @Environment(\.apiClient) private var api
     let plan: PersonalWorkoutPlan
+    @State private var feedback: String?
     var body: some View {
         PlanSummaryScreen(title: plan.title, person: plan.student.user.name, icon: "dumbbell.fill", color: FitTheme.orange) {
             SummaryMetric(label: "Dias de treino", value: "\(plan.count?.workoutDays ?? 0)")
@@ -203,12 +235,32 @@ private struct WorkoutPlanSummaryView: View {
                 NavigationLink("Editar") { WorkoutPlanEditorView(planId: plan.id) }
                     .fontWeight(.semibold)
             }
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button { Task { await saveAsTemplate() } } label: {
+                        Label("Salvar como modelo", systemImage: "square.stack.3d.up")
+                    }
+                } label: { Image(systemName: "ellipsis.circle") }
+            }
         }
+        .alert("Biblioteca", isPresented: Binding(get: { feedback != nil }, set: { if !$0 { feedback = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(feedback ?? "") }
+    }
+
+    private func saveAsTemplate() async {
+        struct Body: Encodable { let planId: String; let title: String }
+        do {
+            let _: IdentifiedValue = try await api.post("/api/workout-templates/from-plan", body: Body(planId: plan.id, title: "\(plan.title) - Modelo"))
+            feedback = "Treino copiado para a biblioteca de modelos."
+        } catch { feedback = error.localizedDescription }
     }
 }
 
 private struct DietPlanSummaryView: View {
+    @Environment(\.apiClient) private var api
     let plan: PersonalDietPlan
+    @State private var feedback: String?
     var body: some View {
         PlanSummaryScreen(title: plan.title, person: plan.student.user.name, icon: "fork.knife", color: FitTheme.green) {
             SummaryMetric(label: "Energia", value: "\(plan.calories ?? 0) kcal")
@@ -220,12 +272,34 @@ private struct DietPlanSummaryView: View {
                 NavigationLink("Editar") { DietPlanEditorView(planId: plan.id) }
                     .fontWeight(.semibold)
             }
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button { Task { await saveAsTemplate() } } label: {
+                        Label("Salvar como modelo", systemImage: "square.stack.3d.up")
+                    }
+                } label: { Image(systemName: "ellipsis.circle") }
+            }
         }
+        .alert("Biblioteca", isPresented: Binding(get: { feedback != nil }, set: { if !$0 { feedback = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(feedback ?? "") }
+    }
+
+    private func saveAsTemplate() async {
+        struct Body: Encodable { let planId: String; let title: String }
+        do {
+            let _: IdentifiedValue = try await api.post("/api/diet-templates/from-plan", body: Body(planId: plan.id, title: "\(plan.title) - Modelo"))
+            feedback = "Dieta copiada para a biblioteca de modelos."
+        } catch { feedback = error.localizedDescription }
     }
 }
 
 private struct WorkoutTemplateDetailView: View {
+    @Environment(\.apiClient) private var api
     let template: WorkoutTemplateSummary
+    @State private var showStudentPicker = false
+    @State private var feedback: String?
+
     var body: some View {
         List {
             ForEach(template.templateDays) { day in
@@ -239,11 +313,49 @@ private struct WorkoutTemplateDetailView: View {
                 }
             }
         }.scrollContentBackground(.hidden).fitScreen().navigationTitle(template.title)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Aplicar a aluno") { showStudentPicker = true }.fontWeight(.semibold)
+            }
+        }
+        .sheet(isPresented: $showStudentPicker) {
+            StudentPickerView { student in
+                Task { await apply(to: student) }
+            }
+        }
+        .alert("Aplicar modelo", isPresented: Binding(get: { feedback != nil }, set: { if !$0 { feedback = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(feedback ?? "") }
+    }
+
+    private func apply(to student: StudentListItem) async {
+        struct Body: Encodable {
+            let templateId: String
+            let studentId: String
+            let title: String
+            let startDate: String
+            let endDate: String
+        }
+        let body = Body(
+            templateId: template.id,
+            studentId: student.id,
+            title: template.title,
+            startDate: PlanDates.iso(daysFromNow: 0),
+            endDate: PlanDates.iso(daysFromNow: 90)
+        )
+        do {
+            let _: IdentifiedValue = try await api.post("/api/workout-plans/from-template", body: body)
+            feedback = "Treino \"\(template.title)\" aplicado a \(student.user.name)."
+        } catch { feedback = error.localizedDescription }
     }
 }
 
 private struct DietTemplateDetailView: View {
+    @Environment(\.apiClient) private var api
     let template: DietTemplateSummary
+    @State private var showStudentPicker = false
+    @State private var feedback: String?
+
     var body: some View {
         List {
             ForEach(template.meals) { meal in
@@ -254,6 +366,101 @@ private struct DietTemplateDetailView: View {
                 }
             }
         }.scrollContentBackground(.hidden).fitScreen().navigationTitle(template.title)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Aplicar a aluno") { showStudentPicker = true }.fontWeight(.semibold)
+            }
+        }
+        .sheet(isPresented: $showStudentPicker) {
+            StudentPickerView { student in
+                Task { await apply(to: student) }
+            }
+        }
+        .alert("Aplicar modelo", isPresented: Binding(get: { feedback != nil }, set: { if !$0 { feedback = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(feedback ?? "") }
+    }
+
+    private func apply(to student: StudentListItem) async {
+        struct Body: Encodable {
+            let templateId: String
+            let studentId: String
+            let startDate: String
+            let endDate: String
+        }
+        let body = Body(
+            templateId: template.id,
+            studentId: student.id,
+            startDate: PlanDates.iso(daysFromNow: 0),
+            endDate: PlanDates.iso(daysFromNow: 90)
+        )
+        do {
+            // POST /api/diet-plans/from-template devolve o objeto direto, sem envelope.
+            let _: IdentifiedValue = try await api.postRaw("/api/diet-plans/from-template", body: body)
+            feedback = "Dieta \"\(template.title)\" aplicada a \(student.user.name)."
+        } catch { feedback = error.localizedDescription }
+    }
+}
+
+enum PlanDates {
+    static func iso(daysFromNow days: Int) -> String {
+        let date = Calendar.current.date(byAdding: .day, value: days, to: .now) ?? .now
+        return ISO8601DateFormatter().string(from: date)
+    }
+}
+
+struct StudentPickerView: View {
+    @Environment(\.apiClient) private var api
+    @Environment(\.dismiss) private var dismiss
+
+    let onSelect: (StudentListItem) -> Void
+
+    @State private var students: [StudentListItem] = []
+    @State private var query = ""
+    @State private var loading = true
+    @State private var error: String?
+
+    private var filtered: [StudentListItem] {
+        query.isEmpty ? students : students.filter { $0.user.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if loading && students.isEmpty { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
+                else if let error, students.isEmpty {
+                    ContentUnavailableView("Erro", systemImage: "exclamationmark.triangle", description: Text(error))
+                } else {
+                    List(filtered) { student in
+                        Button {
+                            onSelect(student)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Circle().fill(FitTheme.orange.opacity(0.16)).frame(width: 40, height: 40)
+                                    .overlay { Text(student.user.name.prefix(1)).font(.subheadline.bold()).foregroundStyle(FitTheme.orange) }
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(student.user.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                    Text(student.user.email).font(.caption2).foregroundStyle(FitTheme.secondaryText)
+                                }
+                            }
+                        }
+                        .listRowBackground(FitTheme.surface)
+                    }
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .fitScreen()
+            .navigationTitle("Escolher aluno")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, prompt: "Buscar aluno")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } } }
+            .task {
+                do { students = try await api.get("/api/students"); error = nil }
+                catch { self.error = error.localizedDescription }
+                loading = false
+            }
+        }
     }
 }
 
