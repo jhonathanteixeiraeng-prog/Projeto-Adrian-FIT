@@ -1,4 +1,6 @@
 import SwiftUI
+import AudioToolbox
+import UserNotifications
 
 struct WorkoutPlanView: View {
     @Environment(\.apiClient) private var api
@@ -85,6 +87,11 @@ final class WorkoutSessionStore: ObservableObject {
         }
     }
 
+    /// Momento da primeira série marcada hoje (para medir a duração da sessão).
+    var startedAt: Date? {
+        UserDefaults.standard.object(forKey: storageKey + "-start") as? Date
+    }
+
     func isDone(exercise: String, set index: Int) -> Bool {
         completed.contains("\(exercise)#\(index)")
     }
@@ -98,6 +105,9 @@ final class WorkoutSessionStore: ObservableObject {
     func toggle(exercise: String, set index: Int) -> Bool {
         let key = "\(exercise)#\(index)"
         let marking = !completed.contains(key)
+        if marking && completed.isEmpty && startedAt == nil {
+            UserDefaults.standard.set(Date.now, forKey: storageKey + "-start")
+        }
         if marking { completed.insert(key) } else { completed.remove(key) }
         UserDefaults.standard.set(Array(completed), forKey: storageKey)
         return marking
@@ -111,6 +121,8 @@ struct WorkoutDayDetailView: View {
     @State private var restRemaining: Int?
     @State private var restTotal = 60
     @State private var restTask: Task<Void, Never>?
+    @State private var showSummary = false
+    @State private var detailExercise: ExerciseItem?
 
     init(day: WorkoutDay) {
         self.day = day
@@ -143,9 +155,12 @@ struct WorkoutDayDetailView: View {
 
                 ForEach(day.exercises) { exercise in
                     Section {
-                        ExerciseSessionRow(exercise: exercise, store: store) { rest in
-                            startRest(seconds: rest)
-                        }
+                        ExerciseSessionRow(
+                            exercise: exercise,
+                            store: store,
+                            onSetCompleted: { rest in startRest(seconds: rest) },
+                            onShowDetail: { detailExercise = exercise }
+                        )
                     }
                     .listRowBackground(FitTheme.surface)
                 }
@@ -153,7 +168,12 @@ struct WorkoutDayDetailView: View {
             .scrollContentBackground(.hidden)
 
             if let remaining = restRemaining {
-                RestTimerOverlay(remaining: remaining, total: restTotal) { stopRest() }
+                RestTimerOverlay(
+                    remaining: remaining,
+                    total: restTotal,
+                    onSkip: { stopRest() },
+                    onExtend: { extendRest(by: 15) }
+                )
             }
         }
         .fitScreen()
@@ -161,7 +181,23 @@ struct WorkoutDayDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.success, trigger: allDone) { _, done in done }
         .onChange(of: allDone) { _, done in
-            if done { WorkoutHistoryStore.recordCompletionToday() }
+            if done {
+                WorkoutHistoryStore.recordCompletionToday()
+                stopRest()
+                showSummary = true
+            }
+        }
+        .sheet(item: $detailExercise) { exercise in
+            ExerciseDetailSheet(exercise: exercise)
+        }
+        .sheet(isPresented: $showSummary) {
+            WorkoutSummarySheet(
+                dayName: day.name,
+                exercises: day.exercises.count,
+                sets: totalSets,
+                startedAt: store.startedAt
+            )
+            .presentationDetents([.medium])
         }
         .onDisappear { stopRest() }
     }
@@ -173,22 +209,56 @@ struct WorkoutDayDetailView: View {
         stopRest()
         restTotal = seconds
         restRemaining = seconds
+        RestNotifier.schedule(after: seconds)
         restTask = Task {
-            var left = seconds
-            while left > 0 && !Task.isCancelled {
+            while let left = restRemaining, left > 0, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
-                left -= 1
-                restRemaining = left
+                restRemaining = (restRemaining ?? 1) - 1
             }
-            if !Task.isCancelled { restRemaining = nil }
+            if !Task.isCancelled {
+                restRemaining = nil
+                AudioServicesPlaySystemSound(1057) // bip curto de fim de descanso
+                AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+            }
         }
+    }
+
+    private func extendRest(by seconds: Int) {
+        guard restRemaining != nil else { return }
+        restRemaining = (restRemaining ?? 0) + seconds
+        restTotal += seconds
+        RestNotifier.schedule(after: restRemaining ?? seconds)
     }
 
     private func stopRest() {
         restTask?.cancel()
         restTask = nil
         restRemaining = nil
+        RestNotifier.cancel()
+    }
+}
+
+/// Notificação local para o fim do descanso quando o app está em segundo plano.
+enum RestNotifier {
+    private static let identifier = "rest-timer-done"
+
+    static func schedule(after seconds: Int) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            let content = UNMutableNotificationContent()
+            content.title = "Descanso concluído"
+            content.body = "Hora da próxima série! 💪"
+            content.sound = .default
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(max(seconds, 1)), repeats: false)
+            center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+        }
+    }
+
+    static func cancel() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
     }
 }
 
@@ -196,24 +266,33 @@ private struct ExerciseSessionRow: View {
     let exercise: ExerciseItem
     @ObservedObject var store: WorkoutSessionStore
     let onSetCompleted: (Int) -> Void
+    let onShowDetail: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(exercise.name).font(.headline)
-                    Spacer()
-                    let done = store.doneCount(exercise: exercise.id)
-                    Text("\(done)/\(exercise.sets)")
-                        .font(.caption.bold())
-                        .foregroundStyle(done == exercise.sets ? FitTheme.green : FitTheme.secondaryText)
+            Button(action: onShowDetail) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 7) {
+                        Text(exercise.name).font(.headline).foregroundStyle(.white)
+                        if exercise.videoUrl?.isEmpty == false {
+                            Image(systemName: "play.circle.fill").font(.subheadline).foregroundStyle(FitTheme.orange)
+                        }
+                        Image(systemName: "info.circle").font(.caption).foregroundStyle(FitTheme.secondaryText)
+                        Spacer()
+                        let done = store.doneCount(exercise: exercise.id)
+                        Text("\(done)/\(exercise.sets)")
+                            .font(.caption.bold())
+                            .foregroundStyle(done == exercise.sets ? FitTheme.green : FitTheme.secondaryText)
+                    }
+                    Text("\(exercise.sets) séries × \(exercise.reps) • \(exercise.rest)s de descanso")
+                        .font(.caption).foregroundStyle(FitTheme.orange)
+                    if let equipment = exercise.equipment, !equipment.isEmpty {
+                        Text(equipment).font(.caption2).foregroundStyle(FitTheme.secondaryText)
+                    }
                 }
-                Text("\(exercise.sets) séries × \(exercise.reps) • \(exercise.rest)s de descanso")
-                    .font(.caption).foregroundStyle(FitTheme.orange)
-                if let equipment = exercise.equipment, !equipment.isEmpty {
-                    Text(equipment).font(.caption2).foregroundStyle(FitTheme.secondaryText)
-                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
             HStack(spacing: 10) {
                 ForEach(0..<exercise.sets, id: \.self) { index in
@@ -234,9 +313,6 @@ private struct ExerciseSessionRow: View {
                 Spacer()
             }
 
-            if let instructions = exercise.instructions, !instructions.isEmpty {
-                Text(instructions).font(.footnote).foregroundStyle(FitTheme.secondaryText).lineLimit(3)
-            }
         }
         .padding(.vertical, 6)
     }
@@ -246,6 +322,7 @@ private struct RestTimerOverlay: View {
     let remaining: Int
     let total: Int
     let onSkip: () -> Void
+    let onExtend: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
@@ -263,9 +340,16 @@ private struct RestTimerOverlay: View {
                     .monospacedDigit()
             }
             .frame(width: 160, height: 160)
-            Button("Pular descanso") { onSkip() }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(FitTheme.orange)
+            HStack(spacing: 22) {
+                Button { onExtend() } label: {
+                    Label("+15s", systemImage: "plus.circle")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                Button("Pular") { onSkip() }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(FitTheme.orange)
+            }
         }
         .padding(34)
         .background(FitTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -302,5 +386,124 @@ struct TodayWorkoutSessionView: View {
             day = plan.workoutDays.first { $0.id == dayId } ?? plan.workoutDays.first
             if day == nil { error = "Nenhum dia de treino encontrado no seu plano." }
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+
+// MARK: - Detalhe do exercício (vídeo + instruções)
+
+struct ExerciseDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let exercise: ExerciseItem
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 10) {
+                        Text(exercise.muscleGroup)
+                            .font(.caption.bold())
+                            .padding(.horizontal, 11).padding(.vertical, 6)
+                            .background(FitTheme.orange.opacity(0.16), in: Capsule())
+                            .foregroundStyle(FitTheme.orange)
+                        if let equipment = exercise.equipment, !equipment.isEmpty {
+                            Text(equipment)
+                                .font(.caption.bold())
+                                .padding(.horizontal, 11).padding(.vertical, 6)
+                                .background(FitTheme.blue.opacity(0.16), in: Capsule())
+                                .foregroundStyle(FitTheme.blue)
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        MetricPill(icon: "square.stack.3d.up", value: "\(exercise.sets)", label: "séries")
+                        MetricPill(icon: "repeat", value: exercise.reps, label: "repetições", tint: FitTheme.green)
+                        MetricPill(icon: "timer", value: "\(exercise.rest)s", label: "descanso", tint: FitTheme.blue)
+                    }
+
+                    if let videoText = exercise.videoUrl, let url = URL(string: videoText), !videoText.isEmpty {
+                        Link(destination: url) {
+                            Label("Assistir vídeo de execução", systemImage: "play.rectangle.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(FitTheme.orange, in: RoundedRectangle(cornerRadius: 16))
+                                .foregroundStyle(.white)
+                        }
+                    }
+
+                    if let instructions = exercise.instructions, !instructions.isEmpty {
+                        SurfaceCard {
+                            VStack(alignment: .leading, spacing: 10) {
+                                SectionHeading(title: "Como executar")
+                                Text(instructions).font(.subheadline).foregroundStyle(FitTheme.secondaryText)
+                            }
+                        }
+                    }
+
+                    if let notes = exercise.notes, !notes.isEmpty {
+                        SurfaceCard {
+                            VStack(alignment: .leading, spacing: 10) {
+                                SectionHeading(title: "Observações do personal")
+                                Text(notes).font(.subheadline).foregroundStyle(FitTheme.secondaryText)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .fitScreen()
+            .navigationTitle(exercise.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } } }
+        }
+    }
+}
+
+// MARK: - Resumo pós-treino
+
+struct WorkoutSummarySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let dayName: String
+    let exercises: Int
+    let sets: Int
+    let startedAt: Date?
+
+    private var durationText: String {
+        guard let startedAt else { return "—" }
+        let minutes = max(1, Int(Date.now.timeIntervalSince(startedAt) / 60))
+        return "\(minutes) min"
+    }
+
+    var body: some View {
+        VStack(spacing: 22) {
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 54))
+                .foregroundStyle(FitTheme.orange)
+                .padding(.top, 26)
+            VStack(spacing: 6) {
+                Text("Treino concluído!").font(.title2.bold())
+                Text(dayName).foregroundStyle(FitTheme.secondaryText)
+            }
+            HStack(spacing: 12) {
+                MetricPill(icon: "list.bullet", value: "\(exercises)", label: "exercícios")
+                MetricPill(icon: "checkmark.circle.fill", value: "\(sets)", label: "séries", tint: FitTheme.green)
+                MetricPill(icon: "clock.fill", value: durationText, label: "duração", tint: FitTheme.blue)
+            }
+            .padding(.horizontal, 20)
+            Button {
+                dismiss()
+            } label: {
+                Text("Fechar")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(FitTheme.orange, in: RoundedRectangle(cornerRadius: 16))
+                    .foregroundStyle(.white)
+            }
+            .padding(.horizontal, 20)
+            Spacer()
+        }
+        .presentationBackground(FitTheme.background)
     }
 }
