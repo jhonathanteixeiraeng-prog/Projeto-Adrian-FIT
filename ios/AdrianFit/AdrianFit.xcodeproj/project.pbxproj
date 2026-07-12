@@ -22,6 +22,7 @@
 		765729F5322E3808016A8993 /* ChatViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */; };
 		8429C62D34B7A2273CC6F784 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */; };
 		8E1F8108FB4BEFE3372ECD64 /* StudentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */; };
+		9A1E04BBA7BE5303BD8F83E3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 93F37C084CC98A4B63CE800C /* PrivacyInfo.xcprivacy */; };
 		9B455621DFA2797D90F5751E /* PersonalDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */; };
 		9F73CB08EA5FCAEF1F25680D /* AdrianFitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3E81491D666CBB30693A68 /* AdrianFitApp.swift */; };
 		A0C86F90EF024264B76F051B /* FitTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB93C07918F87807C96E24D /* FitTheme.swift */; };
@@ -50,6 +51,7 @@
 		7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViews.swift; sourceTree = "<group>"; };
 		807FBFDF34C86C3960595F23 /* StudentFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentFormView.swift; sourceTree = "<group>"; };
 		9072D2471734ED866A3D5E21 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		93F37C084CC98A4B63CE800C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AE5FD95549E1539FDA881A26 /* AdrianFit.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AdrianFit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC72FA13486BD5EA02350A05 /* DietPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietPlanView.swift; sourceTree = "<group>"; };
 		D04A1EB0ABEBDAB47164AF82 /* ReminderPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderPreferencesView.swift; sourceTree = "<group>"; };
@@ -155,6 +157,7 @@
 			children = (
 				49CE12635CF08E9242E49655 /* Assets.xcassets */,
 				3A86196C767B9C7BC99F2822 /* Info.plist */,
+				93F37C084CC98A4B63CE800C /* PrivacyInfo.xcprivacy */,
 				7248789CB7ADF8D090E59C5F /* App */,
 				C5A093E32FFBFA46BC3FB3E6 /* Core */,
 				AD10CF1261E622A05E6C8A35 /* Features */,
@@ -201,7 +204,8 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					030A39E07332FDE158B5B901 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = 8LC38UCNVW;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -230,6 +234,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				29BF72AA95DBD403E22D5F40 /* Assets.xcassets in Resources */,
+				9A1E04BBA7BE5303BD8F83E3 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -303,9 +308,10 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 8LC38UCNVW;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -339,9 +345,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AdrianFit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -350,6 +358,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit;
 				PRODUCT_NAME = "Adrian Fit";
 				SDKROOT = iphoneos;
@@ -362,9 +371,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AdrianFit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -373,6 +384,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit;
 				PRODUCT_NAME = "Adrian Fit";
 				SDKROOT = iphoneos;
@@ -413,9 +425,10 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 8LC38UCNVW;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
