@@ -36,6 +36,12 @@
   ],
   "exclude": [
     "node_modules",
-    "PACOTE-SERVIDOR"
+    "PACOTE-SERVIDOR",
+    "nodejs-local",
+    "node-v25.6.1-darwin-arm64",
+    "ios",
+    "audit",
+    ".next_corrupt_*",
+    ".next_before_*"
   ]
 }

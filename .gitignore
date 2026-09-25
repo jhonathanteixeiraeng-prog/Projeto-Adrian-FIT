@@ -39,3 +39,12 @@ PACOTE-SERVIDOR/
 prisma/*.db
 prisma/*.db-*
 .vercel
+
+# iOS build outputs
+ios/**/build/
+ios/**/DerivedData/
+
+# Temporary configs & backups
+.next_before_*
+tsconfig.api-check.json
+

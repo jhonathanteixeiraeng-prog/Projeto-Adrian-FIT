@@ -1,0 +1,14 @@
+.git
+.next
+.next-dev
+.next_corrupt*
+.vercel/output
+node_modules
+node-v*-darwin-arm64
+nodejs-local
+audit
+ios
+PACOTE-SERVIDOR
+*.log
+*.tsbuildinfo
+mock-*
