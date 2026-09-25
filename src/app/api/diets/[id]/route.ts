@@ -111,6 +111,19 @@ export async function PUT(
 
         // Update transaction
         const updatedPlan = await prisma.$transaction(async (tx) => {
+            // Activating an edited plan makes it the student's current diet.
+            // Keep this exclusive so the app never has to choose between plans.
+            if (active === true) {
+                await tx.dietPlan.updateMany({
+                    where: {
+                        studentId: existingPlan.studentId,
+                        active: true,
+                        id: { not: params.id },
+                    },
+                    data: { active: false },
+                });
+            }
+
             // Delete existing meals
             await tx.dietMeal.deleteMany({
                 where: { dietPlanId: params.id },

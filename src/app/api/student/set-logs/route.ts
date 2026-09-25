@@ -96,13 +96,14 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { exerciseId, dayId, setIndex, weight, reps, remove } = body as {
+        const { exerciseId, dayId, setIndex, weight, reps, remove, sessionDate } = body as {
             exerciseId?: string;
             dayId?: string;
             setIndex?: number;
             weight?: number;
             reps?: number;
             remove?: boolean;
+            sessionDate?: string;
         };
 
         if (!exerciseId || !dayId || typeof setIndex !== 'number') {
@@ -120,10 +121,37 @@ export async function POST(request: NextRequest) {
             },
         });
 
+        const workoutSession = sessionDate
+            ? await prisma.workoutSession.findUnique({
+                where: {
+                    studentId_workoutDayId_localDate: {
+                        studentId: student.id,
+                        workoutDayId: dayId,
+                        localDate: sessionDate,
+                    },
+                },
+                select: { id: true },
+            })
+            : null;
+
+        const refreshSessionVolume = async (sessionId: string) => {
+            const sessionLogs = await prisma.setLog.findMany({
+                where: { sessionId },
+                select: { weight: true, reps: true },
+            });
+            const totalVolume = sessionLogs.reduce(
+                (sum, item) => sum + Math.max(0, item.weight) * Math.max(0, item.reps),
+                0
+            );
+            await prisma.workoutSession.update({ where: { id: sessionId }, data: { totalVolume } });
+        };
+
         if (remove) {
+            const affectedSessionId = existing?.sessionId ?? workoutSession?.id;
             if (existing) {
                 await prisma.setLog.delete({ where: { id: existing.id } });
             }
+            if (affectedSessionId) await refreshSessionVolume(affectedSessionId);
             return NextResponse.json({ success: true, data: { removed: true } });
         }
 
@@ -133,7 +161,7 @@ export async function POST(request: NextRequest) {
         const log = existing
             ? await prisma.setLog.update({
                 where: { id: existing.id },
-                data: { weight: safeWeight, reps: safeReps },
+                data: { weight: safeWeight, reps: safeReps, sessionId: workoutSession?.id ?? existing.sessionId },
             })
             : await prisma.setLog.create({
                 data: {
@@ -143,8 +171,11 @@ export async function POST(request: NextRequest) {
                     setIndex,
                     weight: safeWeight,
                     reps: safeReps,
+                    sessionId: workoutSession?.id,
                 },
             });
+
+        if (log.sessionId) await refreshSessionVolume(log.sessionId);
 
         return NextResponse.json({ success: true, data: { id: log.id } });
     } catch (error) {

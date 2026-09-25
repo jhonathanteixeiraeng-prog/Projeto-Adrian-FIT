@@ -1,14 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
-import { generateDietPlan } from '@/lib/diet-generator';
+import { generateDietWithOpenAI } from '@/lib/openai-diet-generator';
 
-// POST /api/diets/generate - Generate an automatic diet plan preview for a student
+export const runtime = 'nodejs';
+
+const requestSchema = z.object({
+    mode: z.enum(['student', 'template']).default('student'),
+    studentId: z.string().trim().optional(),
+    studentInfo: z.string().trim().min(10, 'Descreva as necessidades do aluno').max(4000),
+    requiredFoods: z.string().trim().min(2, 'Informe os alimentos que devem estar na dieta').max(2000),
+    mealCount: z.number().int().min(2).max(8),
+}).superRefine((data, context) => {
+    if (data.mode === 'student' && !data.studentId) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['studentId'],
+            message: 'Aluno é obrigatório',
+        });
+    }
+});
+
+function calculateAge(birthDate: Date | null): number | null {
+    if (!birthDate) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDifference = today.getMonth() - birthDate.getMonth();
+    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age >= 0 ? age : null;
+}
+
+// POST /api/diets/generate - Gera um rascunho de dieta com a OpenAI para revisão do personal
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-
         if (!session?.user?.personalId) {
             return NextResponse.json(
                 { success: false, error: 'Acesso não autorizado' },
@@ -16,93 +45,71 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const body = await request.json();
-        const { studentId, goal, calories, protein, carbs, fat } = body as {
-            studentId?: string; goal?: string; calories?: number; protein?: number; carbs?: number; fat?: number;
-        };
-
-        if (!studentId) {
+        const parsedBody = requestSchema.safeParse(await request.json());
+        if (!parsedBody.success) {
             return NextResponse.json(
-                { success: false, error: 'Aluno é obrigatório' },
+                { success: false, error: parsedBody.error.issues[0]?.message || 'Dados inválidos' },
                 { status: 400 }
             );
         }
 
-        const ranges = [
-            ['calorias', calories, 800, 6000], ['proteínas', protein, 20, 400],
-            ['carboidratos', carbs, 20, 800], ['gorduras', fat, 10, 300],
-        ] as const;
-        for (const [label, value, min, max] of ranges) {
-            if (value !== undefined && (!Number.isFinite(value) || value < min || value > max)) {
-                return NextResponse.json({ success: false, error: `Meta de ${label} inválida` }, { status: 400 });
-            }
-        }
-        if (calories && protein && carbs && fat) {
-            const macroCalories = protein * 4 + carbs * 4 + fat * 9;
-            if (Math.abs(macroCalories - calories) / calories > 0.15) {
-                return NextResponse.json({ success: false, error: 'Os macronutrientes precisam ser compatíveis com a meta calórica (tolerância de 15%).' }, { status: 400 });
-            }
-        }
+        const { mode, studentId, studentInfo, requiredFoods, mealCount } = parsedBody.data;
+        const student = mode === 'student' && studentId
+            ? await prisma.student.findFirst({
+                where: { id: studentId, personalId: session.user.personalId },
+                include: {
+                    user: { select: { name: true } },
+                    anamnesis: true,
+                },
+            })
+            : null;
 
-        const student = await prisma.student.findFirst({
-            where: { id: studentId, personalId: session.user.personalId },
-            include: {
-                anamnesis: true,
-            },
-        });
-
-        if (!student) {
+        if (mode === 'student' && !student) {
             return NextResponse.json(
                 { success: false, error: 'Aluno não encontrado' },
                 { status: 404 }
             );
         }
 
-        const birthDate = student.birthDate;
-        if (!student.weight || !student.height || !birthDate) {
+        const diet = await generateDietWithOpenAI({
+            student: {
+                name: student?.user.name || 'Modelo alimentar sem aluno atribuído',
+                age: calculateAge(student?.birthDate || null),
+                gender: student?.gender || null,
+                height: student?.height || null,
+                weight: student?.weight || null,
+                goal: student?.goal || null,
+                activityLevel: student?.anamnesis?.activityLevel || null,
+                restrictions: student?.anamnesis?.restrictions || null,
+                medications: student?.anamnesis?.medications || null,
+                notes: student?.anamnesis?.notes || null,
+            },
+            trainerNotes: studentInfo,
+            requiredFoods,
+            mealCount,
+        });
+
+        return NextResponse.json({ success: true, data: diet });
+    } catch (error) {
+        console.error('Error generating diet with OpenAI:', error);
+
+        if (error instanceof Error && error.message === 'OPENAI_API_KEY_NOT_CONFIGURED') {
             return NextResponse.json(
-                {
-                    success: false,
-                    error: 'O aluno precisa ter peso, altura e data de nascimento cadastrados para gerar a dieta.',
-                },
-                { status: 400 }
+                { success: false, error: 'A integração com a OpenAI ainda não foi configurada.' },
+                { status: 503 }
             );
         }
 
-        const today = new Date();
-        const birth = new Date(birthDate);
-        let age = today.getFullYear() - birth.getFullYear();
-        const m = today.getMonth() - birth.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+        if (error instanceof Error && error.name === 'TimeoutError') {
+            return NextResponse.json(
+                { success: false, error: 'A geração demorou mais que o esperado. Tente novamente.' },
+                { status: 504 }
+            );
+        }
 
-        const allowedGoals = ['WEIGHT_LOSS', 'MAINTENANCE', 'MUSCLE_GAIN'];
-        const resolvedGoal = allowedGoals.includes(goal || '')
-            ? (goal as 'WEIGHT_LOSS' | 'MAINTENANCE' | 'MUSCLE_GAIN')
-            : allowedGoals.includes(student.goal || '')
-                ? (student.goal as 'WEIGHT_LOSS' | 'MAINTENANCE' | 'MUSCLE_GAIN')
-                : 'MAINTENANCE';
-
-        const plan = generateDietPlan({
-            weight: student.weight,
-            height: student.height,
-            age,
-            gender: (student.gender === 'FEMALE' ? 'FEMALE' : 'MALE'),
-            activityLevel: (student.anamnesis?.activityLevel as
-                | 'SEDENTARY' | 'LIGHT' | 'MODERATE' | 'ACTIVE' | 'VERY_ACTIVE') || 'MODERATE',
-            goal: resolvedGoal,
-            restrictions: student.anamnesis?.restrictions || '',
-            targetCalories: calories,
-            targetProtein: protein,
-            targetCarbs: carbs,
-            targetFat: fat,
-        });
-
-        return NextResponse.json({ success: true, data: plan });
-    } catch (error) {
-        console.error('Error generating diet plan:', error);
         return NextResponse.json(
-            { success: false, error: 'Erro ao gerar dieta automática' },
-            { status: 500 }
+            { success: false, error: 'Não foi possível gerar a dieta agora. Tente novamente.' },
+            { status: 502 }
         );
     }
 }

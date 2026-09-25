@@ -135,39 +135,54 @@ export async function POST(request: NextRequest) {
             });
         });
 
-        const dietPlan = await prisma.dietPlan.create({
-            data: {
-                title: validatedData.title,
-                studentId: validatedData.studentId,
-                personalId: session.user.personalId!,
-                startDate: new Date(validatedData.startDate),
-                endDate: new Date(validatedData.endDate),
-                active: validatedData.active ?? true,
-                version: 1,
-                calories: validatedData.targetCalories || Math.round(totalCalories),
-                protein: validatedData.targetProtein || Math.round(totalProtein),
-                carbs: validatedData.targetCarbs || Math.round(totalCarbs),
-                fat: validatedData.targetFat || Math.round(totalFat),
-                meals: normalizedMeals.length > 0 ? {
-                    create: normalizedMeals.map((meal, mealIndex) => ({
-                        name: meal.name,
-                        time: meal.time,
-                        order: mealIndex,
-                        notes: meal.notes,
-                        foods: JSON.stringify(meal.items),
-                    })),
-                } : undefined,
-            },
-            include: {
-                meals: true,
-                student: {
-                    include: {
-                        user: {
-                            select: { name: true },
+        const shouldActivate = validatedData.active ?? true;
+        const dietPlan = await prisma.$transaction(async (tx) => {
+            // A student must have only one active diet. Otherwise the app may
+            // keep loading an older plan depending on the database query order.
+            if (shouldActivate) {
+                await tx.dietPlan.updateMany({
+                    where: {
+                        studentId: validatedData.studentId,
+                        active: true,
+                    },
+                    data: { active: false },
+                });
+            }
+
+            return tx.dietPlan.create({
+                data: {
+                    title: validatedData.title,
+                    studentId: validatedData.studentId,
+                    personalId: session.user.personalId!,
+                    startDate: new Date(validatedData.startDate),
+                    endDate: new Date(validatedData.endDate),
+                    active: shouldActivate,
+                    version: 1,
+                    calories: validatedData.targetCalories || Math.round(totalCalories),
+                    protein: validatedData.targetProtein || Math.round(totalProtein),
+                    carbs: validatedData.targetCarbs || Math.round(totalCarbs),
+                    fat: validatedData.targetFat || Math.round(totalFat),
+                    meals: normalizedMeals.length > 0 ? {
+                        create: normalizedMeals.map((meal, mealIndex) => ({
+                            name: meal.name,
+                            time: meal.time,
+                            order: mealIndex,
+                            notes: meal.notes,
+                            foods: JSON.stringify(meal.items),
+                        })),
+                    } : undefined,
+                },
+                include: {
+                    meals: true,
+                    student: {
+                        include: {
+                            user: {
+                                select: { name: true },
+                            },
                         },
                     },
                 },
-            },
+            });
         });
 
         // Save as template if requested

@@ -47,7 +47,11 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const [workoutCompletions, checkins] = await Promise.all([
+        const [workoutSessions, workoutCompletions, checkins] = await Promise.all([
+            prisma.workoutSession.findMany({
+                where: { studentId: student.id },
+                select: { localDate: true },
+            }),
             prisma.workoutCompletion.findMany({
                 where: { studentId: student.id },
                 select: { completedAt: true },
@@ -59,9 +63,9 @@ export async function GET(request: NextRequest) {
             }),
         ]);
 
-        const trainingDaysFromWorkout = new Set(
-            workoutCompletions.map((item) => item.completedAt.toISOString().slice(0, 10))
-        ).size;
+        const trainingDaysFromWorkout = workoutSessions.length > 0
+            ? new Set(workoutSessions.map((item) => item.localDate)).size
+            : new Set(workoutCompletions.map((item) => item.completedAt.toISOString().slice(0, 10))).size;
 
         const trainingDaysFromCheckins = new Set(
             checkins.map((item) => item.date.toISOString().slice(0, 10))

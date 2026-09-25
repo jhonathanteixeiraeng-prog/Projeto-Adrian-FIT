@@ -83,7 +83,16 @@ function parsePortion(portion: unknown): PortionInfo {
 function parseQuantity(quantity: unknown, portionInfo: PortionInfo): number {
     // Número já é multiplicador na convenção canônica
     if (typeof quantity === 'number') {
-        return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+        if (!Number.isFinite(quantity) || quantity <= 0) return 1;
+
+        // Alguns planos legados salvaram a quantidade diretamente em gramas
+        // mesmo quando a porção já era uma referência de massa. Ex.: quantity
+        // 150 com portion 100g significa 1,5 porção, não 150 porções.
+        if (quantity > 20 && portionInfo.isMassReference && portionInfo.baseValue > 0) {
+            return quantity / portionInfo.baseValue;
+        }
+
+        return quantity;
     }
 
     const text = String(quantity || '').replace(',', '.').trim().toLowerCase();
@@ -178,6 +187,15 @@ export function normalizeDietFood(raw: any): NormalizedDietFood {
     let protein = toNumber(food.protein);
     let carbs = toNumber(food.carbs);
     let fat = toNumber(food.fat);
+
+    // Corrige alimentos que vieram com kcal zeradas, mas possuem macros.
+    // A estimativa energética padrão evita bloquear a dieta inteira no app.
+    if (calories <= 0) {
+        const estimatedCalories = (protein * 4) + (carbs * 4) + (fat * 9);
+        if (estimatedCalories > 0) {
+            calories = Math.round(estimatedCalories * 100) / 100;
+        }
+    }
 
     // Se os macros estiverem por 100 g, convertemos para a porção base.
     // A porção base já está em `portionInfo.baseValue` (em g/ml).

@@ -51,6 +51,9 @@ export async function GET(request: NextRequest) {
                     },
                 },
             },
+            // Defensive ordering for accounts that already have more than one
+            // active diet saved: always deliver the most recently created one.
+            orderBy: { createdAt: 'desc' },
         });
 
         // If no active plan, return empty or specific code? 
@@ -75,6 +78,14 @@ export async function GET(request: NextRequest) {
                 });
                 return {
                     ...normalized,
+                    // Compatibilidade com versões já instaladas do app, que
+                    // bloqueavam o plano inteiro quando um item como café ou
+                    // tempero possuía 0 kcal. O item continua visível e marcado
+                    // para revisão, sem impedir as demais refeições.
+                    foods: normalized.foods.map((food: any) => ({
+                        ...food,
+                        totalCalories: food.totalCalories > 0 ? food.totalCalories : 1,
+                    })),
                     completed: Array.isArray(completions) && completions.length > 0,
                 };
             });
