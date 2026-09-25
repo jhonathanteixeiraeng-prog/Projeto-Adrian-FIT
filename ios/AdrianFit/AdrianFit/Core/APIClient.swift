@@ -21,7 +21,22 @@ enum APIError: LocalizedError {
 }
 
 struct APIClient: Sendable {
+    #if DEBUG
+    static let live = APIClient(baseURL: debugBaseURLOverride ?? URL(string: "https://projeto-adrian-fit.vercel.app")!)
+
+    /// Só em builds DEBUG: a variável de ambiente `API_BASE_URL` aponta o app para outro servidor, ex.:
+    /// `SIMCTL_CHILD_API_BASE_URL=http://localhost:3000 xcrun simctl launch booted com.adriansantos.fit`.
+    /// Builds Release não compilam este trecho e sempre usam produção.
+    private static var debugBaseURLOverride: URL? {
+        guard let value = ProcessInfo.processInfo.environment["API_BASE_URL"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let url = URL(string: value),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              url.host()?.isEmpty == false else { return nil }
+        return url
+    }
+    #else
     static let live = APIClient(baseURL: URL(string: "https://projeto-adrian-fit.vercel.app")!)
+    #endif
 
     let baseURL: URL
     private let session: URLSession

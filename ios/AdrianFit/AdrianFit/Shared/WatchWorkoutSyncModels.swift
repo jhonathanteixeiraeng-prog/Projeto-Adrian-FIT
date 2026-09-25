@@ -6,6 +6,9 @@ struct WatchWorkoutState: Codable, Equatable, Sendable {
     let exerciseId: String?
     let exerciseName: String?
     let targetReps: String?
+    /// Carga prescrita da série atual já formatada ("22,5 kg"); ausente quando não há prescrição
+    /// ou quando o iPhone roda uma versão anterior do app.
+    var targetLoad: String? = nil
     let currentSetIndex: Int?
     let exerciseSetCount: Int
     let completedSetCount: Int

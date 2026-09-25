@@ -29,12 +29,14 @@ struct WorkoutDayDetail: Codable, Identifiable, Sendable {
     let items: [WorkoutItemDetail]
 }
 
-struct WorkoutItemDetail: Codable, Identifiable, Sendable {
+struct WorkoutItemDetail: Codable, Identifiable, Sendable, LoadPrescription {
     let id: String
     let sets: Int
     let reps: String
     let rest: Int
     let restBySet: String?
+    let load: String?
+    let rpe: String?
     let notes: String?
     let exercise: Exercise
 }
@@ -70,16 +72,40 @@ struct WorkoutItemBody: Encodable {
     let rest: Int
     let restBySet: String?
     let notes: String
+    /// Carga (kg) e RPE prescritos; nil limpa a prescrição.
+    let load: String?
+    let rpe: String?
     let order: Int?
 
-    init(exerciseId: String, sets: Int, reps: String, rest: Int, restBySet: String?, notes: String, order: Int? = nil) {
+    init(exerciseId: String, sets: Int, reps: String, rest: Int, restBySet: String?, notes: String, load: String?, rpe: String?, order: Int? = nil) {
         self.exerciseId = exerciseId
         self.sets = sets
         self.reps = reps
         self.rest = rest
         self.restBySet = restBySet
         self.notes = notes
+        self.load = load
+        self.rpe = rpe
         self.order = order
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case exerciseId, sets, reps, rest, restBySet, notes, load, rpe, order
+    }
+
+    /// `load` e `rpe` vão sempre no JSON, com `null` para limpar: sem a chave o servidor mantém o valor
+    /// salvo (compatibilidade com versões do app anteriores a esses campos). As demais chaves seguem como antes.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(exerciseId, forKey: .exerciseId)
+        try container.encode(sets, forKey: .sets)
+        try container.encode(reps, forKey: .reps)
+        try container.encode(rest, forKey: .rest)
+        try container.encodeIfPresent(restBySet, forKey: .restBySet)
+        try container.encode(notes, forKey: .notes)
+        try container.encode(load, forKey: .load)
+        try container.encode(rpe, forKey: .rpe)
+        try container.encodeIfPresent(order, forKey: .order)
     }
 }
 
@@ -102,7 +128,30 @@ struct EditableWorkoutItem: Identifiable, Hashable {
     var rest: Int
     var customRest: Bool
     var restBySet: [Int]
+    /// Texto dos campos "Carga (kg)" e "RPE" como aparece/é digitado em pt-BR ("20/22,5/25", "7-8").
+    var load: String = ""
+    var rpe: String = ""
     var notes: String
+
+    /// Mesma validação do servidor (mensagens idênticas), recalculada a cada edição.
+    var normalizedLoad: WorkoutLoad.Normalized { WorkoutLoad.normalizeLoad(load, sets: sets) }
+    var normalizedRpe: WorkoutLoad.Normalized { WorkoutLoad.normalizeRpe(rpe) }
+
+    /// Valores para o corpo do PUT/POST: normalizados (nil limpa). Um texto inválido segue como está para o
+    /// servidor recusar com a mesma mensagem — nunca vira nil, o que apagaria a prescrição salva.
+    var loadPayload: String? {
+        switch normalizedLoad {
+        case .valid(let value): value
+        case .invalid: load
+        }
+    }
+
+    var rpePayload: String? {
+        switch normalizedRpe {
+        case .valid(let value): value
+        case .invalid: rpe
+        }
+    }
 }
 
 // MARK: - Plano alimentar (detalhe para edição)

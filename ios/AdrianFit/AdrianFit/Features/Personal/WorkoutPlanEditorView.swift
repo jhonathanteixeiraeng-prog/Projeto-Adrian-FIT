@@ -48,6 +48,8 @@ struct WorkoutPlanEditorView: View {
                 if item.customRest && (item.restBySet.count != item.sets || item.restBySet.contains(where: { !(0...600).contains($0) })) {
                     return "Revise os descansos por série de \(item.exerciseName)."
                 }
+                if item.normalizedLoad.error != nil { return "Revise a carga de \(item.exerciseName)." }
+                if item.normalizedRpe.error != nil { return "Revise o RPE de \(item.exerciseName)." }
             }
         }
         return nil
@@ -218,6 +220,8 @@ struct WorkoutPlanEditorView: View {
                             sets: item.sets, reps: item.reps, rest: item.rest,
                             customRest: item.restBySet != nil,
                             restBySet: decodeRests(item.restBySet, sets: item.sets, fallback: item.rest),
+                            load: WorkoutLoad.loadEditorText(item.load),
+                            rpe: WorkoutLoad.rpeEditorText(item.rpe),
                             notes: item.notes ?? ""
                         )
                     }
@@ -240,6 +244,10 @@ struct WorkoutPlanEditorView: View {
                             exerciseId: item.exerciseId, sets: item.sets, reps: item.reps, rest: item.rest,
                             restBySet: item.customRest ? encodeRests(item.restBySet) : nil,
                             notes: item.notes,
+                            // Sempre enviados (o valor atual, editado ou não): salvar pelo app nunca apaga
+                            // uma prescrição feita na web.
+                            load: item.loadPayload,
+                            rpe: item.rpePayload,
                             order: index
                         )
                     }
@@ -319,6 +327,42 @@ private struct ExerciseEditorRow: View {
                 .fixedSize()
                 .disabled(item.customRest)
             }
+            HStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    Text("Carga (kg)").font(.caption).foregroundStyle(FitTheme.secondaryText).fixedSize()
+                    TextField("20 ou 20/25", text: $item.load)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+                        .keyboardType(.numbersAndPunctuation)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityLabel("Carga em quilos")
+                        .accessibilityHint("Opcional. Um valor para todas as séries ou um por série, separados por barra")
+                }
+                HStack(spacing: 6) {
+                    Text("RPE").font(.caption).foregroundStyle(FitTheme.secondaryText).fixedSize()
+                    TextField("8", text: $item.rpe)
+                        .frame(width: 52)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+                        .keyboardType(.numbersAndPunctuation)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityLabel("RPE")
+                        .accessibilityHint("Opcional. Esforço percebido de 1 a 10, ex.: 8, 8,5 ou 7-8")
+                }
+            }
+            if let loadError = item.normalizedLoad.error {
+                validationMessage(loadError)
+            } else if case .valid(let load?) = item.normalizedLoad, load.contains("/") {
+                // Com menos valores que séries o último se repete: mostra como fica cada série.
+                Text("Por série: \(WorkoutLoad.formatLoad(load))")
+                    .font(.caption2)
+                    .foregroundStyle(FitTheme.secondaryText)
+            }
+            if let rpeError = item.normalizedRpe.error {
+                validationMessage(rpeError)
+            }
             Picker("Descanso", selection: $item.customRest) {
                 Text("Mesmo em todas").tag(false)
                 Text("Por série").tag(true)
@@ -346,6 +390,12 @@ private struct ExerciseEditorRow: View {
             if item.restBySet.count < sets { item.restBySet.append(contentsOf: Array(repeating: item.rest, count: sets - item.restBySet.count)) }
             else if item.restBySet.count > sets { item.restBySet = Array(item.restBySet.prefix(sets)) }
         }
+    }
+
+    private func validationMessage(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.triangle.fill")
+            .font(.caption2)
+            .foregroundStyle(.red)
     }
 
     private func restValue(_ index: Int) -> Int { item.restBySet.indices.contains(index) ? item.restBySet[index] : item.rest }

@@ -379,6 +379,9 @@ private struct WorkoutTemplateDetailView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.exercise?.name ?? "Exercício").font(.headline)
                             Text("\(item.sets) séries × \(item.reps) • \(item.rest)s").font(.caption).foregroundStyle(FitTheme.orange)
+                            if let target = item.loadPrescriptionSummary {
+                                Text("Meta: \(target)").font(.caption).foregroundStyle(FitTheme.secondaryText)
+                            }
                         }.padding(.vertical, 4)
                     }
                 }

@@ -311,7 +311,7 @@ struct WorkoutDayDetailView: View {
                         exercise: exercise,
                         store: store,
                         inputs: Binding(
-                            get: { setInputs[exercise.id] ?? (0..<exercise.sets).map { _ in SetInput(weight: "", reps: defaultReps(exercise)) } },
+                            get: { setInputs[exercise.id] ?? plannedInputs(exercise) },
                             set: { setInputs[exercise.id] = $0 }
                         ),
                         previous: previousLogs[exerciseKey(exercise)] ?? [:],
@@ -529,6 +529,20 @@ struct WorkoutDayDetailView: View {
         return prefix.isEmpty ? "" : String(prefix)
     }
 
+    /// Carga prescrita pelo personal para a série, no formato dos campos de carga ("20", "22,5"); "" sem prescrição.
+    private func prescribedWeight(_ exercise: ExerciseItem, set index: Int) -> String {
+        exercise.loadForSet(index).map(formatWeight) ?? ""
+    }
+
+    /// Série sem registro: reps do plano e carga prescrita.
+    private func plannedInput(_ exercise: ExerciseItem, set index: Int) -> SetInput {
+        SetInput(weight: prescribedWeight(exercise, set: index), reps: defaultReps(exercise))
+    }
+
+    private func plannedInputs(_ exercise: ExerciseItem) -> [SetInput] {
+        (0..<exercise.sets).map { plannedInput(exercise, set: $0) }
+    }
+
     private func loadLogs() async {
         do {
             let logs: SessionLogs = try await api.get("/api/student/set-logs?dayId=\(day.id)")
@@ -548,21 +562,28 @@ struct WorkoutDayDetailView: View {
                 let key = exerciseKey(exercise)
                 var inputs: [SetInput] = []
                 for index in 0..<exercise.sets {
-                    if let log = today[key]?[index] ?? previous[key]?[index] {
+                    if let log = today[key]?[index] {
+                        // Registro de hoje: mostra exatamente o que foi feito, mesmo sem carga.
                         inputs.append(SetInput(
                             weight: log.weight > 0 ? formatWeight(log.weight) : "",
                             reps: log.reps > 0 ? String(log.reps) : defaultReps(exercise)
                         ))
+                    } else if let log = previous[key]?[index] {
+                        // Sessão anterior: repete a carga usada; sem carga registrada, sugere a prescrita.
+                        inputs.append(SetInput(
+                            weight: log.weight > 0 ? formatWeight(log.weight) : prescribedWeight(exercise, set: index),
+                            reps: log.reps > 0 ? String(log.reps) : defaultReps(exercise)
+                        ))
                     } else {
-                        inputs.append(SetInput(weight: "", reps: defaultReps(exercise)))
+                        inputs.append(plannedInput(exercise, set: index))
                     }
                 }
                 setInputs[exercise.id] = inputs
             }
         } catch {
-            // Sem logs (primeira vez ou offline): preenche apenas as reps do plano.
+            // Sem logs (primeira vez ou offline): preenche as reps e a carga prescritas no plano.
             for exercise in day.exercises where setInputs[exercise.id] == nil {
-                setInputs[exercise.id] = (0..<exercise.sets).map { _ in SetInput(weight: "", reps: defaultReps(exercise)) }
+                setInputs[exercise.id] = plannedInputs(exercise)
             }
         }
         publishWatchState()
@@ -574,7 +595,8 @@ struct WorkoutDayDetailView: View {
 
     private func handleSetToggle(exercise: ExerciseItem, setIndex: Int, marked: Bool) {
         let key = exerciseKey(exercise)
-        let input = setInputs[exercise.id]?[indexSafe: setIndex] ?? SetInput(weight: "", reps: "")
+        // Antes de os registros carregarem, os campos exibem os valores planejados: registra o que está na tela.
+        let input = setInputs[exercise.id]?[indexSafe: setIndex] ?? plannedInput(exercise, set: setIndex)
         let weight = Double(input.weight.replacingOccurrences(of: ",", with: ".")) ?? 0
         let reps = Int(input.reps) ?? 0
 
@@ -705,8 +727,7 @@ struct WorkoutDayDetailView: View {
                   let exercise = currentExercise,
                   !store.isDone(exercise: exercise.id, set: setIndex) else { return }
 
-            var inputs = setInputs[exercise.id]
-                ?? (0..<exercise.sets).map { _ in SetInput(weight: "", reps: defaultReps(exercise)) }
+            var inputs = setInputs[exercise.id] ?? plannedInputs(exercise)
             guard inputs.indices.contains(setIndex) else { return }
             if (Int(inputs[setIndex].reps) ?? 0) <= 0 {
                 inputs[setIndex].reps = defaultReps(exercise)
@@ -727,6 +748,7 @@ struct WorkoutDayDetailView: View {
 
     private func publishWatchState() {
         let exercise = currentExercise
+        let setIndex = currentSetIndex
         PhoneWorkoutConnectivity.shared.publish(
             WatchWorkoutState(
                 dayId: day.id,
@@ -734,7 +756,8 @@ struct WorkoutDayDetailView: View {
                 exerciseId: exercise?.id,
                 exerciseName: exercise?.name,
                 targetReps: exercise?.displayReps,
-                currentSetIndex: currentSetIndex,
+                targetLoad: setIndex.flatMap { exercise?.loadForSet($0) }.map(WorkoutLoad.formatKilograms),
+                currentSetIndex: setIndex,
                 exerciseSetCount: exercise?.sets ?? 0,
                 completedSetCount: doneSets,
                 totalSetCount: totalSets,
@@ -878,6 +901,16 @@ private struct ExerciseSessionRow: View {
                             .font(.caption)
                             .foregroundStyle(FitTheme.orange)
                             .multilineTextAlignment(.leading)
+                        if let target = exercise.loadPrescriptionSummary {
+                            Label {
+                                Text("Meta: \(target)")
+                                    .foregroundStyle(FitTheme.primaryText)
+                                    .multilineTextAlignment(.leading)
+                            } icon: {
+                                Image(systemName: "target").foregroundStyle(FitTheme.orange)
+                            }
+                            .font(.caption.weight(.semibold))
+                        }
                         if let visibleEquipment {
                             Text(visibleEquipment)
                                 .font(.caption2.weight(.semibold))
@@ -1023,7 +1056,9 @@ private struct ExerciseSessionRow: View {
     }
 
     private func weightField(_ index: Int, done: Bool) -> some View {
-        TextField("—", text: Binding(
+        let target = exercise.loadForSet(index)
+        // Com o campo vazio, o placeholder mostra a carga prescrita para a série.
+        return TextField(target.map(WorkoutLoad.formatDecimal) ?? "—", text: Binding(
             get: { inputs[indexSafe: index]?.weight ?? "" },
             set: { if inputs.indices.contains(index) { inputs[index].weight = $0 } }
         ))
@@ -1035,6 +1070,7 @@ private struct ExerciseSessionRow: View {
         .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(FitTheme.separator.opacity(0.35)) }
         .disabled(done)
         .accessibilityLabel("Carga da série \(index + 1), em quilos")
+        .accessibilityHint(target.map { "Meta do personal: \(WorkoutLoad.formatKilograms($0))" } ?? "")
     }
 
     private func repsField(_ index: Int, done: Bool) -> some View {
@@ -1211,6 +1247,23 @@ struct ExerciseDetailSheet: View {
                         MetricPill(icon: "timer", value: "\(exercise.rest)s", label: "descanso", tint: FitTheme.blue)
                     }
 
+                    if exercise.loadPrescriptionSummary != nil {
+                        SurfaceCard {
+                            VStack(alignment: .leading, spacing: 10) {
+                                SectionHeading(title: "Meta do personal")
+                                ForEach(loadRows) { row in
+                                    prescriptionRow(row.label, value: row.value)
+                                }
+                                if !exercise.displayRpe.isEmpty {
+                                    prescriptionRow("Intensidade", value: exercise.displayRpe)
+                                    Text("RPE é o esforço percebido, de 1 a 10: no RPE 8 ainda sobrariam cerca de 2 repetições; no 10, nenhuma.")
+                                        .font(.caption)
+                                        .foregroundStyle(FitTheme.secondaryText)
+                                }
+                            }
+                        }
+                    }
+
                     if let videoText = exercise.videoUrl, let url = URL(string: videoText), !videoText.isEmpty {
                         Link(destination: url) {
                             Label("Assistir vídeo de execução", systemImage: "play.rectangle.fill")
@@ -1247,6 +1300,31 @@ struct ExerciseDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } } }
         }
+    }
+
+    private struct LoadRow: Identifiable {
+        let label: String
+        let value: String
+        var id: String { label }
+    }
+
+    /// Carga prescrita por série; uma linha só quando é a mesma em todas.
+    private var loadRows: [LoadRow] {
+        let loads = (0..<max(exercise.sets, 0)).compactMap { index in exercise.loadForSet(index).map { (set: index + 1, kg: $0) } }
+        guard let first = loads.first else { return [] }
+        if loads.allSatisfy({ $0.kg == first.kg }) {
+            return [LoadRow(label: loads.count > 1 ? "Carga (todas as séries)" : "Carga", value: WorkoutLoad.formatKilograms(first.kg))]
+        }
+        return loads.map { LoadRow(label: "Série \($0.set)", value: WorkoutLoad.formatKilograms($0.kg)) }
+    }
+
+    private func prescriptionRow(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(FitTheme.secondaryText)
+            Spacer()
+            Text(value).fontWeight(.semibold).foregroundStyle(FitTheme.primaryText)
+        }
+        .font(.subheadline)
     }
 }
 

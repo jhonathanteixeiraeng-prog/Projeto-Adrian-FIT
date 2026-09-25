@@ -84,12 +84,14 @@ private struct WorkoutWatchContent: View {
                 NextSetStrip(
                     exerciseName: exerciseName,
                     currentSet: currentSetIndex + 1,
-                    totalSets: workout.exerciseSetCount
+                    totalSets: workout.exerciseSetCount,
+                    targetLoad: workout.targetLoad
                 )
             } else {
                 ExerciseCard(
                     name: exerciseName,
                     targetReps: workout.targetReps,
+                    targetLoad: workout.targetLoad,
                     currentSet: currentSetIndex + 1,
                     setCount: workout.exerciseSetCount
                 )
@@ -326,6 +328,7 @@ private struct ProgressHeader: View {
 private struct ExerciseCard: View {
     let name: String
     let targetReps: String?
+    let targetLoad: String?
     let currentSet: Int
     let setCount: Int
 
@@ -363,6 +366,14 @@ private struct ExerciseCard: View {
                     label: "REPETIÇÕES",
                     value: targetReps ?? "—",
                     icon: "repeat"
+                )
+            }
+
+            if let targetLoad {
+                WorkoutMetric(
+                    label: "META DE CARGA",
+                    value: targetLoad,
+                    icon: "scalemass.fill"
                 )
             }
         }
@@ -562,6 +573,7 @@ private struct NextSetStrip: View {
     let exerciseName: String
     let currentSet: Int
     let totalSets: Int
+    var targetLoad: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -569,7 +581,7 @@ private struct NextSetStrip: View {
                 .foregroundStyle(WatchTheme.accentSoft)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("A SEGUIR · SÉRIE \(currentSet)/\(totalSets)")
+                Text("A SEGUIR · SÉRIE \(currentSet)/\(totalSets)" + (targetLoad.map { " · \($0.uppercased())" } ?? ""))
                     .font(.system(size: 7, weight: .black, design: .rounded))
                     .tracking(0.5)
                     .foregroundStyle(WatchTheme.tertiaryText)
@@ -725,6 +737,7 @@ private extension WatchWorkoutState {
         exerciseId: "remada",
         exerciseName: "Remada curvada pronada",
         targetReps: "12",
+        targetLoad: "22,5 kg",
         currentSetIndex: 1,
         exerciseSetCount: 4,
         completedSetCount: 6,
@@ -740,6 +753,7 @@ private extension WatchWorkoutState {
         exerciseId: "remada",
         exerciseName: "Remada curvada pronada",
         targetReps: "12",
+        targetLoad: "25 kg",
         currentSetIndex: 2,
         exerciseSetCount: 4,
         completedSetCount: 7,

@@ -113,12 +113,15 @@ extension TodayWorkout {
     var compactName: String { FitnessCopy.compactWorkoutName(name) }
 }
 
-struct TodayExercise: Codable, Identifiable, Sendable {
+struct TodayExercise: Codable, Identifiable, Sendable, LoadPrescription {
     let id: String
     let name: String
     let sets: Int
     let reps: String
     let rest: Int
+    /// Carga (kg) e RPE prescritos; ausentes nas respostas de versões antigas da API.
+    let load: String?
+    let rpe: String?
     let completed: Bool
 
     var prescriptionIssue: String? {
@@ -158,7 +161,7 @@ extension WorkoutDay {
     var prescriptionIssue: String? { exercises.compactMap(\.prescriptionIssue).first }
 }
 
-struct ExerciseItem: Codable, Identifiable, Sendable {
+struct ExerciseItem: Codable, Identifiable, Sendable, LoadPrescription {
     let id: String
     let exerciseId: String?
     let name: String
@@ -167,6 +170,9 @@ struct ExerciseItem: Codable, Identifiable, Sendable {
     let reps: String
     let rest: Int
     let restBySet: [Int]?
+    /// Carga (kg) e RPE prescritos; ausentes nas respostas de versões antigas da API.
+    let load: String?
+    let rpe: String?
     let notes: String?
     let videoUrl: String?
     let instructions: String?
@@ -194,6 +200,224 @@ private enum ExercisePrescription {
         if value.isEmpty || value == "reps" || value.contains("definir") { return "Repetições ainda não foram definidas pelo personal." }
         if !(0...600).contains(rest) { return "Tempo de descanso inválido." }
         return nil
+    }
+}
+
+// MARK: - Carga (kg) e RPE prescritos
+
+/// Itens de treino que trazem a carga (kg) e o RPE prescritos pelo personal (texto, como as reps).
+protocol LoadPrescription {
+    var load: String? { get }
+    var rpe: String? { get }
+}
+
+extension LoadPrescription {
+    /// Carga prescrita da série (índice a partir de 0); com menos valores que séries, o último se repete.
+    func loadForSet(_ index: Int) -> Double? { WorkoutLoad.loadForSet(load, index: index) }
+
+    /// "20 kg", "20/22,5/25 kg" ou "" quando não há carga prescrita.
+    var displayLoad: String { WorkoutLoad.formatLoad(load) }
+
+    /// "RPE 8", "RPE 7-8" ou "" quando não há RPE prescrito.
+    var displayRpe: String { WorkoutLoad.formatRpe(rpe) }
+
+    /// "20 kg · RPE 8" com as partes presentes, ou nil quando não há prescrição.
+    var loadPrescriptionSummary: String? {
+        let parts = [displayLoad, displayRpe].filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// Regras de carga (kg) e RPE — port de src/lib/workout-load.ts (mantenha os dois iguais).
+///
+/// Formato salvo:
+/// - load: "20" para todas as séries ou um valor por série "20/22.5/25" (kg, decimal com ponto, 0–500);
+/// - rpe: "8", "8.5" ou uma faixa "7-8" (escala de 1 a 10, passos de 0,5).
+/// Na digitação aceitamos vírgula decimal e as formas usadas em pt-BR ("12,5/15", "20 kg", "7 a 8", "RPE 8").
+enum WorkoutLoad {
+    static let maxLoadKg = 500
+
+    /// Resultado da validação: valor normalizado (nil = sem prescrição) ou a mesma mensagem de erro do servidor.
+    enum Normalized: Equatable, Sendable {
+        case valid(String?)
+        case invalid(String)
+
+        var value: String? {
+            if case .valid(let value) = self { return value }
+            return nil
+        }
+
+        var error: String? {
+            if case .invalid(let message) = self { return message }
+            return nil
+        }
+    }
+
+    /// "20", "20 kg", "12,5/15/17,5" → [20] / [12.5, 15, 17.5]; [] quando vazio; nil quando não é uma lista de cargas.
+    static func parseLoad(_ raw: String?) -> [Double]? {
+        let text = removingKilogramSuffix((raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
+        if text.isEmpty { return [] }
+        // Ao contrário das reps, a vírgula é decimal ("12,5 kg"): só "/", "|" e ";" separam as séries.
+        let parts = text
+            .split(whereSeparator: { "/|;".contains($0) })
+            .map { removingKilogramSuffix($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .filter { !$0.isEmpty }
+        if parts.isEmpty { return [] }
+        var values: [Double] = []
+        for part in parts {
+            guard let value = decimal(part, integerDigits: 1...3, fractionDigits: 1...2),
+                  value >= 0, value <= Double(maxLoadKg) else { return nil }
+            values.append(value)
+        }
+        return values
+    }
+
+    /// Valida e converte a carga digitada para o formato salvo, ajustada ao número de séries:
+    /// menos valores que séries repetem o último e valores iguais viram um só ("20/20/20" → "20").
+    static func normalizeLoad(_ raw: String?, sets: Int) -> Normalized {
+        guard let values = parseLoad(raw) else {
+            return .invalid("Carga: use kg por série, ex.: 20 ou 20/22,5/25 (até \(maxLoadKg) kg)")
+        }
+        guard let last = values.last else { return .valid(nil) }
+        let totalSets = max(1, sets)
+        if values.count > totalSets {
+            return .invalid("Carga: \(values.count) valores para \(totalSets) série\(totalSets == 1 ? "" : "s")")
+        }
+        let fitted = (0..<totalSets).map { values.indices.contains($0) ? values[$0] : last }
+        let value = fitted.allSatisfy { $0 == fitted[0] }
+            ? formatNumber(fitted[0])
+            : fitted.map(formatNumber).joined(separator: "/")
+        return .valid(value)
+    }
+
+    /// Carga prescrita de uma série (índice a partir de 0), ou nil quando não há.
+    static func loadForSet(_ stored: String?, index: Int) -> Double? {
+        guard index >= 0, let values = parseLoad(stored), !values.isEmpty else { return nil }
+        return values[min(index, values.count - 1)]
+    }
+
+    /// Texto para campos e telas em pt-BR: "20", "20/22,5/25"; "" quando não há carga.
+    static func formatLoadInput(_ stored: String?) -> String {
+        guard let values = parseLoad(stored), !values.isEmpty else { return "" }
+        return values.map(formatDecimal).joined(separator: "/")
+    }
+
+    /// "20 kg", "20/22,5/25 kg" ou "" quando não há carga prescrita.
+    static func formatLoad(_ stored: String?) -> String {
+        let text = formatLoadInput(stored)
+        return text.isEmpty ? "" : "\(text) kg"
+    }
+
+    /// Uma carga em pt-BR: 22.5 → "22,5 kg".
+    static func formatKilograms(_ value: Double) -> String {
+        "\(formatDecimal(value)) kg"
+    }
+
+    /// "8", "8,5", "7-8", "7 a 8", "RPE 8" → "8" / "8.5" / "7-8"; nil quando vazio.
+    static func normalizeRpe(_ raw: String?) -> Normalized {
+        let text = removingRpePrefix(raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { return .valid(nil) }
+        let parts = rangeParts(text)
+        let values = parts.compactMap { decimal($0, integerDigits: 1...2, fractionDigits: 1...1) }
+        let valid = (1...2).contains(parts.count)
+            && values.count == parts.count
+            && values.allSatisfy { $0 >= 1 && $0 <= 10 && ($0 * 2).rounded() == $0 * 2 }
+            && (values.count == 1 || values[0] < values[1])
+        guard valid else { return .invalid("RPE: use de 1 a 10, ex.: 8, 8,5 ou 7-8") }
+        return .valid(values.map(formatNumber).joined(separator: "-"))
+    }
+
+    /// "RPE 8", "RPE 7-8", "RPE 8,5" ou "" quando não há RPE.
+    static func formatRpe(_ stored: String?) -> String {
+        let text = (stored ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? "" : "RPE \(text.replacingOccurrences(of: ".", with: ","))"
+    }
+
+    /// Texto inicial do campo de carga no editor. Um valor salvo fora do formato aparece como está (e não vazio),
+    /// para a validação apontar o problema em vez de o app apagar a prescrição ao salvar.
+    static func loadEditorText(_ stored: String?) -> String {
+        let formatted = formatLoadInput(stored)
+        return formatted.isEmpty ? (stored ?? "").trimmingCharacters(in: .whitespacesAndNewlines) : formatted
+    }
+
+    /// Texto inicial do campo de RPE no editor: "8,5", "7-8".
+    static func rpeEditorText(_ stored: String?) -> String {
+        (stored ?? "").trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ".", with: ",")
+    }
+
+    /// Igual a `String(Math.round(value * 100) / 100)` na web: 20 → "20", 22.5 → "22.5", 12.25 → "12.25".
+    private static func formatNumber(_ value: Double) -> String {
+        let rounded = (value * 100).rounded(.toNearestOrAwayFromZero) / 100
+        return rounded == rounded.rounded() ? String(Int(rounded)) : String(rounded)
+    }
+
+    /// Um número em pt-BR: 22.5 → "22,5", 20 → "20".
+    static func formatDecimal(_ value: Double) -> String {
+        formatNumber(value).replacingOccurrences(of: ".", with: ",")
+    }
+
+    /// Remove "kg", "quilo" ou "quilos" do fim do texto (`/\s*(kg|quilos?)\s*$/i` na web).
+    private static func removingKilogramSuffix(_ text: String) -> String {
+        for suffix in ["quilos", "quilo", "kg"] {
+            if let range = text.range(of: suffix, options: [.caseInsensitive, .anchored, .backwards]) {
+                return text[..<range.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return text
+    }
+
+    /// Remove o prefixo "RPE"/"PSE" com ":" ou "=" opcional (`/^\s*(rpe|pse)\s*[:=]?\s*/i` na web).
+    private static func removingRpePrefix(_ raw: String) -> String {
+        let text = raw.drop(while: \.isWhitespace)
+        for prefix in ["rpe", "pse"] {
+            guard let range = text.range(of: prefix, options: [.caseInsensitive, .anchored]) else { continue }
+            var rest = text[range.upperBound...].drop(while: \.isWhitespace)
+            if rest.first == ":" || rest.first == "=" { rest = rest.dropFirst() }
+            return String(rest.drop(while: \.isWhitespace))
+        }
+        return raw
+    }
+
+    /// Separa uma faixa de RPE em "-", "–", "até" ou "a" (`/\s*(?:-|–|até|a)\s*/i` na web), sem partes vazias.
+    private static func rangeParts(_ text: String) -> [String] {
+        var parts: [String] = []
+        var current = ""
+        var index = text.startIndex
+        while index < text.endIndex {
+            if let range = text[index...].range(of: "até", options: [.caseInsensitive, .anchored]) {
+                parts.append(current)
+                current = ""
+                index = range.upperBound
+            } else if ["-", "\u{2013}", "a", "A"].contains(text[index]) {
+                parts.append(current)
+                current = ""
+                index = text.index(after: index)
+            } else {
+                current.append(text[index])
+                index = text.index(after: index)
+            }
+        }
+        parts.append(current)
+        return parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    }
+
+    /// Número com algarismos ASCII e no máximo um separador decimal ("," ou "."), como `^\d{1,3}([.,]\d{1,2})?$`.
+    private static func decimal(_ text: String, integerDigits: ClosedRange<Int>, fractionDigits: ClosedRange<Int>) -> Double? {
+        var integer = ""
+        var fraction: String?
+        for character in text {
+            if character == "." || character == "," {
+                guard fraction == nil else { return nil }
+                fraction = ""
+            } else if let ascii = character.asciiValue, (48...57).contains(ascii) {
+                if fraction == nil { integer.append(character) } else { fraction?.append(character) }
+            } else {
+                return nil
+            }
+        }
+        guard integerDigits.contains(integer.count) else { return nil }
+        if let fraction, !fractionDigits.contains(fraction.count) { return nil }
+        return Double(fraction.map { "\(integer).\($0)" } ?? integer)
     }
 }
 
@@ -514,11 +738,13 @@ struct WorkoutTemplateDaySummary: Codable, Identifiable, Sendable {
     let items: [WorkoutTemplateItemSummary]
 }
 
-struct WorkoutTemplateItemSummary: Codable, Identifiable, Sendable {
+struct WorkoutTemplateItemSummary: Codable, Identifiable, Sendable, LoadPrescription {
     let id: String
     let sets: Int
     let reps: String
     let rest: Int
+    let load: String?
+    let rpe: String?
     let exercise: TemplateExercise?
 }
 
