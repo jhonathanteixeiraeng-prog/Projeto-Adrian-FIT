@@ -18,13 +18,17 @@ import {
     RefreshCw,
     Radio,
     MessageCircle,
-    ExternalLink,
-    Sparkles,
     Bell,
     Check,
-    Activity
+    Activity,
+    Calendar,
+    Flame,
+    ArrowUpRight,
+    Sparkles,
+    ShieldAlert,
+    ShieldCheck
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, Badge, Avatar, Button } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Badge, Avatar, Button, useToast } from '@/components/ui';
 
 interface ActivityEvent {
     id: string;
@@ -100,12 +104,20 @@ const defaultStats: DashboardData = {
 
 export default function PersonalDashboard() {
     const { data: session } = useSession();
+    const { toast } = useToast();
+
     const [stats, setStats] = useState<DashboardData>(defaultStats);
     const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState('');
     const [activities, setActivities] = useState<ActivityEvent[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(false);
     const [activityFilter, setActivityFilter] = useState<'ALL' | 'WORKOUT' | 'CHECKIN' | 'DIET'>('ALL');
+    const [radarFilter, setRadarFilter] = useState<'ALL' | 'CRITICAL' | 'WARNING'>('ALL');
+
+    // Reminder state
+    const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
+    const [sentReminders, setSentReminders] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         fetchDashboardStats();
@@ -127,8 +139,36 @@ export default function PersonalDashboard() {
         }
     };
 
+    const fetchDashboardStats = async (isManual = false) => {
+        try {
+            if (isManual) setIsRefreshing(true);
+            else setLoading(true);
+            setError('');
+
+            const response = await fetch('/api/dashboard');
+            const result = await response.json();
+
+            if (result.success) {
+                setStats(result.data);
+                if (isManual) {
+                    toast.success('Dados atualizados!', 'Métricas e atividades sincronizadas.');
+                }
+            } else {
+                setError(result.error || 'Erro ao carregar dados');
+            }
+        } catch {
+            setError('Erro ao conectar com o servidor');
+            if (isManual) {
+                toast.error('Erro ao sincronizar dados');
+            }
+        } finally {
+            setLoading(false);
+            setIsRefreshing(false);
+        }
+    };
+
     const handleRefreshAll = () => {
-        fetchDashboardStats();
+        fetchDashboardStats(true);
         fetchLiveFeed();
     };
 
@@ -172,25 +212,6 @@ export default function PersonalDashboard() {
         return true;
     });
 
-    const fetchDashboardStats = async () => {
-        try {
-            setLoading(true);
-            setError('');
-            const response = await fetch('/api/dashboard');
-            const result = await response.json();
-
-            if (result.success) {
-                setStats(result.data);
-            } else {
-                setError(result.error || 'Erro ao carregar dados');
-            }
-        } catch (err) {
-            setError('Erro ao conectar com o servidor');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const radar = stats.retentionRadar || {
         criticalCount: 0,
         warningCount: 0,
@@ -198,11 +219,16 @@ export default function PersonalDashboard() {
         students: [],
     };
 
-    const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
-    const [sentReminders, setSentReminders] = useState<Record<string, boolean>>({});
-    const [reminderFeedback, setReminderFeedback] = useState<string | null>(null);
+    const filteredRadarStudents = (radar.students || []).filter((s) => {
+        if (radarFilter === 'CRITICAL') return s.riskLevel === 'CRITICAL';
+        if (radarFilter === 'WARNING') return s.riskLevel === 'WARNING';
+        return true;
+    });
 
-    const handleSendReminder = async (studentId: string, type: 'WORKOUT_REMINDER' | 'CHECKIN_REMINDER' = 'WORKOUT_REMINDER') => {
+    const handleSendReminder = async (
+        studentId: string,
+        type: 'WORKOUT_REMINDER' | 'CHECKIN_REMINDER' = 'WORKOUT_REMINDER'
+    ) => {
         try {
             setSendingReminderId(studentId);
             const res = await fetch('/api/personal/reminders', {
@@ -214,57 +240,24 @@ export default function PersonalDashboard() {
             if (data.success) {
                 if (studentId === 'ALL_AT_RISK') {
                     const allMap: Record<string, boolean> = {};
-                    (radar.students || []).forEach(s => { allMap[s.id] = true; });
-                    setSentReminders(prev => ({ ...prev, ...allMap }));
+                    (radar.students || []).forEach((s) => {
+                        allMap[s.id] = true;
+                    });
+                    setSentReminders((prev) => ({ ...prev, ...allMap }));
+                    toast.success('Lembretes em lote enviados!', 'Todos os alunos em risco foram notificados no app.');
                 } else {
-                    setSentReminders(prev => ({ ...prev, [studentId]: true }));
+                    setSentReminders((prev) => ({ ...prev, [studentId]: true }));
+                    toast.success('Lembrete enviado!', 'O aluno foi notificado com sucesso.');
                 }
-                setReminderFeedback(data.message || 'Lembrete enviado com sucesso!');
-                setTimeout(() => setReminderFeedback(null), 4000);
             } else {
-                alert(data.error || 'Erro ao enviar lembrete');
+                toast.error(data.error || 'Erro ao enviar lembrete');
             }
         } catch {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setSendingReminderId(null);
         }
     };
-
-    const statCards = [
-        {
-            title: 'Total de Alunos',
-            value: stats.totalStudents,
-            subtitle: `${stats.activeStudents} ativos`,
-            icon: Users,
-            color: 'text-blue-500',
-            bgColor: 'bg-blue-500/10',
-        },
-        {
-            title: 'Adesão Treino',
-            value: `${stats.averageWorkoutAdherence}%`,
-            subtitle: 'Média últimos 7 dias',
-            icon: Dumbbell,
-            color: 'text-[#F88022]',
-            bgColor: 'bg-[#F88022]/10',
-        },
-        {
-            title: 'Adesão Dieta',
-            value: `${stats.averageDietAdherence}%`,
-            subtitle: 'Média últimos 7 dias',
-            icon: Utensils,
-            color: 'text-green-500',
-            bgColor: 'bg-green-500/10',
-        },
-        {
-            title: 'Radar de Retenção',
-            value: radar.totalAtRisk,
-            subtitle: radar.totalAtRisk > 0 ? `${radar.criticalCount} críticos / ${radar.warningCount} alertas` : 'Nenhum aluno em risco',
-            icon: Radio,
-            color: radar.criticalCount > 0 ? 'text-red-500' : radar.warningCount > 0 ? 'text-yellow-500' : 'text-emerald-500',
-            bgColor: radar.criticalCount > 0 ? 'bg-red-500/10' : radar.warningCount > 0 ? 'bg-yellow-500/10' : 'bg-emerald-500/10',
-        },
-    ];
 
     if (loading) {
         return (
@@ -275,30 +268,37 @@ export default function PersonalDashboard() {
     }
 
     return (
-        <div className="space-y-8 animate-in">
-            {/* Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="space-y-7 animate-in">
+            {/* Header Executivo */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
-                        Olá, {session?.user?.name?.split(' ')[0] || 'Personal'}! 👋
-                    </h1>
-                    <p className="text-muted-foreground mt-1">
-                        Acompanhe o engajamento e a evolução dos seus alunos em tempo real
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+                            Olá, {session?.user?.name?.split(' ')[0] || 'Personal'}! 👋
+                        </h1>
+                        <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F88022]/10 text-[#F88022] border border-[#F88022]/20">
+                            Dashboard Executivo
+                        </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Acompanhe o engajamento, retenção e a evolução dos seus alunos em tempo real
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+
+                <div className="flex items-center gap-2">
                     <button
                         onClick={handleRefreshAll}
+                        disabled={isRefreshing}
                         className="p-2.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors border border-border"
                         title="Atualizar dados"
                     >
-                        <RefreshCw className="w-5 h-5" />
+                        <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#F88022]' : ''}`} />
                     </button>
                     <Link
                         href="/personal/students/new"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#F88022] text-white rounded-xl font-medium hover:bg-[#F88022]/90 transition-colors shadow-sm"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#F88022] text-white rounded-xl text-sm font-semibold hover:bg-[#F88022]/90 transition-all shadow-sm shadow-[#F88022]/20"
                     >
-                        <UserPlus className="w-5 h-5" />
+                        <UserPlus className="w-4 h-4" />
                         Novo Aluno
                     </Link>
                 </div>
@@ -310,112 +310,224 @@ export default function PersonalDashboard() {
                 </div>
             )}
 
-            {/* Stats Grid */}
+            {/* SaaS Stat Cards (KPIs Executivos) */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {statCards.map((stat, index) => (
-                    <Card key={index} className="relative overflow-hidden">
-                        <CardContent className="p-4 lg:p-6">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className={`w-10 h-10 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
-                                    <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                                </div>
-                                {stat.title === 'Radar de Retenção' && radar.totalAtRisk > 0 && (
-                                    <span className="relative flex h-2.5 w-2.5">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                                    </span>
+                {/* Total de Alunos */}
+                <Card className="border border-border/70 shadow-sm bg-card/60 backdrop-blur-sm relative overflow-hidden group hover:border-[#F88022]/50 transition-colors">
+                    <CardContent className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Alunos Ativos</span>
+                            <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                <Users className="w-4 h-4" />
+                            </div>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                            <p className="text-3xl font-extrabold text-foreground">{stats.activeStudents}</p>
+                            <span className="text-xs text-muted-foreground">de {stats.totalStudents} total</span>
+                        </div>
+                        <div className="mt-3 w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                            <div
+                                className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                                style={{
+                                    width: `${stats.totalStudents > 0 ? (stats.activeStudents / stats.totalStudents) * 100 : 0}%`,
+                                }}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Adesão Treino */}
+                <Card className="border border-border/70 shadow-sm bg-card/60 backdrop-blur-sm relative overflow-hidden group hover:border-[#F88022]/50 transition-colors">
+                    <CardContent className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Adesão Treinos</span>
+                            <div className="w-9 h-9 rounded-xl bg-[#F88022]/10 flex items-center justify-center text-[#F88022]">
+                                <Dumbbell className="w-4 h-4" />
+                            </div>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                            <p className="text-3xl font-extrabold text-foreground">{stats.averageWorkoutAdherence}%</p>
+                            <span className="text-xs text-muted-foreground">média 7 dias</span>
+                        </div>
+                        <div className="mt-3 w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                            <div
+                                className="bg-[#F88022] h-1.5 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.min(100, Math.max(0, stats.averageWorkoutAdherence))}%` }}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Adesão Dieta */}
+                <Card className="border border-border/70 shadow-sm bg-card/60 backdrop-blur-sm relative overflow-hidden group hover:border-[#F88022]/50 transition-colors">
+                    <CardContent className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Adesão Dieta</span>
+                            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                                <Utensils className="w-4 h-4" />
+                            </div>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                            <p className="text-3xl font-extrabold text-foreground">{stats.averageDietAdherence}%</p>
+                            <span className="text-xs text-muted-foreground">média 7 dias</span>
+                        </div>
+                        <div className="mt-3 w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                            <div
+                                className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.min(100, Math.max(0, stats.averageDietAdherence))}%` }}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Radar de Retenção */}
+                <Card className="border border-border/70 shadow-sm bg-card/60 backdrop-blur-sm relative overflow-hidden group hover:border-[#F88022]/50 transition-colors">
+                    <CardContent className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Radar Churn</span>
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                radar.totalAtRisk > 0 ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'
+                            }`}>
+                                {radar.totalAtRisk > 0 ? (
+                                    <ShieldAlert className="w-4 h-4" />
+                                ) : (
+                                    <ShieldCheck className="w-4 h-4" />
                                 )}
                             </div>
-                            <p className="text-2xl lg:text-3xl font-bold text-foreground">{stat.value}</p>
-                            <p className="text-sm font-medium text-foreground mt-1">{stat.title}</p>
-                            <p className="text-xs text-muted-foreground">{stat.subtitle}</p>
-                        </CardContent>
-                    </Card>
-                ))}
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                            <p className={`text-3xl font-extrabold ${radar.totalAtRisk > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                {radar.totalAtRisk}
+                            </p>
+                            <span className="text-xs text-muted-foreground">
+                                {radar.totalAtRisk === 0 ? 'Alunos 100% seguros' : `${radar.criticalCount} críticos / ${radar.warningCount} alertas`}
+                            </span>
+                        </div>
+                        <div className="mt-3 w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                            <div
+                                className={`h-1.5 rounded-full transition-all duration-500 ${
+                                    radar.totalAtRisk > 0 ? 'bg-red-500' : 'bg-emerald-500'
+                                }`}
+                                style={{
+                                    width: `${stats.totalStudents > 0 ? Math.min(100, (radar.totalAtRisk / stats.totalStudents) * 100) : 0}%`,
+                                }}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Radar de Retenção & Alunos em Risco (Churn Alert) */}
             {stats.totalStudents > 0 && (
-                <Card className="border-border">
-                    <CardHeader className="border-b border-border pb-4">
+                <Card className="border border-border/80 shadow-sm bg-card/80 backdrop-blur-sm">
+                    <CardHeader className="border-b border-border/70 pb-4">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${radar.totalAtRisk > 0 ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                    radar.totalAtRisk > 0 ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'
+                                }`}>
                                     <Radio className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-lg flex items-center gap-2">
-                                        Radar de Retenção & Alerta de Churn
+                                    <div className="flex items-center gap-2">
+                                        <CardTitle className="text-lg font-bold">Radar de Retenção & Churn</CardTitle>
                                         {radar.totalAtRisk > 0 && (
-                                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">
+                                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500 border border-red-500/20">
                                                 {radar.totalAtRisk} {radar.totalAtRisk === 1 ? 'aluno em risco' : 'alunos em risco'}
                                             </span>
                                         )}
-                                    </CardTitle>
+                                    </div>
                                     <p className="text-xs text-muted-foreground mt-0.5">
-                                        Detecção proativa de inatividade, baixa adesão e check-ins pendentes para evitar cancelamentos
+                                        Detecção precoce de inatividade e baixa adesão para prevenir cancelamentos antes do vencimento
                                     </p>
                                 </div>
                             </div>
+
                             <div className="flex items-center gap-2 flex-wrap">
                                 {radar.totalAtRisk > 0 && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-xs h-8 border-border text-foreground hover:bg-muted"
-                                        onClick={() => handleSendReminder('ALL_AT_RISK')}
-                                        disabled={sendingReminderId === 'ALL_AT_RISK'}
-                                    >
-                                        {sendingReminderId === 'ALL_AT_RISK' ? (
-                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                        ) : (
-                                            <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
-                                        )}
-                                        Lembrar Todos
-                                    </Button>
-                                )}
-                                {radar.criticalCount > 0 && (
-                                    <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-red-500/15 text-red-500 border border-red-500/30 flex items-center gap-1.5">
-                                        <AlertOctagon className="w-3.5 h-3.5" />
-                                        {radar.criticalCount} Crítico
-                                    </span>
-                                )}
-                                {radar.warningCount > 0 && (
-                                    <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30 flex items-center gap-1.5">
-                                        <AlertTriangle className="w-3.5 h-3.5" />
-                                        {radar.warningCount} Alerta
-                                    </span>
+                                    <>
+                                        {/* Filter chips */}
+                                        <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-xl border border-border text-xs">
+                                            <button
+                                                type="button"
+                                                onClick={() => setRadarFilter('ALL')}
+                                                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                                                    radarFilter === 'ALL'
+                                                        ? 'bg-card text-foreground shadow-sm font-semibold'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                Todos ({radar.totalAtRisk})
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRadarFilter('CRITICAL')}
+                                                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                                                    radarFilter === 'CRITICAL'
+                                                        ? 'bg-card text-red-500 shadow-sm font-semibold'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                Críticos ({radar.criticalCount})
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRadarFilter('WARNING')}
+                                                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                                                    radarFilter === 'WARNING'
+                                                        ? 'bg-card text-yellow-600 dark:text-yellow-400 shadow-sm font-semibold'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                Alertas ({radar.warningCount})
+                                            </button>
+                                        </div>
+
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-xs h-8 border-border text-foreground hover:bg-muted"
+                                            onClick={() => handleSendReminder('ALL_AT_RISK')}
+                                            disabled={sendingReminderId === 'ALL_AT_RISK'}
+                                        >
+                                            {sendingReminderId === 'ALL_AT_RISK' ? (
+                                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                            ) : (
+                                                <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+                                            )}
+                                            Lembrar Todos
+                                        </Button>
+                                    </>
                                 )}
                             </div>
                         </div>
                     </CardHeader>
+
                     <CardContent className="pt-4">
-                        {reminderFeedback && (
-                            <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 animate-in">
-                                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                                <span>{reminderFeedback}</span>
-                            </div>
-                        )}
                         {radar.students.length === 0 ? (
                             <div className="py-8 text-center space-y-2">
                                 <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
                                     <CheckCircle2 className="w-6 h-6" />
                                 </div>
                                 <h3 className="text-base font-semibold text-foreground">
-                                    Parabéns! Sua retenção está em 100%
+                                    Retenção exemplar! 100% dos alunos engajados
                                 </h3>
                                 <p className="text-xs text-muted-foreground max-w-md mx-auto">
                                     Nenhum aluno ativo apresenta inatividade prolongada ou queda crítica de adesão esta semana.
                                 </p>
                             </div>
+                        ) : filteredRadarStudents.length === 0 ? (
+                            <p className="text-center py-6 text-xs text-muted-foreground">
+                                Nenhum aluno nesta categoria de risco.
+                            </p>
                         ) : (
-                            <div className="divide-y divide-border">
-                                {radar.students.map((student) => {
+                            <div className="divide-y divide-border/60">
+                                {filteredRadarStudents.map((student) => {
                                     const isCritical = student.riskLevel === 'CRITICAL';
                                     return (
                                         <div
                                             key={student.id}
-                                            className="py-4 first:pt-0 last:pb-0 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                                            className="py-3.5 first:pt-0 last:pb-0 flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:bg-muted/30 px-2 rounded-xl transition-colors"
                                         >
                                             <div className="flex items-start sm:items-center gap-3 min-w-0">
                                                 <Avatar name={student.name} size="md" />
@@ -423,22 +535,22 @@ export default function PersonalDashboard() {
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <Link
                                                             href={`/personal/students/${student.id}`}
-                                                            className="font-semibold text-foreground hover:text-[#F88022] transition-colors truncate"
+                                                            className="font-semibold text-sm text-foreground hover:text-[#F88022] transition-colors truncate"
                                                         >
                                                             {student.name}
                                                         </Link>
                                                         <span
-                                                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                                                                 isCritical
                                                                     ? 'bg-red-500/15 text-red-500 border border-red-500/30'
                                                                     : 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30'
                                                             }`}
                                                         >
-                                                            {isCritical ? 'Risco Alto' : 'Alerta'}
+                                                            {isCritical ? 'Crítico' : 'Alerta'}
                                                         </span>
                                                     </div>
                                                     <p className="text-xs text-muted-foreground truncate">{student.email}</p>
-                                                    {/* Reasons Chips */}
+                                                    {/* Motivos */}
                                                     <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                                                         {student.reasons.map((reason, idx) => (
                                                             <span
@@ -453,20 +565,24 @@ export default function PersonalDashboard() {
                                             </div>
 
                                             {/* Action Buttons */}
-                                            <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
+                                            <div className="flex items-center gap-2 self-end md:self-center flex-wrap shrink-0">
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleSendReminder(
-                                                        student.id,
-                                                        student.reasons.some(r => r.toLowerCase().includes('check-in')) ? 'CHECKIN_REMINDER' : 'WORKOUT_REMINDER'
-                                                    )}
+                                                    onClick={() =>
+                                                        handleSendReminder(
+                                                            student.id,
+                                                            student.reasons.some((r) => r.toLowerCase().includes('check-in'))
+                                                                ? 'CHECKIN_REMINDER'
+                                                                : 'WORKOUT_REMINDER'
+                                                        )
+                                                    }
                                                     disabled={sentReminders[student.id] || sendingReminderId === student.id}
-                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${
+                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
                                                         sentReminders[student.id]
                                                             ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
                                                             : 'bg-muted hover:bg-muted/80 text-foreground border-border'
                                                     }`}
-                                                    title="Enviar notificação no app do aluno"
+                                                    title="Enviar notificação push no app do aluno"
                                                 >
                                                     {sendingReminderId === student.id ? (
                                                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -477,18 +593,20 @@ export default function PersonalDashboard() {
                                                     )}
                                                     {sentReminders[student.id] ? 'Notificado' : 'Notificar'}
                                                 </button>
+
                                                 {student.whatsappUrl && (
                                                     <a
                                                         href={student.whatsappUrl}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 transition-colors text-xs font-medium border border-emerald-500/30"
-                                                        title="Enviar mensagem no WhatsApp"
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 transition-colors text-xs font-semibold border border-emerald-500/30"
+                                                        title="Abrir conversa no WhatsApp"
                                                     >
                                                         <MessageCircle className="w-3.5 h-3.5" />
                                                         WhatsApp
                                                     </a>
                                                 )}
+
                                                 <Link
                                                     href={`/personal/chat/${student.id}`}
                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground transition-colors text-xs font-medium border border-border"
@@ -496,9 +614,10 @@ export default function PersonalDashboard() {
                                                     <MessageCircle className="w-3.5 h-3.5 text-[#F88022]" />
                                                     Chat
                                                 </Link>
+
                                                 <Link
                                                     href={`/personal/students/${student.id}`}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#F88022]/10 hover:bg-[#F88022]/20 text-[#F88022] transition-colors text-xs font-medium"
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#F88022]/10 hover:bg-[#F88022]/20 text-[#F88022] transition-colors text-xs font-semibold"
                                                 >
                                                     Ficha
                                                     <ChevronRight className="w-3.5 h-3.5" />
@@ -513,10 +632,10 @@ export default function PersonalDashboard() {
                 </Card>
             )}
 
-            {/* Live Activity Feed (Pulse em Tempo Real) */}
+            {/* Pulse Live Feed */}
             {stats.totalStudents > 0 && (
-                <Card className="border-border">
-                    <CardHeader className="border-b border-border pb-4">
+                <Card className="border border-border/80 shadow-sm bg-card/80 backdrop-blur-sm">
+                    <CardHeader className="border-b border-border/70 pb-4">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-[#F88022]/15 text-[#F88022] flex items-center justify-center">
@@ -524,17 +643,17 @@ export default function PersonalDashboard() {
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <CardTitle className="text-lg">Feed de Atividades ao Vivo</CardTitle>
+                                        <CardTitle className="text-lg font-bold">Feed de Atividades ao Vivo</CardTitle>
                                         <span className="relative flex h-2 w-2">
                                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                         </span>
-                                        <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
                                             Pulse
                                         </span>
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-0.5">
-                                        Acompanhe treinos concluídos, check-ins, substituições de dieta e mensagens em tempo real
+                                        Treinos concluídos, check-ins e trocas de alimentos em tempo real
                                     </p>
                                 </div>
                             </div>
@@ -588,6 +707,7 @@ export default function PersonalDashboard() {
                             </div>
                         </div>
                     </CardHeader>
+
                     <CardContent className="pt-4">
                         {loadingActivities ? (
                             <div className="py-12 flex items-center justify-center">
@@ -598,15 +718,13 @@ export default function PersonalDashboard() {
                                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
                                     <Activity className="w-6 h-6" />
                                 </div>
-                                <h3 className="text-sm font-semibold text-foreground">
-                                    Nenhuma atividade encontrada
-                                </h3>
+                                <h3 className="text-sm font-semibold text-foreground">Nenhuma atividade recente</h3>
                                 <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                                    Quando seus alunos completarem treinos, enviarem check-ins ou realizarem trocas de alimentos, as notificações aparecerão aqui.
+                                    As notificações de treinos concluídos e check-ins aparecerão aqui automaticamente.
                                 </p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-border">
+                            <div className="divide-y divide-border/60">
                                 {filteredActivities.slice(0, 10).map((activity) => {
                                     const iconConfig = getActivityIcon(activity.type);
                                     const IconComponent = iconConfig.icon;
@@ -617,7 +735,9 @@ export default function PersonalDashboard() {
                                             className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-4 group hover:bg-muted/40 px-2 rounded-xl transition-colors"
                                         >
                                             <div className="flex items-center gap-3 min-w-0">
-                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
+                                                <div
+                                                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconConfig.bg} ${iconConfig.color}`}
+                                                >
                                                     <IconComponent className="w-4 h-4" />
                                                 </div>
                                                 <div className="min-w-0">
@@ -638,8 +758,8 @@ export default function PersonalDashboard() {
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-3 flex-shrink-0">
-                                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
                                                     <Clock className="w-3 h-3" />
                                                     {formatRelativeTime(activity.timestamp)}
                                                 </span>
@@ -660,108 +780,91 @@ export default function PersonalDashboard() {
                 </Card>
             )}
 
-            {/* Empty State */}
-            {stats.totalStudents === 0 && (
-                <Card>
-                    <CardContent className="p-12 text-center">
-                        <div className="w-20 h-20 rounded-full bg-[#F88022]/10 flex items-center justify-center mx-auto mb-4">
-                            <Users className="w-10 h-10 text-[#F88022]" />
-                        </div>
-                        <h3 className="text-xl font-bold text-foreground mb-2">
-                            Nenhum aluno cadastrado
-                        </h3>
-                        <p className="text-muted-foreground mb-6">
-                            Comece adicionando seu primeiro aluno para ver as estatísticas aqui
-                        </p>
-                        <Link href="/personal/students/new">
-                            <Button className="bg-[#F88022] hover:bg-[#F88022]/90 text-white">
-                                <UserPlus className="w-5 h-5" />
-                                Cadastrar Primeiro Aluno
-                            </Button>
-                        </Link>
-                    </CardContent>
-                </Card>
-            )}
-
+            {/* Dual Grid: Baixa Adesão vs Inativos 72h+ */}
             {stats.totalStudents > 0 && (
                 <div className="grid lg:grid-cols-2 gap-6">
-                    {/* Low Adherence Students */}
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="flex items-center gap-2">
-                                <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                    {/* Alunos com Baixa Adesão */}
+                    <Card className="border border-border/80 shadow-sm bg-card/80 backdrop-blur-sm">
+                        <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/60">
+                            <CardTitle className="text-base font-bold flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-500" />
                                 Alunos com Baixa Adesão
                             </CardTitle>
-                            <Badge variant="warning">{stats.lowAdherenceStudents.length}</Badge>
+                            <Badge variant={stats.lowAdherenceStudents.length > 0 ? 'warning' : 'default'} className="text-xs">
+                                {stats.lowAdherenceStudents.length}
+                            </Badge>
                         </CardHeader>
-                        <CardContent className="space-y-3">
+                        <CardContent className="pt-3 space-y-2.5">
                             {stats.lowAdherenceStudents.map((student) => (
                                 <Link
                                     key={student.id}
                                     href={`/personal/students/${student.id}`}
-                                    className="flex items-center gap-4 p-3 rounded-xl hover:bg-muted transition-colors"
+                                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
                                 >
                                     <Avatar name={student.name || ''} size="md" />
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-foreground truncate">
-                                            {student.name}
-                                        </p>
-                                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                            <span className="flex items-center gap-1">
-                                                <Dumbbell className="w-3 h-3" />
-                                                {student.workoutAdherence}%
+                                        <p className="font-semibold text-sm text-foreground truncate">{student.name}</p>
+                                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                                            <span className="flex items-center gap-1 font-medium text-foreground">
+                                                <Dumbbell className="w-3.5 h-3.5 text-[#F88022]" />
+                                                Treino: {student.workoutAdherence}%
                                             </span>
-                                            <span className="flex items-center gap-1">
-                                                <Utensils className="w-3 h-3" />
-                                                {student.dietAdherence}%
+                                            <span>•</span>
+                                            <span className="flex items-center gap-1 font-medium text-foreground">
+                                                <Utensils className="w-3.5 h-3.5 text-emerald-500" />
+                                                Dieta: {student.dietAdherence}%
                                             </span>
                                         </div>
                                     </div>
-                                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
                                 </Link>
                             ))}
                             {stats.lowAdherenceStudents.length === 0 && (
                                 <div className="text-center py-6 text-muted-foreground">
-                                    <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-green-500" />
-                                    <p>Todos os alunos estão com boa adesão!</p>
+                                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
+                                    <p className="text-xs font-medium">Todos os alunos estão com boa adesão!</p>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
 
-                    {/* Pending Check-ins / Students without workout */}
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="flex items-center gap-2">
-                                <Clock className="w-5 h-5 text-purple-500" />
+                    {/* Sem Treinar há 72h+ */}
+                    <Card className="border border-border/80 shadow-sm bg-card/80 backdrop-blur-sm">
+                        <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/60">
+                            <CardTitle className="text-base font-bold flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-purple-500" />
                                 Sem Treinar há 72h+
                             </CardTitle>
-                            <Badge variant="info">{stats.studentsWithoutWorkout72h}</Badge>
+                            <Badge variant={stats.studentsWithoutWorkout72h > 0 ? 'warning' : 'default'} className="text-xs">
+                                {stats.studentsWithoutWorkout72h}
+                            </Badge>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
+                        <CardContent className="pt-3">
+                            <div className="space-y-2.5">
                                 {stats.studentsWithoutWorkout72hList?.map((student) => (
                                     <Link
                                         key={student.id}
                                         href={`/personal/students/${student.id}`}
-                                        className="flex items-center gap-4 p-3 rounded-xl hover:bg-muted transition-colors"
+                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border"
                                     >
                                         <Avatar name={student.name} size="md" />
-                                        <div className="flex-1">
-                                            <p className="font-medium text-foreground">{student.name}</p>
-                                            <p className="text-xs text-muted-foreground">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-sm text-foreground truncate">{student.name}</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
                                                 {student.daysInactive != null
-                                                    ? `Último treino há ${student.daysInactive} dias`
-                                                    : 'Nenhum treino registrado'}
+                                                    ? `Último treino concluído há ${student.daysInactive} dias`
+                                                    : 'Nenhum treino registrado ainda'}
                                             </p>
                                         </div>
-                                        <Badge variant="warning">Inativo</Badge>
+                                        <Badge variant="warning" className="text-[11px] shrink-0">
+                                            Inativo
+                                        </Badge>
                                     </Link>
                                 ))}
                                 {stats.studentsWithoutWorkout72h === 0 && (
                                     <div className="text-center py-6 text-muted-foreground">
-                                        <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-green-500" />
-                                        <p>Todos os alunos estão treinando regularmente!</p>
+                                        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
+                                        <p className="text-xs font-medium">Todos os alunos estão treinando regularmente!</p>
                                     </div>
                                 )}
                             </div>
@@ -770,48 +873,66 @@ export default function PersonalDashboard() {
                 </div>
             )}
 
-            {/* Quick Actions */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Ações Rápidas</CardTitle>
+            {/* Ações Rápidas SaaS */}
+            <Card className="border border-border/80 shadow-sm bg-card/60 backdrop-blur-sm">
+                <CardHeader className="pb-3 border-b border-border/60">
+                    <CardTitle className="text-base font-bold flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-[#F88022]" />
+                        Central de Ações Rápidas
+                    </CardTitle>
                 </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <CardContent className="pt-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <Link
                             href="/personal/students/new"
-                            className="flex flex-col items-center gap-3 p-4 rounded-xl bg-muted hover:bg-muted/70 transition-colors"
+                            className="flex flex-col items-center gap-2.5 p-4 rounded-xl bg-muted/50 hover:bg-muted hover:border-[#F88022]/40 border border-border/60 transition-all duration-200 group text-center"
                         >
-                            <div className="w-12 h-12 rounded-xl bg-[#F88022]/10 flex items-center justify-center">
-                                <UserPlus className="w-6 h-6 text-[#F88022]" />
+                            <div className="w-11 h-11 rounded-xl bg-[#F88022]/10 text-[#F88022] flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <UserPlus className="w-5 h-5" />
                             </div>
-                            <span className="text-sm font-medium text-foreground text-center">Novo Aluno</span>
+                            <div>
+                                <span className="text-sm font-semibold text-foreground block">Novo Aluno</span>
+                                <span className="text-[11px] text-muted-foreground">Cadastrar no CRM</span>
+                            </div>
                         </Link>
+
                         <Link
-                            href="/personal/exercises"
-                            className="flex flex-col items-center gap-3 p-4 rounded-xl bg-muted hover:bg-muted/70 transition-colors"
+                            href="/personal/workouts/new"
+                            className="flex flex-col items-center gap-2.5 p-4 rounded-xl bg-muted/50 hover:bg-muted hover:border-[#F88022]/40 border border-border/60 transition-all duration-200 group text-center"
                         >
-                            <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
-                                <Dumbbell className="w-6 h-6 text-green-500" />
+                            <div className="w-11 h-11 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <Dumbbell className="w-5 h-5" />
                             </div>
-                            <span className="text-sm font-medium text-foreground text-center">Exercícios</span>
+                            <div>
+                                <span className="text-sm font-semibold text-foreground block">Novo Treino</span>
+                                <span className="text-[11px] text-muted-foreground">Prescrever ou modelo</span>
+                            </div>
                         </Link>
+
                         <Link
-                            href="/personal/students"
-                            className="flex flex-col items-center gap-3 p-4 rounded-xl bg-muted hover:bg-muted/70 transition-colors"
+                            href="/personal/diets/new"
+                            className="flex flex-col items-center gap-2.5 p-4 rounded-xl bg-muted/50 hover:bg-muted hover:border-[#F88022]/40 border border-border/60 transition-all duration-200 group text-center"
                         >
-                            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                                <Users className="w-6 h-6 text-blue-500" />
+                            <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <Utensils className="w-5 h-5" />
                             </div>
-                            <span className="text-sm font-medium text-foreground text-center">Ver Alunos</span>
+                            <div>
+                                <span className="text-sm font-semibold text-foreground block">Nova Dieta</span>
+                                <span className="text-[11px] text-muted-foreground">Plano ou cálculo</span>
+                            </div>
                         </Link>
+
                         <Link
                             href="/personal/chat"
-                            className="flex flex-col items-center gap-3 p-4 rounded-xl bg-muted hover:bg-muted/70 transition-colors"
+                            className="flex flex-col items-center gap-2.5 p-4 rounded-xl bg-muted/50 hover:bg-muted hover:border-[#F88022]/40 border border-border/60 transition-all duration-200 group text-center"
                         >
-                            <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
-                                <TrendingUp className="w-6 h-6 text-purple-500" />
+                            <div className="w-11 h-11 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <MessageCircle className="w-5 h-5" />
                             </div>
-                            <span className="text-sm font-medium text-foreground text-center">Chat</span>
+                            <div>
+                                <span className="text-sm font-semibold text-foreground block">Mensagens</span>
+                                <span className="text-[11px] text-muted-foreground">Chat com alunos</span>
+                            </div>
                         </Link>
                     </div>
                 </CardContent>
