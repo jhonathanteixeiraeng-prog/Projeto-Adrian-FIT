@@ -57,3 +57,44 @@ export function inferRepsMode(rawReps: string, sets: number): {
         repsBySet: normalizePerSetReps(parsed.length ? parsed : [fallback], sets, fallback),
     };
 }
+
+export const MAX_REST_SECONDS = 600;
+
+/** Parses a stored restBySet JSON ("[60,60,90]") into seconds per set; invalid values become null. */
+export function parseRestBySetJson(raw: string | null | undefined): number[] | null {
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.length === 0) return null;
+        const values = parsed.map((value) => Number(value));
+        return values.every((value) => Number.isFinite(value) && value >= 0 && value <= MAX_REST_SECONDS) ? values.map(Math.round) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Text shown in the editor's rest field: "60", or "60/60/90" when sets have different rests. */
+export function formatRestInput(rest: number, restBySet?: number[] | null): string {
+    if (restBySet && restBySet.length > 1 && restBySet.some((value) => value !== restBySet[0])) {
+        return restBySet.join(REPS_PER_SET_SEPARATOR);
+    }
+    return String(restBySet?.[0] ?? rest);
+}
+
+/**
+ * Parses the editor's rest field: "60", "60s" or per set "60/60/90" (separators like reps).
+ * Per-set values are fitted to the number of sets (repeating the last one).
+ * Returns null when the text is empty or not a list of whole seconds (0–3600).
+ */
+export function parseRestInput(raw: string, sets: number): { rest: number; restBySet: number[] | null } | null {
+    const parts = parsePerSetReps(raw);
+    if (parts.length === 0) return null;
+    const values = parts.map((part) => Number(part.replace(/\s*(s|seg|segundos?)$/i, '')));
+    if (values.some((value) => !Number.isInteger(value) || value < 0 || value > MAX_REST_SECONDS)) return null;
+    if (values.length === 1) return { rest: values[0], restBySet: null };
+
+    const totalSets = Math.max(1, sets || values.length);
+    const fitted = Array.from({ length: totalSets }, (_, index) => values[Math.min(index, values.length - 1)]);
+    if (fitted.every((value) => value === fitted[0])) return { rest: fitted[0], restBySet: null };
+    return { rest: fitted[0], restBySet: fitted };
+}

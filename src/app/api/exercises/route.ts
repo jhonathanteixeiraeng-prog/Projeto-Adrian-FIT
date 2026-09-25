@@ -1,58 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { Prisma } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+import { matchesSearch } from '@/lib/utils';
+import {
+    DUPLICATE_EXERCISE_NAME,
+    exerciseCreateSchema,
+    isExerciseNameTaken,
+    validationErrorResponse,
+} from '@/lib/workout-plans';
 
-const exerciseSchema = z.object({
-    name: z.string().min(1, 'Nome é obrigatório'),
-    muscleGroup: z.string().min(1, 'Grupo muscular é obrigatório'),
-    equipment: z.string().optional(),
-    difficulty: z.enum(['INICIANTE', 'INTERMEDIARIO', 'AVANCADO']).optional(),
-    videoUrl: z.string().url().optional().or(z.literal('')),
-    thumbnailUrl: z.string().url().optional().or(z.literal('')),
-    instructions: z.string().optional(),
-    tips: z.string().optional(),
-});
+export const dynamic = 'force-dynamic';
 
-// GET - List exercises (public - no auth required)
+// GET - List exercises: the global library plus the signed-in personal's own exercises.
 export async function GET(request: NextRequest) {
     try {
-        // Get query params for filtering
+        const session = await getServerSession(authOptions);
+        const personalId = session?.user?.role === 'PERSONAL' ? session.user.personalId : undefined;
+
         const { searchParams } = new URL(request.url);
         const search = searchParams.get('search') || '';
         const muscleGroup = searchParams.get('muscleGroup') || '';
         const difficulty = searchParams.get('difficulty') || '';
 
-        // Build where clause
-        const where: any = {};
+        const where: Prisma.ExerciseWhereInput = {
+            OR: personalId ? [{ personalId: null }, { personalId }] : [{ personalId: null }],
+        };
+        if (muscleGroup) where.muscleGroup = muscleGroup;
+        if (difficulty) where.difficulty = difficulty;
 
-        if (search) {
-            where.name = { contains: search };
-        }
-
-        if (muscleGroup) {
-            where.muscleGroup = muscleGroup;
-        }
-
-        if (difficulty) {
-            where.difficulty = difficulty;
-        }
-
-        // Return all exercises (global library)
         const exercises = await prisma.exercise.findMany({
             where,
             orderBy: { name: 'asc' },
         });
 
-        return NextResponse.json({ success: true, data: exercises });
+        // Accent/case-insensitive search ("triceps" finds "Tríceps Francês") done in memory: the library is small.
+        const data = search
+            ? exercises.filter((exercise) => matchesSearch(search, exercise.name, exercise.muscleGroup, exercise.equipment))
+            : exercises;
+
+        return NextResponse.json({ success: true, data });
     } catch (error) {
         console.error('Error fetching exercises:', error);
         return NextResponse.json({ success: false, error: 'Erro ao buscar exercícios' }, { status: 500 });
     }
 }
 
-// POST - Create exercise
+// POST - Create exercise (owned by the personal who creates it)
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -60,8 +55,22 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
         }
 
-        const body = await request.json();
-        const validatedData = exerciseSchema.parse(body);
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ success: false, error: 'Corpo da requisição inválido' }, { status: 400 });
+        }
+
+        const parsed = exerciseCreateSchema.safeParse(body);
+        if (!parsed.success) {
+            return validationErrorResponse(parsed.error, body);
+        }
+        const validatedData = parsed.data;
+
+        if (await isExerciseNameTaken(prisma, validatedData.name, undefined, session.user.personalId)) {
+            return NextResponse.json({ success: false, error: DUPLICATE_EXERCISE_NAME }, { status: 409 });
+        }
 
         const exercise = await prisma.exercise.create({
             data: {
@@ -73,13 +82,14 @@ export async function POST(request: NextRequest) {
                 thumbnailUrl: validatedData.thumbnailUrl || null,
                 instructions: validatedData.instructions || '',
                 tips: validatedData.tips || '',
+                personalId: session.user.personalId || null,
             },
         });
 
         return NextResponse.json(exercise, { status: 201 });
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: error.errors[0].message }, { status: 400 });
+        if ((error as { code?: string } | null)?.code === 'P2002') {
+            return NextResponse.json({ success: false, error: DUPLICATE_EXERCISE_NAME }, { status: 409 });
         }
         console.error('Error creating exercise:', error);
         return NextResponse.json({ error: 'Erro ao criar exercício' }, { status: 500 });

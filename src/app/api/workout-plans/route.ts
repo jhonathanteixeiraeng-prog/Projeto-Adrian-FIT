@@ -1,34 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { Prisma } from '@prisma/client';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+import { notifyStudentAboutPlan } from '@/lib/plan-notifications';
+import {
+    TRANSACTION_OPTIONS,
+    buildDaysCreateInput,
+    buildTemplateDaysCreateInput,
+    deactivateOtherActivePlans,
+    parsePlanDate,
+    planCreateSchema,
+    planDetailInclude,
+    prismaErrorResponse,
+    validationErrorResponse,
+} from '@/lib/workout-plans';
 
-const workoutItemSchema = z.object({
-    exerciseId: z.string(),
-    sets: z.number().min(1),
-    reps: z.string(),
-    rest: z.number().min(0),
-    restBySet: z.string().nullable().optional(),
-    notes: z.string().optional(),
-    order: z.number(),
-});
-
-const workoutDaySchema = z.object({
-    name: z.string().min(1),
-    dayOfWeek: z.number().min(0).max(6),
-    items: z.array(workoutItemSchema),
-});
-
-const workoutPlanSchema = z.object({
-    title: z.string().min(1, 'Título é obrigatório'),
-    studentId: z.string().min(1, 'Aluno é obrigatório'),
-    startDate: z.string(),
-    endDate: z.string(),
-    active: z.boolean().optional(),
-    saveAsTemplate: z.boolean().optional(),
-    workoutDays: z.array(workoutDaySchema).optional(),
-});
+export const dynamic = 'force-dynamic';
 
 // GET - List workout plans
 export async function GET(request: NextRequest) {
@@ -42,22 +30,23 @@ export async function GET(request: NextRequest) {
         const studentId = searchParams.get('studentId');
         const active = searchParams.get('active');
 
-        const where: any = {};
+        const where: Prisma.WorkoutPlanWhereInput = {};
 
-        // If personal, show only their students' plans
-        if (session.user.role === 'PERSONAL' && session.user.personalId) {
-            where.student = {
-                personalId: session.user.personalId,
-            };
-        }
-
-        // If student, show only their plans
-        if (session.user.role === 'STUDENT' && session.user.studentId) {
+        if (session.user.role === 'PERSONAL') {
+            if (!session.user.personalId) {
+                return NextResponse.json({ success: true, data: [] });
+            }
+            // Only their students' plans
+            where.student = { personalId: session.user.personalId };
+            if (studentId) where.studentId = studentId;
+        } else if (session.user.role === 'STUDENT') {
+            // Students only ever see their own plans (the studentId filter can't widen that)
+            if (!session.user.studentId) {
+                return NextResponse.json({ success: true, data: [] });
+            }
             where.studentId = session.user.studentId;
-        }
-
-        if (studentId) {
-            where.studentId = studentId;
+        } else {
+            return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
         }
 
         if (active !== null) {
@@ -70,8 +59,18 @@ export async function GET(request: NextRequest) {
                 student: {
                     include: {
                         user: {
-                            select: { name: true },
+                            select: { name: true, avatar: true },
                         },
+                    },
+                },
+                workoutDays: {
+                    orderBy: { order: 'asc' },
+                    select: {
+                        id: true,
+                        name: true,
+                        dayOfWeek: true,
+                        order: true,
+                        _count: { select: { items: true } },
                     },
                 },
                 _count: {
@@ -88,110 +87,82 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// POST - Create workout plan
+// POST - Create workout plan (active by default; the student's previous active plan is deactivated)
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session?.user?.id || session.user.role !== 'PERSONAL') {
+        if (!session?.user?.id || session.user.role !== 'PERSONAL' || !session.user.personalId) {
             return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
         }
+        const personalId = session.user.personalId;
 
-        const body = await request.json();
-        const validatedData = workoutPlanSchema.parse(body);
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ success: false, error: 'Corpo da requisição inválido' }, { status: 400 });
+        }
 
-        // Create workout plan with nested days and items
-        const workoutPlan = await prisma.workoutPlan.create({
-            data: {
-                title: validatedData.title,
-                studentId: validatedData.studentId,
-                startDate: new Date(validatedData.startDate),
-                endDate: new Date(validatedData.endDate),
-                active: validatedData.active ?? true,
-                personalId: session.user.personalId!,
-                version: 1,
-                workoutDays: validatedData.workoutDays ? {
-                    create: validatedData.workoutDays.map((day, dayIndex) => ({
-                        name: day.name,
-                        dayOfWeek: day.dayOfWeek,
-                        order: dayIndex,
-                        items: {
-                            create: day.items.map((item, itemIndex) => ({
-                                exerciseId: item.exerciseId,
-                                sets: item.sets,
-                                reps: item.reps,
-                                rest: item.rest,
-                                restBySet: item.restBySet || null,
-                                notes: item.notes || '',
-                                order: itemIndex,
-                            })),
-                        },
-                    })),
-                } : undefined,
-            },
-            include: {
-                workoutDays: {
-                    include: {
-                        items: {
-                            include: {
-                                exercise: true,
-                            },
-                        },
-                    },
-                },
-                student: {
-                    include: {
-                        user: {
-                            select: { name: true },
-                        },
-                    },
-                },
-            },
+        const parsed = planCreateSchema.safeParse(body);
+        if (!parsed.success) {
+            return validationErrorResponse(parsed.error, body);
+        }
+        const data = parsed.data;
+
+        const student = await prisma.student.findFirst({
+            where: { id: data.studentId, personalId },
+            select: { id: true },
         });
+        if (!student) {
+            return NextResponse.json({ success: false, error: 'Aluno não encontrado' }, { status: 404 });
+        }
 
-        // If saveAsTemplate is true, create a template too
-        if (validatedData.saveAsTemplate) {
-            // @ts-ignore - Check if model exists in runtime even if types are stale
-            if (!prisma.workoutTemplate) {
-                console.error('CRITICAL: prisma.workoutTemplate is undefined. Prisma Client needs regeneration.');
-                throw new Error('Erro interno: Modelo de template não encontrado. Por favor reinicie o servidor.');
+        const startDate = parsePlanDate(data.startDate)!;
+        const endDate = parsePlanDate(data.endDate)!;
+        const active = data.active ?? true;
+        const days = data.workoutDays ?? [];
+
+        const workoutPlan = await prisma.$transaction(async (tx) => {
+            if (active) {
+                await deactivateOtherActivePlans(tx, student.id);
             }
 
-            // @ts-ignore
-            await prisma.workoutTemplate.create({
+            const created = await tx.workoutPlan.create({
                 data: {
-                    title: validatedData.title,
-                    personalId: session.user.personalId!,
-                    templateDays: {
-                        create: validatedData.workoutDays?.map((day, dayIndex) => ({
-                            name: day.name,
-                            dayOfWeek: day.dayOfWeek,
-                            order: dayIndex,
-                            items: {
-                                create: day.items.map((item, itemIndex) => ({
-                                    exerciseId: item.exerciseId,
-                                    sets: item.sets,
-                                    reps: item.reps,
-                                    rest: item.rest,
-                                    restBySet: item.restBySet || null,
-                                    notes: item.notes || '',
-                                    order: itemIndex,
-                                })),
-                            },
-                        })) || [],
-                    },
+                    title: data.title,
+                    studentId: student.id,
+                    startDate,
+                    endDate,
+                    active,
+                    personalId,
+                    version: 1,
+                    workoutDays: days.length ? { create: buildDaysCreateInput(days) } : undefined,
                 },
+                include: planDetailInclude,
             });
+
+            if (data.saveAsTemplate) {
+                await tx.workoutTemplate.create({
+                    data: {
+                        title: data.title,
+                        personalId,
+                        templateDays: { create: buildTemplateDaysCreateInput(days) },
+                    },
+                });
+            }
+
+            return created;
+        }, TRANSACTION_OPTIONS);
+
+        if (active && data.notifyStudent) {
+            await notifyStudentAboutPlan({ studentId: student.id, kind: 'workout', title: data.title });
         }
 
         return NextResponse.json({ success: true, data: workoutPlan }, { status: 201 });
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ success: false, error: error.errors[0].message }, { status: 400 });
-        }
+        const known = prismaErrorResponse(error);
+        if (known) return known;
         console.error('Error creating workout plan:', error);
-        return NextResponse.json({
-            success: false,
-            error: error instanceof Error ? error.message : 'Erro ao criar plano'
-        }, { status: 500 });
+        return NextResponse.json({ success: false, error: 'Erro ao criar plano' }, { status: 500 });
     }
 }

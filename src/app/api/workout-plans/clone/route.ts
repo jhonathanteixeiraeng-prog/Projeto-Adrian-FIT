@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { studentLinkFor } from '@/lib/notifications';
 import prisma from '@/lib/prisma';
+import { TRANSACTION_OPTIONS, addDays, deactivateOtherActivePlans } from '@/lib/workout-plans';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +17,12 @@ export async function POST(request: NextRequest) {
         }
 
         const personalId = session.user.personalId;
-        const body = await request.json();
-        const { sourceStudentId, targetStudentId, title } = body;
+        const body = await request.json().catch(() => null);
+        const { sourceStudentId, targetStudentId, title } = (body ?? {}) as {
+            sourceStudentId?: string;
+            targetStudentId?: string;
+            title?: string;
+        };
 
         if (!sourceStudentId || !targetStudentId) {
             return NextResponse.json(
@@ -55,7 +61,7 @@ export async function POST(request: NextRequest) {
                             orderBy: { order: 'asc' },
                         },
                     },
-                    orderBy: { dayOfWeek: 'asc' },
+                    orderBy: { order: 'asc' },
                 },
             },
         });
@@ -67,61 +73,62 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Deactivate previous active plans of target student
-        await prisma.workoutPlan.updateMany({
-            where: { studentId: targetStudentId, active: true },
-            data: { active: false },
-        });
-
         const now = new Date();
-        const endDate = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000); // 60 days standard duration
+        const endDate = addDays(now, 60); // 60 days standard duration
+        const newTitle = (typeof title === 'string' && title.trim()) || `${sourcePlan.title} (Cópia de ${sourceStudent.user.name.split(' ')[0]})`;
 
-        const newTitle = title || `${sourcePlan.title} (Cópia de ${sourceStudent.user.name.split(' ')[0]})`;
+        const clonedPlan = await prisma.$transaction(async (tx) => {
+            await deactivateOtherActivePlans(tx, targetStudentId);
 
-        // Create the cloned plan
-        const clonedPlan = await prisma.workoutPlan.create({
-            data: {
-                title: newTitle,
-                studentId: targetStudentId,
-                personalId,
-                startDate: now,
-                endDate,
-                active: true,
-                workoutDays: {
-                    create: sourcePlan.workoutDays.map((day) => ({
-                        name: day.name,
-                        dayOfWeek: day.dayOfWeek,
-                        items: {
-                            create: day.items.map((item) => ({
-                                exerciseId: item.exerciseId,
-                                sets: item.sets,
-                                reps: item.reps,
-                                rest: item.rest,
-                                restBySet: item.restBySet,
-                                notes: item.notes,
-                                order: item.order,
-                            })),
-                        },
-                    })),
+            const created = await tx.workoutPlan.create({
+                data: {
+                    title: newTitle,
+                    studentId: targetStudentId,
+                    personalId,
+                    startDate: now,
+                    endDate,
+                    active: true,
+                    workoutDays: {
+                        create: sourcePlan.workoutDays.map((day, dayIndex) => ({
+                            name: day.name,
+                            dayOfWeek: day.dayOfWeek,
+                            order: dayIndex,
+                            items: {
+                                create: day.items.map((item, itemIndex) => ({
+                                    exerciseId: item.exerciseId,
+                                    sets: item.sets,
+                                    reps: item.reps,
+                                    rest: item.rest,
+                                    restBySet: item.restBySet,
+                                    notes: item.notes,
+                                    order: itemIndex,
+                                })),
+                            },
+                        })),
+                    },
                 },
-            },
-            include: {
-                workoutDays: {
-                    include: { items: true },
+                include: {
+                    workoutDays: {
+                        orderBy: { order: 'asc' },
+                        include: { items: { orderBy: { order: 'asc' } } },
+                    },
                 },
-            },
-        });
+            });
 
-        // Notify target student
-        await prisma.notification.create({
-            data: {
-                userId: targetStudent.user.id,
-                type: 'PLAN_UPDATED',
-                title: 'Nova Ficha de Treino Disponível! 🏋️‍♂️',
-                body: `Seu personal preparou uma nova ficha de treino (${newTitle}) para você. Confira no app!`,
-                read: false,
-            },
-        });
+            // Notify target student
+            await tx.notification.create({
+                data: {
+                    userId: targetStudent.user.id,
+                    type: 'PLAN_UPDATED',
+                    link: studentLinkFor('PLAN_UPDATED'),
+                    title: 'Nova Ficha de Treino Disponível! 🏋️‍♂️',
+                    body: `Seu personal preparou uma nova ficha de treino (${newTitle}) para você. Confira no app!`,
+                    read: false,
+                },
+            });
+
+            return created;
+        }, TRANSACTION_OPTIONS);
 
         return NextResponse.json({
             success: true,
