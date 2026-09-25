@@ -34,7 +34,8 @@ import {
     Dialog,
     DialogContent,
     DialogHeader,
-    DialogTitle
+    DialogTitle,
+    useToast
 } from '@/components/ui';
 import { calculateBMR, calculateTDEE, generateDietPlan, type FoodInput } from '@/lib/diet-generator';
 
@@ -76,6 +77,7 @@ export default function StudentDietPage() {
     const params = useParams();
     const router = useRouter();
     const studentId = params.id as string;
+    const { toast } = useToast();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -192,6 +194,26 @@ export default function StudentDietPage() {
 
     const removeMeal = (mealId: string) => {
         setMeals(meals.filter(m => m.id !== mealId));
+    };
+
+    const duplicateMeal = (mealId: string) => {
+        const sourceMeal = meals.find(m => m.id === mealId);
+        if (!sourceMeal) return;
+
+        const newMeal: Meal = {
+            id: `meal-${Date.now()}`,
+            name: `${sourceMeal.name} (Cópia)`,
+            time: sourceMeal.time,
+            isExpanded: true,
+            notes: sourceMeal.notes,
+            foods: sourceMeal.foods.map((food, idx) => ({
+                ...food,
+                id: `food-${Date.now()}-${idx}`,
+            })),
+        };
+
+        setMeals([...meals, newMeal]);
+        toast.success('Refeição duplicada!', `Cópia de "${sourceMeal.name}" adicionada.`);
     };
 
     const toggleMealExpanded = (mealId: string) => {
@@ -468,7 +490,7 @@ export default function StudentDietPage() {
         const birthDate = student.birthDate || student.user?.birthDate;
 
         if (!weight || !height || !birthDate) {
-            alert('O aluno precisa ter peso, altura e data de nascimento cadastrados para gerar a dieta.');
+            toast.warning('Dados incompletos', 'O aluno precisa ter peso, altura e data de nascimento cadastrados para gerar a dieta.');
             return;
         }
 
@@ -551,9 +573,10 @@ export default function StudentDietPage() {
             })));
 
             setShowConfirmReplace(false);
+            toast.success('Dieta gerada!', 'Plano alimentar calculado com sucesso.');
         } catch (err) {
             console.error('Error generating diet:', err);
-            alert('Erro ao gerar dieta automática.');
+            toast.error('Erro ao gerar dieta automática.');
         } finally {
             setGenerating(false);
         }
@@ -561,7 +584,7 @@ export default function StudentDietPage() {
 
     const handleCopyToLibrary = async () => {
         if (!dietPlanId) {
-            alert('Salve ou ative uma dieta antes de copiar para a biblioteca.');
+            toast.warning('Salve ou ative uma dieta antes de copiar para a biblioteca.');
             return;
         }
 
@@ -584,12 +607,12 @@ export default function StudentDietPage() {
 
             const result = await response.json();
             if (result.success) {
-                alert('Dieta copiada para a biblioteca com sucesso!');
+                toast.success('Dieta copiada para a biblioteca com sucesso!');
             } else {
-                alert(result.error || 'Erro ao copiar dieta para a biblioteca');
+                toast.error(result.error || 'Erro ao copiar dieta para a biblioteca');
             }
         } catch (error) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setCopyingTemplate(false);
         }
@@ -597,12 +620,12 @@ export default function StudentDietPage() {
 
     const handleSave = async () => {
         if (!dietPlan.title) {
-            alert('Por favor, preencha o título da dieta');
+            toast.warning('Por favor, preencha o título da dieta');
             return;
         }
 
         if (meals.length === 0) {
-            alert('Adicione pelo menos uma refeição');
+            toast.warning('Adicione pelo menos uma refeição');
             return;
         }
 
@@ -648,13 +671,13 @@ export default function StudentDietPage() {
 
             const result = await response.json();
             if (result.success) {
-                alert('Dieta salva com sucesso!');
+                toast.success('Dieta salva com sucesso!');
                 router.push(`/personal/students/${studentId}`);
             } else {
-                alert(result.error || 'Erro ao salvar dieta');
+                toast.error(result.error || 'Erro ao salvar dieta');
             }
         } catch (err) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setSaving(false);
         }
@@ -806,11 +829,24 @@ export default function StudentDietPage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            duplicateMeal(meal.id);
+                                        }}
+                                        className="p-2 text-muted-foreground hover:text-[#F88022] hover:bg-[#F88022]/10 rounded-lg transition-colors"
+                                        title="Duplicar esta refeição"
+                                    >
+                                        <Copy className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             removeMeal(meal.id);
                                         }}
-                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Excluir refeição"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>

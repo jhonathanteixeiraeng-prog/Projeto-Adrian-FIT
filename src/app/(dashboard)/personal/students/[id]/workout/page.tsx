@@ -15,7 +15,7 @@ import {
     ChevronUp,
     Loader2
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, Button, Input, Select } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Button, Input, Select, useToast } from '@/components/ui';
 import {
     buildRepsFromPerSet,
     inferRepsMode,
@@ -58,6 +58,7 @@ export default function StudentWorkoutPage() {
     const searchParams = useSearchParams();
     const studentId = params.id as string;
     const initialPlanId = searchParams.get('planId');
+    const { toast } = useToast();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -151,6 +152,36 @@ export default function StudentWorkoutPage() {
 
     const removeWorkoutDay = (dayId: string) => {
         setWorkoutDays(workoutDays.filter(d => d.id !== dayId));
+    };
+
+    const duplicateWorkoutDay = (dayId: string) => {
+        const sourceDay = workoutDays.find((d) => d.id === dayId);
+        if (!sourceDay) return;
+
+        const usedDays = new Set(workoutDays.map((d) => d.dayOfWeek));
+        let nextDayOfWeek = (sourceDay.dayOfWeek + 1) % 7;
+        for (let i = 0; i < 7; i++) {
+            const cand = (sourceDay.dayOfWeek + 1 + i) % 7;
+            if (!usedDays.has(cand)) {
+                nextDayOfWeek = cand;
+                break;
+            }
+        }
+
+        const newDay: WorkoutDay = {
+            id: `day-${Date.now()}`,
+            dayOfWeek: nextDayOfWeek,
+            name: `${sourceDay.name} (Cópia)`,
+            isExpanded: true,
+            items: sourceDay.items.map((item, idx) => ({
+                ...item,
+                id: `item-${Date.now()}-${idx}`,
+                repsBySet: [...item.repsBySet],
+            })),
+        };
+
+        setWorkoutDays([...workoutDays, newDay]);
+        toast.success('Dia duplicado!', `Cópia de "${sourceDay.name}" criada.`);
     };
 
     const toggleDayExpanded = (dayId: string) => {
@@ -307,7 +338,7 @@ export default function StudentWorkoutPage() {
 
     const handleCopyToLibrary = async () => {
         if (!planId) {
-            alert('Salve o treino antes de copiar para a biblioteca.');
+            toast.warning('Salve o treino antes de copiar para a biblioteca.');
             return;
         }
 
@@ -330,12 +361,12 @@ export default function StudentWorkoutPage() {
 
             const result = await response.json();
             if (result.success) {
-                alert('Treino copiado para a biblioteca com sucesso!');
+                toast.success('Treino copiado para a biblioteca com sucesso!');
             } else {
-                alert(result.error || 'Erro ao copiar treino para a biblioteca');
+                toast.error(result.error || 'Erro ao copiar treino para a biblioteca');
             }
         } catch (error) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setCopyingTemplate(false);
         }
@@ -343,12 +374,12 @@ export default function StudentWorkoutPage() {
 
     const handleSave = async () => {
         if (!workoutPlan.title) {
-            alert('Por favor, preencha o título do treino');
+            toast.warning('Por favor, preencha o título do treino');
             return;
         }
 
         if (workoutDays.length === 0) {
-            alert('Adicione pelo menos um dia de treino');
+            toast.warning('Adicione pelo menos um dia de treino');
             return;
         }
 
@@ -368,7 +399,7 @@ export default function StudentWorkoutPage() {
                     title: workoutPlan.title,
                     startDate: workoutPlan.startDate,
                     endDate: workoutPlan.endDate,
-                    active: true, // Always keep active when saving/updating from here for now
+                    active: true,
                     workoutDays: workoutDays.map(d => ({
                         dayOfWeek: d.dayOfWeek,
                         name: d.name,
@@ -385,13 +416,13 @@ export default function StudentWorkoutPage() {
 
             const result = await response.json();
             if (result.success) {
-                alert('Treino salvo com sucesso!');
+                toast.success('Treino salvo com sucesso!');
                 router.push(`/personal/students/${studentId}`);
             } else {
-                alert(result.error || 'Erro ao salvar treino');
+                toast.error(result.error || 'Erro ao salvar treino');
             }
         } catch (err) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setSaving(false);
         }
@@ -494,11 +525,24 @@ export default function StudentWorkoutPage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            duplicateWorkoutDay(day.id);
+                                        }}
+                                        className="p-2 text-muted-foreground hover:text-[#F88022] hover:bg-[#F88022]/10 rounded-lg transition-colors"
+                                        title="Duplicar este dia de treino"
+                                    >
+                                        <Copy className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             removeWorkoutDay(day.id);
                                         }}
-                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Excluir dia de treino"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>

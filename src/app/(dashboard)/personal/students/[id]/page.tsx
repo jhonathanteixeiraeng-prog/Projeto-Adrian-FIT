@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     ArrowLeft,
@@ -16,6 +16,7 @@ import {
     Copy,
     Plus,
     ChevronRight,
+    ChevronLeft,
     Clock,
     Loader2,
     Key,
@@ -25,6 +26,7 @@ import {
     Sparkles
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge, Avatar, Button, Input, useToast } from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 interface Student {
     id: string;
@@ -104,8 +106,10 @@ interface Student {
 
 export default function StudentDetailPage() {
     const params = useParams();
+    const router = useRouter();
     const { toast } = useToast();
     const [student, setStudent] = useState<Student | null>(null);
+    const [allStudents, setAllStudents] = useState<Array<{ id: string; name: string }>>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<'overview' | 'workout' | 'diet' | 'progress'>('overview');
@@ -138,8 +142,9 @@ export default function StudentDetailPage() {
         try {
             const res = await fetch('/api/students');
             const data = await res.json();
-            if (data.success) {
-                const list = (data.data || []).filter((s: any) => s.id !== params.id && s.workoutPlans?.length > 0);
+            if (data.success && Array.isArray(data.data)) {
+                setAllStudents(data.data.map((s: any) => ({ id: s.id, name: s.user?.name || 'Aluno' })));
+                const list = data.data.filter((s: any) => s.id !== params.id && s.workoutPlans?.length > 0);
                 setPeerStudents(list);
                 if (list.length > 0) setSelectedSourceStudentId(list[0].id);
             }
@@ -181,6 +186,7 @@ export default function StudentDetailPage() {
     useEffect(() => {
         if (params.id) {
             fetchStudent();
+            fetchPeerStudents();
         }
     }, [params.id]);
 
@@ -205,7 +211,7 @@ export default function StudentDetailPage() {
 
     const handleResetPassword = async () => {
         if (!newPassword || newPassword.length < 6) {
-            alert('A senha deve ter no mínimo 6 caracteres');
+            toast.warning('A senha deve ter no mínimo 6 caracteres');
             return;
         }
 
@@ -219,14 +225,14 @@ export default function StudentDetailPage() {
             const result = await response.json();
 
             if (result.success) {
-                alert(result.message);
+                toast.success('Senha redefinida!', result.message);
                 setShowResetPasswordModal(false);
                 setNewPassword('');
             } else {
-                alert(result.error || 'Erro ao redefinir senha');
+                toast.error(result.error || 'Erro ao redefinir senha');
             }
         } catch (err) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setResettingPassword(false);
         }
@@ -367,7 +373,7 @@ export default function StudentDetailPage() {
     const handleCopyWorkoutToLibrary = async () => {
         const activeWorkout = getActiveWorkout();
         if (!activeWorkout) {
-            alert('Nenhum treino ativo para copiar');
+            toast.warning('Nenhum treino ativo para copiar');
             return;
         }
 
@@ -390,12 +396,12 @@ export default function StudentDetailPage() {
             const result = await response.json();
 
             if (result.success) {
-                alert('Treino copiado para a biblioteca com sucesso!');
+                toast.success('Treino copiado para a biblioteca com sucesso!');
             } else {
-                alert(result.error || 'Erro ao copiar treino para biblioteca');
+                toast.error(result.error || 'Erro ao copiar treino para biblioteca');
             }
         } catch (err) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setCopyingWorkoutTemplate(false);
         }
@@ -404,7 +410,7 @@ export default function StudentDetailPage() {
     const handleCopyDietToLibrary = async () => {
         const activeDiet = getActiveDiet();
         if (!activeDiet) {
-            alert('Nenhuma dieta ativa para copiar');
+            toast.warning('Nenhuma dieta ativa para copiar');
             return;
         }
 
@@ -427,12 +433,12 @@ export default function StudentDetailPage() {
             const result = await response.json();
 
             if (result.success) {
-                alert('Dieta copiada para a biblioteca com sucesso!');
+                toast.success('Dieta copiada para a biblioteca com sucesso!');
             } else {
-                alert(result.error || 'Erro ao copiar dieta para biblioteca');
+                toast.error(result.error || 'Erro ao copiar dieta para biblioteca');
             }
         } catch (err) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setCopyingDietTemplate(false);
         }
@@ -511,17 +517,72 @@ export default function StudentDetailPage() {
     const activeDiet = getActiveDiet();
     const dietEditorHref = activeDiet ? `/personal/diets/${activeDiet.id}` : `/personal/students/${params.id}/diet`;
 
+    const currentIndex = allStudents.findIndex(s => s.id === params.id);
+    const prevStudent = currentIndex > 0 ? allStudents[currentIndex - 1] : null;
+    const nextStudent = currentIndex >= 0 && currentIndex < allStudents.length - 1 ? allStudents[currentIndex + 1] : null;
+
     return (
         <>
             <div className="space-y-6 animate-in">
-                {/* Header */}
-                <div className="flex items-start gap-4">
+                {/* Student Switcher & Quick Navigation Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-2.5 bg-card border border-border rounded-2xl shadow-xs">
                     <Link
                         href="/personal/students"
-                        className="p-2 rounded-xl hover:bg-muted transition-colors mt-1"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-xs font-semibold"
                     >
-                        <ArrowLeft className="w-6 h-6" />
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Voltar para Lista de Alunos</span>
                     </Link>
+
+                    {allStudents.length > 1 && (
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                            <span className="text-[11px] text-muted-foreground font-medium hidden md:inline">
+                                Alternar Aluno:
+                            </span>
+
+                            <Link
+                                href={prevStudent ? `/personal/students/${prevStudent.id}` : '#'}
+                                className={cn(
+                                    'p-1.5 rounded-xl border border-border text-xs flex items-center justify-center transition-colors',
+                                    prevStudent
+                                        ? 'hover:bg-muted text-foreground'
+                                        : 'opacity-30 cursor-not-allowed pointer-events-none'
+                                )}
+                                title={prevStudent ? `Anterior: ${prevStudent.name}` : undefined}
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </Link>
+
+                            <select
+                                value={params.id as string}
+                                onChange={(e) => router.push(`/personal/students/${e.target.value}`)}
+                                className="bg-background border border-border rounded-xl px-3 py-1.5 text-xs font-semibold text-foreground focus:outline-none max-w-[200px] truncate"
+                            >
+                                {allStudents.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.name}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <Link
+                                href={nextStudent ? `/personal/students/${nextStudent.id}` : '#'}
+                                className={cn(
+                                    'p-1.5 rounded-xl border border-border text-xs flex items-center justify-center transition-colors',
+                                    nextStudent
+                                        ? 'hover:bg-muted text-foreground'
+                                        : 'opacity-30 cursor-not-allowed pointer-events-none'
+                                )}
+                                title={nextStudent ? `Próximo: ${nextStudent.name}` : undefined}
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </Link>
+                        </div>
+                    )}
+                </div>
+
+                {/* Header */}
+                <div className="flex items-start gap-4">
                     <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                             <Avatar name={student.user.name} size="lg" />
