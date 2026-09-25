@@ -1,36 +1,83 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { signOut } from 'next-auth/react';
+import React, { useEffect, useState } from 'react';
+import { signOut, useSession } from 'next-auth/react';
 import {
-    User,
-    Mail,
-    Phone,
+    CornerDownLeft,
+    Keyboard,
     Lock,
-    Save,
     LogOut,
-    Loader2,
-    Check,
+    MessageSquareText,
     Moon,
+    PanelRight,
+    Save,
+    SlidersHorizontal,
     Sun,
-    Bell
+    User,
+    type LucideIcon,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '@/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, useToast } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/providers';
+import { modKeyLabel } from '@/hooks/use-hotkey';
+import { usePageMeta } from '@/components/personal/page-meta';
+import { QuickRepliesForm } from '@/components/personal/chat/quick-replies';
+import { useContextPanelOpen, useEnterSends, useQuickReplies } from '@/components/personal/chat/preferences';
+
+interface PreferenceToggleProps {
+    icon: LucideIcon;
+    label: string;
+    description: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+}
+
+function PreferenceToggle({ icon: Icon, label, description, checked, onChange }: PreferenceToggleProps) {
+    return (
+        <div className="flex items-center justify-between gap-4 rounded-xl bg-muted p-4">
+            <div className="flex min-w-0 items-center gap-3">
+                <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                    <p className="font-medium text-foreground">{label}</p>
+                    <p className="text-sm text-muted-foreground">{description}</p>
+                </div>
+            </div>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={checked}
+                aria-label={label}
+                onClick={() => onChange(!checked)}
+                className={cn(
+                    'relative h-6 min-h-0 w-11 min-w-0 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                    checked ? 'bg-[#F88022]' : 'bg-neutral-300 dark:bg-neutral-700'
+                )}
+            >
+                <span
+                    className={cn(
+                        'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                        checked ? 'translate-x-[22px]' : 'translate-x-0.5'
+                    )}
+                />
+            </button>
+        </div>
+    );
+}
 
 export default function SettingsPage() {
     const { data: session, update } = useSession();
-    const { theme, toggleTheme } = useTheme();
-    const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [success, setSuccess] = useState('');
-    const [error, setError] = useState('');
-    const [notifications, setNotifications] = useState(true);
+    const { toast } = useToast();
+    const { theme, setTheme } = useTheme();
+    const [enterSends, setEnterSends] = useEnterSends();
+    const [isContextPanelOpen, setIsContextPanelOpen] = useContextPanelOpen();
+    const [quickReplies, setQuickReplies] = useQuickReplies();
+    const [savingProfile, setSavingProfile] = useState(false);
+    const [savingPassword, setSavingPassword] = useState(false);
+    const [modLabel, setModLabel] = useState('Ctrl');
 
     const [profile, setProfile] = useState({
-        name: '',
-        email: '',
+        name: session?.user?.name || '',
+        email: session?.user?.email || '',
         phone: '',
     });
 
@@ -40,284 +87,271 @@ export default function SettingsPage() {
         confirm: '',
     });
 
-    useEffect(() => {
-        if (session?.user) {
-            setProfile({
-                name: session.user.name || '',
-                email: session.user.email || '',
-                phone: '',
-            });
-        }
-        fetchProfile();
-    }, [session]);
+    usePageMeta({ title: 'Configurações', breadcrumbs: [{ label: 'Configurações' }] });
 
-    const fetchProfile = async () => {
-        try {
-            const response = await fetch('/api/profile');
-            const result = await response.json();
-            if (result.success) {
+    useEffect(() => setModLabel(modKeyLabel()), []);
+
+    // Loaded once: refetching on every session refresh would wipe unsaved edits.
+    useEffect(() => {
+        let cancelled = false;
+        fetch('/api/profile', { cache: 'no-store' })
+            .then((response) => response.json())
+            .then((result) => {
+                if (cancelled || !result?.success) return;
                 setProfile({
                     name: result.data.name || '',
                     email: result.data.email || '',
                     phone: result.data.phone || '',
                 });
-            }
-        } catch (err) {
-            console.error('Error fetching profile:', err);
+            })
+            .catch(() => {
+                if (!cancelled) toast.error('Não foi possível carregar seu perfil');
+            });
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleSaveProfile = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (!profile.name.trim()) {
+            toast.error('Informe seu nome');
+            return;
         }
-    };
-
-    const handleSaveProfile = async () => {
+        setSavingProfile(true);
         try {
-            setSaving(true);
-            setError('');
-            setSuccess('');
-
             const response = await fetch('/api/profile', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(profile),
+                body: JSON.stringify({ name: profile.name.trim(), phone: profile.phone.trim() }),
             });
-
-            const result = await response.json();
-
-            if (result.success) {
-                setSuccess('Perfil atualizado com sucesso!');
-                await update(); // Refresh session
-            } else {
-                setError(result.error || 'Erro ao salvar perfil');
-            }
-        } catch (err) {
-            setError('Erro ao conectar com o servidor');
+            const result = await response.json().catch(() => null);
+            if (!response.ok || !result?.success) throw new Error(result?.error || 'Erro ao salvar perfil');
+            toast.success('Perfil atualizado');
+            await update();
+        } catch (reason) {
+            toast.error('Não foi possível salvar o perfil', reason instanceof Error ? reason.message : undefined);
         } finally {
-            setSaving(false);
+            setSavingProfile(false);
         }
     };
 
-    const handleChangePassword = async () => {
-        if (password.new !== password.confirm) {
-            setError('As senhas não coincidem');
-            return;
-        }
-
+    const handleChangePassword = async (event: React.FormEvent) => {
+        event.preventDefault();
         if (password.new.length < 6) {
-            setError('A nova senha deve ter no mínimo 6 caracteres');
+            toast.error('A nova senha deve ter no mínimo 6 caracteres');
             return;
         }
-
+        if (password.new !== password.confirm) {
+            toast.error('As senhas não coincidem', 'Digite a mesma nova senha nos dois campos.');
+            return;
+        }
+        setSavingPassword(true);
         try {
-            setSaving(true);
-            setError('');
-            setSuccess('');
-
             const response = await fetch('/api/profile/password', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    currentPassword: password.current,
-                    newPassword: password.new,
-                }),
+                body: JSON.stringify({ currentPassword: password.current, newPassword: password.new }),
             });
-
-            const result = await response.json();
-
-            if (result.success) {
-                setSuccess('Senha alterada com sucesso!');
-                setPassword({ current: '', new: '', confirm: '' });
-            } else {
-                setError(result.error || 'Erro ao alterar senha');
-            }
-        } catch (err) {
-            setError('Erro ao conectar com o servidor');
+            const result = await response.json().catch(() => null);
+            if (!response.ok || !result?.success) throw new Error(result?.error || 'Erro ao alterar senha');
+            toast.success('Senha alterada');
+            setPassword({ current: '', new: '', confirm: '' });
+        } catch (reason) {
+            toast.error('Não foi possível alterar a senha', reason instanceof Error ? reason.message : undefined);
         } finally {
-            setSaving(false);
+            setSavingPassword(false);
         }
     };
 
-    const handleLogout = () => {
-        signOut({ callbackUrl: '/login' });
-    };
-
     return (
-        <div className="space-y-6 animate-in max-w-2xl mx-auto">
-            {/* Header */}
+        <div className="mx-auto max-w-3xl space-y-6 pb-8 animate-in">
             <div>
-                <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Configurações</h1>
-                <p className="text-muted-foreground mt-1">
-                    Gerencie seu perfil e preferências
-                </p>
+                <h1 className="text-2xl font-bold text-foreground lg:text-3xl">Configurações</h1>
+                <p className="mt-1 text-muted-foreground">Perfil, segurança e preferências de trabalho</p>
             </div>
 
-            {success && (
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-600 dark:text-green-400 text-sm flex items-center gap-2">
-                    <Check className="w-5 h-5" />
-                    {success}
-                </div>
-            )}
-
-            {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm">
-                    {error}
-                </div>
-            )}
-
-            {/* Profile Section */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <User className="w-5 h-5 text-[#F88022]" />
-                        Informações do Perfil
+                        <User className="h-5 w-5 text-[#F88022]" />
+                        Informações do perfil
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <CardContent>
+                    <form onSubmit={handleSaveProfile} className="space-y-4">
                         <Input
-                            type="text"
-                            placeholder="Seu nome"
-                            className="pl-12"
+                            id="settings-name"
+                            label="Nome"
                             value={profile.name}
-                            onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                            onChange={(event) => setProfile({ ...profile, name: event.target.value })}
+                            autoComplete="name"
+                            required
                         />
-                    </div>
-                    <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                         <Input
+                            id="settings-email"
                             type="email"
-                            placeholder="Seu e-mail"
-                            className="pl-12"
+                            label="E-mail"
                             value={profile.email}
                             disabled
+                            helperText="O e-mail de acesso não pode ser alterado por aqui."
                         />
-                    </div>
-                    <div className="relative">
-                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                         <Input
+                            id="settings-phone"
                             type="tel"
-                            placeholder="Seu telefone"
-                            className="pl-12"
+                            label="Telefone"
                             value={profile.phone}
-                            onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                            onChange={(event) => setProfile({ ...profile, phone: event.target.value })}
+                            autoComplete="tel"
+                            placeholder="(11) 91234-5678"
                         />
-                    </div>
-                    <Button
-                        onClick={handleSaveProfile}
-                        className="w-full bg-[#F88022] hover:bg-[#F88022]/90 text-white"
-                        loading={saving}
-                    >
-                        <Save className="w-5 h-5" />
-                        Salvar Alterações
-                    </Button>
+                        <Button type="submit" className="w-full sm:w-auto" loading={savingProfile}>
+                            {!savingProfile && <Save className="h-4 w-4" />}
+                            Salvar alterações
+                        </Button>
+                    </form>
                 </CardContent>
             </Card>
 
-            {/* Password Section */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <Lock className="w-5 h-5 text-[#F88022]" />
-                        Alterar Senha
+                        <Lock className="h-5 w-5 text-[#F88022]" />
+                        Alterar senha
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <Input
-                        type="password"
-                        placeholder="Senha atual"
-                        value={password.current}
-                        onChange={(e) => setPassword({ ...password, current: e.target.value })}
-                    />
-                    <Input
-                        type="password"
-                        placeholder="Nova senha"
-                        value={password.new}
-                        onChange={(e) => setPassword({ ...password, new: e.target.value })}
-                    />
-                    <Input
-                        type="password"
-                        placeholder="Confirmar nova senha"
-                        value={password.confirm}
-                        onChange={(e) => setPassword({ ...password, confirm: e.target.value })}
-                    />
-                    <Button
-                        onClick={handleChangePassword}
-                        variant="outline"
-                        className="w-full"
-                        loading={saving}
-                    >
-                        <Lock className="w-5 h-5" />
-                        Alterar Senha
-                    </Button>
+                <CardContent>
+                    <form onSubmit={handleChangePassword} className="space-y-4">
+                        <Input
+                            id="settings-current-password"
+                            type="password"
+                            label="Senha atual"
+                            value={password.current}
+                            onChange={(event) => setPassword({ ...password, current: event.target.value })}
+                            autoComplete="current-password"
+                            required
+                        />
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <Input
+                                id="settings-new-password"
+                                type="password"
+                                label="Nova senha"
+                                value={password.new}
+                                onChange={(event) => setPassword({ ...password, new: event.target.value })}
+                                autoComplete="new-password"
+                                helperText="Mínimo de 6 caracteres."
+                                required
+                            />
+                            <Input
+                                id="settings-confirm-password"
+                                type="password"
+                                label="Confirmar nova senha"
+                                value={password.confirm}
+                                onChange={(event) => setPassword({ ...password, confirm: event.target.value })}
+                                autoComplete="new-password"
+                                required
+                            />
+                        </div>
+                        <Button type="submit" variant="outline" className="w-full sm:w-auto" loading={savingPassword}>
+                            {!savingPassword && <Lock className="h-4 w-4" />}
+                            Alterar senha
+                        </Button>
+                    </form>
                 </CardContent>
             </Card>
 
-            {/* Preferences Section */}
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <Bell className="w-5 h-5 text-[#F88022]" />
+                        <SlidersHorizontal className="h-5 w-5 text-[#F88022]" />
                         Preferências
                     </CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">Salvas neste navegador.</p>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
-                        <div className="flex items-center gap-3">
-                            {theme === 'dark' ? (
-                                <Moon className="w-5 h-5 text-muted-foreground" />
-                            ) : (
-                                <Sun className="w-5 h-5 text-muted-foreground" />
-                            )}
-                            <div>
-                                <p className="font-medium text-foreground">Modo Escuro</p>
+                <CardContent className="space-y-3">
+                    <PreferenceToggle
+                        icon={theme === 'dark' ? Moon : Sun}
+                        label="Modo escuro"
+                        description={theme === 'dark' ? 'Tema escuro ativado' : 'Tema claro ativado'}
+                        checked={theme === 'dark'}
+                        onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+                    />
+                    <PreferenceToggle
+                        icon={CornerDownLeft}
+                        label="Enter envia a mensagem no chat"
+                        description={
+                            enterSends
+                                ? 'Shift+Enter quebra a linha.'
+                                : `Enter quebra a linha; ${modLabel}+Enter envia.`
+                        }
+                        checked={enterSends}
+                        onChange={setEnterSends}
+                    />
+                    <PreferenceToggle
+                        icon={PanelRight}
+                        label="Painel do aluno nas conversas"
+                        description="Contrato, último treino, check-in e planos ao lado do chat (telas largas)."
+                        checked={isContextPanelOpen}
+                        onChange={setIsContextPanelOpen}
+                    />
+                    <div className="flex items-center justify-between gap-4 rounded-xl bg-muted p-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <Keyboard className="h-5 w-5 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                                <p className="font-medium text-foreground">Atalhos de teclado</p>
                                 <p className="text-sm text-muted-foreground">
-                                    {theme === 'dark' ? 'Tema escuro ativado' : 'Tema claro ativado'}
+                                    {modLabel}+K busca alunos e ações; ? mostra todos os atalhos.
                                 </p>
                             </div>
                         </div>
                         <button
-                            onClick={toggleTheme}
-                            className={`w-12 h-6 rounded-full transition-colors ${theme === 'dark' ? 'bg-[#F88022]' : 'bg-muted-foreground/30'}`}
+                            type="button"
+                            onClick={() => window.dispatchEvent(new Event('personal:open-shortcuts'))}
+                            className="shrink-0 rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-card"
                         >
-                            <div className={`w-5 h-5 bg-white rounded-full transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
-                        <div className="flex items-center gap-3">
-                            <Bell className="w-5 h-5 text-muted-foreground" />
-                            <div>
-                                <p className="font-medium text-foreground">Notificações</p>
-                                <p className="text-sm text-muted-foreground">Receber alertas</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => setNotifications(!notifications)}
-                            className={`w-12 h-6 rounded-full transition-colors ${notifications ? 'bg-[#F88022]' : 'bg-muted-foreground/30'}`}
-                        >
-                            <div className={`w-5 h-5 bg-white rounded-full transition-transform ${notifications ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                            Ver atalhos
                         </button>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Logout Section */}
-            <Card className="border-red-200 dark:border-red-800">
-                <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="font-semibold text-foreground">Sair da conta</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Encerrar sua sessão neste dispositivo
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            className="text-red-500 border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            onClick={handleLogout}
-                        >
-                            <LogOut className="w-5 h-5" />
-                            Sair
-                        </Button>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <MessageSquareText className="h-5 w-5 text-[#F88022]" />
+                        Respostas rápidas do chat
+                    </CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Aparecem acima do campo de mensagem em todas as conversas. As mesmas podem ser editadas pelo próprio chat.
+                    </p>
+                </CardHeader>
+                <CardContent>
+                    <QuickRepliesForm
+                        initial={quickReplies}
+                        onSave={(next) => {
+                            setQuickReplies(next);
+                            toast.success('Respostas rápidas salvas');
+                        }}
+                    />
+                </CardContent>
+            </Card>
+
+            <Card className="border-red-200 dark:border-red-900/60">
+                <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 className="font-semibold text-foreground">Sair da conta</h3>
+                        <p className="text-sm text-muted-foreground">Encerrar sua sessão neste dispositivo</p>
                     </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="border-red-500 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        onClick={() => signOut({ callbackUrl: '/login' })}
+                    >
+                        <LogOut className="h-5 w-5" />
+                        Sair
+                    </Button>
                 </CardContent>
             </Card>
         </div>

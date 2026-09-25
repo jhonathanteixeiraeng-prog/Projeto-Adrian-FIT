@@ -61,8 +61,8 @@ export async function PUT(request: NextRequest) {
         const updatedUser = await prisma.user.update({
             where: { id: session.user.id },
             data: {
-                name: name || undefined,
-                phone: phone || undefined,
+                name: typeof name === 'string' && name.trim() ? name.trim() : undefined,
+                phone: phone !== undefined ? (typeof phone === 'string' && phone.trim() ? phone.trim() : null) : undefined,
             },
             select: {
                 id: true,

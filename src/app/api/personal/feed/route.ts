@@ -9,6 +9,8 @@ export interface ActivityEvent {
     id: string;
     type: 'WORKOUT_COMPLETED' | 'CHECKIN_SUBMITTED' | 'FOOD_SUBSTITUTED' | 'MESSAGE_RECEIVED';
     title: string;
+    /** What happened, without the student's name (the UI shows the name next to it). */
+    action: string;
     description: string;
     timestamp: string;
     studentId: string;
@@ -17,7 +19,12 @@ export interface ActivityEvent {
     meta?: Record<string, any>;
 }
 
-// GET /api/personal/feed - Live Activity Feed of student actions
+const DEFAULT_LIMIT = 25;
+const MAX_LIMIT = 100;
+const WINDOW_DAYS = 7;
+
+// GET /api/personal/feed?limit=25 - Recent student activity (last 7 days), newest first. `hasMore` tells
+// whether a larger limit would return more events.
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -30,6 +37,10 @@ export async function GET(request: NextRequest) {
         }
 
         const personalId = session.user.personalId;
+        const limitParam = Number.parseInt(new URL(request.url).searchParams.get('limit') || '', 10);
+        const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_LIMIT) : DEFAULT_LIMIT;
+        // One extra row per source reveals whether there is more to load.
+        const take = limit + 1;
 
         // Fetch students under this personal trainer
         const students = await prisma.student.findMany({
@@ -51,20 +62,20 @@ export async function GET(request: NextRequest) {
         }
 
         if (studentIds.length === 0) {
-            return NextResponse.json({ success: true, data: [] });
+            return NextResponse.json({ success: true, data: [], hasMore: false });
         }
 
-        const threeDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
         // Fetch recent activities across data sources
         const [recentWorkouts, recentCheckins, recentSubstitutions, recentMessages] = await Promise.all([
             prisma.workoutSession.findMany({
                 where: {
                     studentId: { in: studentIds },
-                    completedAt: { gte: threeDaysAgo },
+                    completedAt: { gte: since },
                 },
                 orderBy: { completedAt: 'desc' },
-                take: 15,
+                take,
                 select: {
                     id: true,
                     studentId: true,
@@ -77,10 +88,10 @@ export async function GET(request: NextRequest) {
             prisma.checkin.findMany({
                 where: {
                     studentId: { in: studentIds },
-                    date: { gte: threeDaysAgo },
+                    date: { gte: since },
                 },
                 orderBy: { date: 'desc' },
-                take: 15,
+                take,
                 select: {
                     id: true,
                     studentId: true,
@@ -93,10 +104,10 @@ export async function GET(request: NextRequest) {
             prisma.foodSubstitutionHistory.findMany({
                 where: {
                     studentId: { in: studentIds },
-                    createdAt: { gte: threeDaysAgo },
+                    createdAt: { gte: since },
                 },
                 orderBy: { createdAt: 'desc' },
-                take: 10,
+                take,
                 select: {
                     id: true,
                     studentId: true,
@@ -108,10 +119,11 @@ export async function GET(request: NextRequest) {
             prisma.message.findMany({
                 where: {
                     fromUserId: { in: Array.from(userToStudentMap.keys()) },
-                    createdAt: { gte: threeDaysAgo },
+                    ...(session.user.id ? { toUserId: session.user.id } : {}),
+                    createdAt: { gte: since },
                 },
                 orderBy: { createdAt: 'desc' },
-                take: 10,
+                take,
                 select: {
                     id: true,
                     fromUserId: true,
@@ -132,6 +144,7 @@ export async function GET(request: NextRequest) {
                 id: `workout-${w.id}`,
                 type: 'WORKOUT_COMPLETED',
                 title: `${st.name} concluiu o treino`,
+                action: 'concluiu o treino',
                 description: `${w.dayName} · ${mins > 0 ? `${mins} min` : 'Finalizado'} · ${w.percentage}% concluído`,
                 timestamp: w.completedAt.toISOString(),
                 studentId: st.id,
@@ -149,6 +162,7 @@ export async function GET(request: NextRequest) {
                 id: `checkin-${c.id}`,
                 type: 'CHECKIN_SUBMITTED',
                 title: `${st.name} enviou o check-in`,
+                action: 'enviou o check-in',
                 description: `Peso: ${c.weight}kg · Adesão: ${c.workoutAdherence}% treino / ${c.dietAdherence}% dieta`,
                 timestamp: c.date.toISOString(),
                 studentId: st.id,
@@ -166,6 +180,7 @@ export async function GET(request: NextRequest) {
                 id: `food-${f.id}`,
                 type: 'FOOD_SUBSTITUTED',
                 title: `${st.name} substituiu um alimento`,
+                action: 'substituiu um alimento',
                 description: `Trocou ${f.originalFood} por ${f.newFood}`,
                 timestamp: f.createdAt.toISOString(),
                 studentId: st.id,
@@ -182,6 +197,7 @@ export async function GET(request: NextRequest) {
                 id: `msg-${m.id}`,
                 type: 'MESSAGE_RECEIVED',
                 title: `Nova mensagem de ${st.name}`,
+                action: 'enviou uma mensagem',
                 description: m.text.length > 60 ? `${m.text.slice(0, 60)}...` : m.text,
                 timestamp: m.createdAt.toISOString(),
                 studentId: st.id,
@@ -195,7 +211,8 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            data: events.slice(0, 25),
+            data: events.slice(0, limit),
+            hasMore: events.length > limit,
         });
     } catch (error) {
         console.error('Error fetching activity feed:', error);

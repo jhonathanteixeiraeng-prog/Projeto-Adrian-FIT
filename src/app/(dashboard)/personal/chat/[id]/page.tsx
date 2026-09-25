@@ -1,286 +1,215 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import {
-    ArrowLeft,
-    Send,
-    Image,
-    Paperclip,
-    MoreVertical,
-    CheckCheck,
-    User,
-    Loader2,
-    RefreshCw
-} from 'lucide-react';
-import { Avatar, Button } from '@/components/ui';
+import { useParams } from 'next/navigation';
+import { AlertCircle, ArrowLeft, Dumbbell, Loader2, PanelRightClose, PanelRightOpen, Phone, RefreshCw, Utensils } from 'lucide-react';
+import { Avatar, useToast } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { personalLinks } from '@/lib/notifications';
+import { usePageMeta } from '@/components/personal/page-meta';
+import { rememberRecentStudent } from '@/components/personal/command-palette';
+import { useNotifications } from '@/components/personal/notifications-provider';
+import { useChat, type ConversationItem } from '@/components/personal/chat/chat-context';
+import { useChatMessages } from '@/components/personal/chat/use-chat-messages';
+import { MessageList } from '@/components/personal/chat/message-list';
+import { Composer } from '@/components/personal/chat/composer';
+import { StudentContextPanel } from '@/components/personal/chat/student-context-panel';
+import { firstNameOf, useContextPanelOpen } from '@/components/personal/chat/preferences';
+import { studentPaths, whatsappHref } from '@/components/personal/chat/contact';
 
-interface Message {
-    id: string;
-    fromMe: boolean;
-    text: string;
-    time: string;
-    read: boolean;
-}
+const STATUS_LABELS: Record<string, string> = { ACTIVE: 'Aluno ativo', PAUSED: 'Aluno pausado', INACTIVE: 'Aluno inativo' };
 
-interface Student {
-    id: string;
-    userId: string;
-    user: {
-        id: string;
-        name: string;
-        email: string;
-    };
-}
+const iconButtonClass =
+    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:min-h-0 lg:min-w-0';
 
-export default function PersonalChatDetailPage() {
-    const params = useParams();
-    const [student, setStudent] = useState<Student | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [newMessage, setNewMessage] = useState('');
-    const [sending, setSending] = useState(false);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+function Conversation({ conversation }: { conversation: ConversationItem }) {
+    const { toast } = useToast();
+    const { refresh: refreshNotifications } = useNotifications();
+    const { updateConversation } = useChat();
+    const [isPanelOpen, setIsPanelOpen] = useContextPanelOpen();
+    const { studentId, userId, name, avatar, phone, email, status } = conversation;
+    const whatsapp = whatsappHref(phone);
 
-    const fetchStudent = useCallback(async () => {
-        try {
-            const response = await fetch(`/api/students/${params.id}`);
-            const result = await response.json();
+    const chat = useChatMessages(userId, {
+        onOpened: () => {
+            // Loading the conversation marked it as read: update the inbox and the sidebar badge now.
+            updateConversation(studentId, (item) => ({ ...item, unreadCount: 0 }));
+            void refreshNotifications();
+        },
+        onIncoming: (incoming) => {
+            const latest = incoming[incoming.length - 1];
+            updateConversation(studentId, (item) => ({
+                ...item,
+                unreadCount: 0,
+                lastMessage:
+                    !item.lastMessage || latest.createdAt >= item.lastMessage.createdAt
+                        ? { text: latest.text, createdAt: latest.createdAt, fromMe: false }
+                        : item.lastMessage,
+            }));
+            void refreshNotifications();
+        },
+        onSent: (saved) => {
+            updateConversation(studentId, (item) => ({
+                ...item,
+                lastMessage:
+                    !item.lastMessage || saved.createdAt >= item.lastMessage.createdAt
+                        ? { text: saved.text, createdAt: saved.createdAt, fromMe: true }
+                        : item.lastMessage,
+            }));
+        },
+    });
 
-            if (result.success) {
-                setStudent(result.data);
-                return result.data;
-            }
-        } catch (err) {
-            console.error('Error fetching student:', err);
-        }
-        return null;
-    }, [params.id]);
+    return (
+        <div className="flex min-h-0 flex-1">
+            <div className="flex min-w-0 flex-1 flex-col">
+                <header className="flex items-center gap-1.5 border-b border-border px-2 py-2 sm:px-3">
+                    <Link href="/personal/chat" className={cn(iconButtonClass, 'lg:hidden')} aria-label="Voltar para as conversas">
+                        <ArrowLeft className="h-5 w-5" />
+                    </Link>
+                    <Link
+                        href={personalLinks.student(studentId)}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1.5 py-1 transition-colors hover:bg-muted"
+                        title="Abrir ficha do aluno"
+                    >
+                        <Avatar src={avatar ?? undefined} name={name} size="md" className="shrink-0" />
+                        <div className="min-w-0">
+                            <p className="truncate font-semibold text-foreground">{name}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                                {STATUS_LABELS[status] ?? status}
+                                {email ? ` · ${email}` : ''}
+                            </p>
+                        </div>
+                    </Link>
+                    <nav className="flex shrink-0 items-center gap-0.5" aria-label="Atalhos do aluno">
+                        <Link href={studentPaths.workoutEditor(studentId)} className={iconButtonClass} title="Editar treino" aria-label="Editar treino">
+                            <Dumbbell className="h-4 w-4" />
+                        </Link>
+                        <Link href={studentPaths.dietEditor(studentId)} className={iconButtonClass} title="Editar dieta" aria-label="Editar dieta">
+                            <Utensils className="h-4 w-4" />
+                        </Link>
+                        {whatsapp && (
+                            <a
+                                href={whatsapp}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={cn(iconButtonClass, 'hover:text-emerald-600')}
+                                title="Abrir conversa no WhatsApp"
+                                aria-label="WhatsApp"
+                            >
+                                <Phone className="h-4 w-4" />
+                            </a>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setIsPanelOpen((open) => !open)}
+                            className={cn(iconButtonClass, 'hidden xl:inline-flex', isPanelOpen && 'text-[#F88022]')}
+                            aria-pressed={isPanelOpen}
+                            title={isPanelOpen ? 'Ocultar painel do aluno' : 'Mostrar painel do aluno'}
+                            aria-label={isPanelOpen ? 'Ocultar painel do aluno' : 'Mostrar painel do aluno'}
+                        >
+                            {isPanelOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                        </button>
+                    </nav>
+                </header>
 
-    const fetchMessages = useCallback(async (userId: string) => {
-        try {
-            const response = await fetch(`/api/messages/${userId}`);
-            const result = await response.json();
+                <MessageList
+                    messages={chat.messages}
+                    status={chat.status}
+                    error={chat.error}
+                    hasMore={chat.hasMore}
+                    loadingOlder={chat.loadingOlder}
+                    onLoadOlder={chat.loadOlder}
+                    onLoadOlderError={(message) => toast.error('Erro ao carregar mensagens anteriores', message)}
+                    onReload={chat.reload}
+                    onRetry={chat.retry}
+                    onDiscard={chat.discard}
+                    studentFirstName={firstNameOf(name)}
+                />
 
-            if (result.success) {
-                setMessages(result.data);
-            }
-        } catch (err) {
-            console.error('Error fetching messages:', err);
-        }
-    }, []);
-
-    useEffect(() => {
-        const init = async () => {
-            setLoading(true);
-            const studentData = await fetchStudent();
-            if (studentData?.user?.id) {
-                await fetchMessages(studentData.user.id);
-            }
-            setLoading(false);
-        };
-
-        if (params.id) {
-            init();
-        }
-    }, [params.id, fetchStudent, fetchMessages]);
-
-    // Poll for new messages every 5 seconds
-    useEffect(() => {
-        if (!student?.user?.id) return;
-
-        const interval = setInterval(() => {
-            fetchMessages(student.user.id);
-        }, 5000);
-
-        return () => clearInterval(interval);
-    }, [student?.user?.id, fetchMessages]);
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
-
-    const sendMessage = async () => {
-        if (!newMessage.trim() || !student?.user?.id) return;
-
-        setSending(true);
-        const messageText = newMessage;
-        setNewMessage('');
-
-        try {
-            const response = await fetch(`/api/messages/${student.user.id}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: messageText }),
-            });
-            const result = await response.json();
-
-            if (result.success) {
-                setMessages(prev => [...prev, result.data]);
-            } else {
-                setNewMessage(messageText);
-                alert('Erro ao enviar mensagem');
-            }
-        } catch (err) {
-            setNewMessage(messageText);
-            console.error('Error sending message:', err);
-        } finally {
-            setSending(false);
-        }
-    };
-
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-8 h-8 animate-spin text-[#F88022]" />
+                <Composer conversationKey={studentId} studentName={name} onSend={chat.send} />
             </div>
-        );
+
+            {isPanelOpen && (
+                <aside className="hidden w-[300px] shrink-0 border-l border-border xl:block">
+                    <StudentContextPanel
+                        studentId={studentId}
+                        name={name}
+                        avatar={avatar}
+                        phone={phone}
+                        onClose={() => setIsPanelOpen(false)}
+                    />
+                </aside>
+            )}
+        </div>
+    );
+}
+
+export default function PersonalChatConversationPage() {
+    const params = useParams<{ id: string }>();
+    const studentId = typeof params?.id === 'string' ? decodeURIComponent(params.id) : '';
+    const { conversations, error, reload } = useChat();
+    const conversation = conversations.find((item) => item.studentId === studentId);
+
+    usePageMeta({
+        title: conversation ? `${conversation.name} · Chat` : 'Chat',
+        breadcrumbs: [{ label: 'Chat', href: '/personal/chat' }, { label: conversation?.name ?? 'Conversa' }],
+    });
+
+    useEffect(() => {
+        if (studentId) rememberRecentStudent(studentId);
+    }, [studentId]);
+
+    // A student missing from the (possibly cached) inbox may have just been created: refetch once and only
+    // then say the conversation doesn't exist. Later background polls don't bring the spinner back.
+    const [checkedFor, setCheckedFor] = useState<string | null>(null);
+    useEffect(() => {
+        if (conversation || checkedFor === studentId) return;
+        let cancelled = false;
+        reload().finally(() => {
+            if (!cancelled) setCheckedFor(studentId);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [conversation, checkedFor, studentId, reload]);
+
+    if (conversation) {
+        // Keyed by student so switching conversations starts from a clean state.
+        return <Conversation key={studentId} conversation={conversation} />;
     }
 
-    if (!student) {
+    if (checkedFor !== studentId && !error) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px]">
-                <p className="text-muted-foreground">Aluno não encontrado</p>
-                <Link href="/personal/chat" className="mt-4">
-                    <Button variant="outline">Voltar</Button>
-                </Link>
+            <div className="flex flex-1 items-center justify-center">
+                <Loader2 className="h-7 w-7 animate-spin text-[#F88022]" />
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col h-[calc(100vh-2rem)] -m-4 lg:-m-8">
-            {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b border-border bg-card">
-                <Link href="/personal/chat" className="p-2 -ml-2 rounded-xl hover:bg-muted transition-colors lg:hidden">
-                    <ArrowLeft className="w-5 h-5" />
-                </Link>
-                <Avatar name={student.user.name} size="md" />
-                <div className="flex-1 min-w-0">
-                    <h1 className="font-semibold text-foreground truncate">{student.user.name}</h1>
-                    <p className="text-xs text-muted-foreground">{student.user.email}</p>
-                </div>
-                <button
-                    onClick={() => fetchMessages(student.user.id)}
-                    className="p-2 text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors"
-                    title="Atualizar mensagens"
-                >
-                    <RefreshCw className="w-5 h-5" />
-                </button>
-                <Link
-                    href={`/personal/students/${student.id}`}
-                    className="p-2 text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors"
-                >
-                    <User className="w-5 h-5" />
-                </Link>
-                <button className="p-2 text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
-                    <MoreVertical className="w-5 h-5" />
-                </button>
-            </div>
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/30">
-                {/* Date Separator */}
-                <div className="flex items-center justify-center">
-                    <span className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground">
-                        Hoje
-                    </span>
-                </div>
-
-                {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <p>Nenhuma mensagem ainda</p>
-                        <p className="text-sm">Envie uma mensagem para iniciar a conversa</p>
-                    </div>
-                ) : (
-                    messages.map((message) => (
-                        <div
-                            key={message.id}
-                            className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'}`}
-                        >
-                            <div
-                                className={`max-w-[80%] px-4 py-2 rounded-2xl ${message.fromMe
-                                    ? 'bg-[#F88022] text-white rounded-br-md'
-                                    : 'bg-card text-foreground rounded-bl-md border border-border'
-                                    }`}
-                            >
-                                <p className="text-[15px]">{message.text}</p>
-                                <div className={`flex items-center justify-end gap-1 mt-1 ${message.fromMe ? 'text-white/70' : 'text-muted-foreground'
-                                    }`}>
-                                    <span className="text-[10px]">{message.time}</span>
-                                    {message.fromMe && (
-                                        <CheckCheck className={`w-3.5 h-3.5 ${message.read ? 'text-blue-300' : ''}`} />
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ))
-                )}
-                <div ref={messagesEndRef} />
-            </div>
-
-            {/* Quick Actions */}
-            <div className="px-4 py-2 border-t border-border bg-card/50">
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                    {[
-                        'Bom treino hoje! 💪',
-                        'Não esqueça do check-in',
-                        'Como está a dieta?',
-                        'Lembre-se de beber água',
-                    ].map((quick, i) => (
-                        <button
-                            key={i}
-                            onClick={() => setNewMessage(quick)}
-                            className="px-3 py-1.5 bg-muted rounded-full text-xs text-muted-foreground hover:text-foreground whitespace-nowrap transition-colors"
-                        >
-                            {quick}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Input */}
-            <div className="p-4 border-t border-border bg-card">
-                <div className="flex items-center gap-2">
-                    <button className="p-2 text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
-                        <Paperclip className="w-5 h-5" />
-                    </button>
-                    <button className="p-2 text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-colors">
-                        <Image className="w-5 h-5" />
-                    </button>
-                    <input
-                        type="text"
-                        placeholder="Digite uma mensagem..."
-                        className="flex-1 px-4 py-2.5 bg-muted border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        disabled={sending}
-                    />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+            <AlertCircle className={cn('h-8 w-8', error ? 'text-red-500' : 'text-muted-foreground')} />
+            <p className="text-sm font-semibold text-foreground">
+                {error ? 'Não foi possível carregar a conversa' : 'Conversa não encontrada'}
+            </p>
+            <p className="max-w-xs text-sm text-muted-foreground">
+                {error ? error.message : 'Este aluno não está na sua lista. Ele pode ter sido removido.'}
+            </p>
+            <div className="flex items-center gap-2">
+                {error && (
                     <button
-                        onClick={sendMessage}
-                        disabled={!newMessage.trim() || sending}
-                        className="p-2.5 bg-[#F88022] text-white rounded-xl hover:bg-secondary-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        type="button"
+                        onClick={() => void reload()}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-sm font-semibold hover:bg-muted"
                     >
-                        {sending ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                            <Send className="w-5 h-5" />
-                        )}
+                        <RefreshCw className="h-4 w-4" />
+                        Tentar novamente
                     </button>
-                </div>
+                )}
+                <Link href="/personal/chat" className="rounded-xl px-3 py-1.5 text-sm font-semibold text-[#F88022] hover:bg-[#F88022]/10">
+                    Voltar para as conversas
+                </Link>
             </div>
         </div>
     );
