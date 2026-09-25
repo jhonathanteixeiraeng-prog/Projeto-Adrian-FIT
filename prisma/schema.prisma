@@ -324,15 +324,40 @@ model Checkin {
   workoutAdherence Int // 0-100%
   dietAdherence    Int // 0-100%
   notes            String?
+
+  // Medidas corporais (em centímetros)
+  chest            Float? // Tórax / Peitoral
+  waist            Float? // Cintura
+  abdomen          Float? // Abdômen
+  hips             Float? // Quadril
+  armRight         Float? // Braço direito
+  armLeft          Float? // Braço esquerdo
+  thighRight       Float? // Coxa direita
+  thighLeft        Float? // Coxa esquerda
+  calfRight        Float? // Panturrilha direita
+  calfLeft         Float? // Panturrilha esquerda
+  bodyFatPercentage Float? // % de gordura corporal
+
+  photos           ProgressPhoto[]
+
+  @@index([studentId, date])
 }
 
 model ProgressPhoto {
   id        String   @id @default(cuid())
   studentId String
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  checkinId String?
+  checkin   Checkin? @relation(fields: [checkinId], references: [id], onDelete: SetNull)
   url       String
-  angle     String // FRONT | SIDE | BACK
+  angle     String // FRONT | SIDE | BACK | OTHER
+  weight    Float? // snapshot de peso no momento da foto
+  notes     String?
   createdAt DateTime @default(now())
+
+  @@index([studentId, createdAt])
+  @@index([studentId, angle])
+  @@index([checkinId])
 }
 
 // ==========================================

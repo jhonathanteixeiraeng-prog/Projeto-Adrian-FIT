@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
+
 // GET /api/checkins - Get checkins for student
 export async function GET(request: NextRequest) {
     try {
@@ -44,7 +47,17 @@ export async function GET(request: NextRequest) {
         const checkins = await prisma.checkin.findMany({
             where: whereClause,
             orderBy: { date: 'desc' },
-            take: 20,
+            take: 30,
+            include: {
+                photos: {
+                    select: {
+                        id: true,
+                        url: true,
+                        angle: true,
+                        createdAt: true,
+                    },
+                },
+            },
         });
 
         return NextResponse.json({ success: true, data: checkins });
@@ -55,6 +68,12 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+function parseOptionalFloat(val: unknown): number | null {
+    if (val === null || val === undefined || val === '') return null;
+    const num = parseFloat(String(val).replace(',', '.'));
+    return Number.isFinite(num) ? num : null;
 }
 
 // POST /api/checkins - Create new checkin
@@ -79,6 +98,18 @@ export async function POST(request: NextRequest) {
             workoutAdherence,
             dietAdherence,
             notes,
+            chest,
+            waist,
+            abdomen,
+            hips,
+            armRight,
+            armLeft,
+            thighRight,
+            thighLeft,
+            calfRight,
+            calfLeft,
+            bodyFatPercentage,
+            photos,
         } = body;
 
         // Validate required fields
@@ -89,24 +120,61 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const checkin = await prisma.checkin.create({
-            data: {
-                studentId: session.user.studentId,
-                weight: parseFloat(weight),
-                sleepHours: parseFloat(sleepHours),
-                energyLevel: parseInt(energyLevel) || 3,
-                hungerLevel: parseInt(hungerLevel) || 3,
-                stressLevel: parseInt(stressLevel) || 3,
-                workoutAdherence: parseInt(workoutAdherence) || 0,
-                dietAdherence: parseInt(dietAdherence) || 0,
-                notes: notes || null,
-            },
-        });
+        const parsedWeight = parseFloat(String(weight).replace(',', '.'));
+        const parsedSleepHours = parseFloat(String(sleepHours).replace(',', '.'));
 
-        // Update student weight
-        await prisma.student.update({
-            where: { id: session.user.studentId },
-            data: { weight: parseFloat(weight) },
+        const checkin = await prisma.$transaction(async (tx) => {
+            const created = await tx.checkin.create({
+                data: {
+                    studentId: session.user.studentId!,
+                    weight: parsedWeight,
+                    sleepHours: parsedSleepHours,
+                    energyLevel: parseInt(energyLevel) || 3,
+                    hungerLevel: parseInt(hungerLevel) || 3,
+                    stressLevel: parseInt(stressLevel) || 3,
+                    workoutAdherence: parseInt(workoutAdherence) || 0,
+                    dietAdherence: parseInt(dietAdherence) || 0,
+                    notes: notes ? String(notes).trim() : null,
+                    chest: parseOptionalFloat(chest),
+                    waist: parseOptionalFloat(waist),
+                    abdomen: parseOptionalFloat(abdomen),
+                    hips: parseOptionalFloat(hips),
+                    armRight: parseOptionalFloat(armRight),
+                    armLeft: parseOptionalFloat(armLeft),
+                    thighRight: parseOptionalFloat(thighRight),
+                    thighLeft: parseOptionalFloat(thighLeft),
+                    calfRight: parseOptionalFloat(calfRight),
+                    calfLeft: parseOptionalFloat(calfLeft),
+                    bodyFatPercentage: parseOptionalFloat(bodyFatPercentage),
+                },
+            });
+
+            // Se fotos foram enviadas com o check-in, cadastra e associa
+            if (Array.isArray(photos) && photos.length > 0) {
+                for (const photo of photos) {
+                    if (photo?.url) {
+                        const rawAngle = String(photo.angle || 'FRONT').toUpperCase();
+                        const angle = ['FRONT', 'SIDE', 'BACK', 'OTHER'].includes(rawAngle) ? rawAngle : 'FRONT';
+                        await tx.progressPhoto.create({
+                            data: {
+                                studentId: session.user.studentId!,
+                                checkinId: created.id,
+                                url: String(photo.url).trim(),
+                                angle,
+                                weight: parsedWeight,
+                            },
+                        });
+                    }
+                }
+            }
+
+            // Atualiza peso do aluno
+            await tx.student.update({
+                where: { id: session.user.studentId! },
+                data: { weight: parsedWeight },
+            });
+
+            return created;
         });
 
         // Create notification for personal

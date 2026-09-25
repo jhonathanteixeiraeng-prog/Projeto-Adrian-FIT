@@ -57,11 +57,14 @@ export async function GET(
                 },
                 checkins: {
                     orderBy: { date: 'desc' },
-                    take: 10,
+                    take: 20,
+                    include: {
+                        photos: true,
+                    },
                 },
                 progressPhotos: {
                     orderBy: { createdAt: 'desc' },
-                    take: 20,
+                    take: 50,
                 },
             },
         });
