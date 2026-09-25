@@ -85,7 +85,8 @@ private struct WorkoutWatchContent: View {
                     exerciseName: exerciseName,
                     currentSet: currentSetIndex + 1,
                     totalSets: workout.exerciseSetCount,
-                    targetLoad: workout.targetLoad
+                    targetLoad: workout.targetLoad,
+                    groupPosition: workout.groupPosition
                 )
             } else {
                 ExerciseCard(
@@ -93,11 +94,16 @@ private struct WorkoutWatchContent: View {
                     targetReps: workout.targetReps,
                     targetLoad: workout.targetLoad,
                     currentSet: currentSetIndex + 1,
-                    setCount: workout.exerciseSetCount
+                    setCount: workout.exerciseSetCount,
+                    groupTitle: workout.groupTitle,
+                    groupPosition: workout.groupPosition
                 )
 
+                // Num bi-set/tri-set o iPhone só inicia o descanso depois do último exercício da volta.
                 CompleteSetButton(
                     setNumber: currentSetIndex + 1,
+                    restAfter: workout.restAfterCurrentSet ?? true,
+                    nextExerciseName: workout.nextExerciseName,
                     action: onCompleteSet
                 )
             }
@@ -331,10 +337,13 @@ private struct ExerciseCard: View {
     let targetLoad: String?
     let currentSet: Int
     let setCount: Int
+    /// "Bi-set A" e "A1" quando o exercício está num grupo.
+    var groupTitle: String? = nil
+    var groupPosition: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            HStack(spacing: 6) {
                 Text("AGORA")
                     .font(.system(size: 8, weight: .black, design: .rounded))
                     .tracking(0.8)
@@ -343,7 +352,16 @@ private struct ExerciseCard: View {
                     .padding(.vertical, 4)
                     .background(WatchTheme.accentGradient, in: Capsule())
 
-                Spacer()
+                if let groupPosition {
+                    Text([groupPosition, groupTitle?.uppercased()].compactMap { $0 }.joined(separator: " · "))
+                        .font(.system(size: 8, weight: .black, design: .rounded))
+                        .tracking(0.5)
+                        .foregroundStyle(WatchTheme.accentSoft)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+
+                Spacer(minLength: 2)
 
                 Image(systemName: "figure.strengthtraining.traditional")
                     .font(.system(size: 15, weight: .semibold))
@@ -420,7 +438,15 @@ private struct WorkoutMetric: View {
 
 private struct CompleteSetButton: View {
     let setNumber: Int
+    /// Falso num exercício de grupo antes do último da volta: segue direto para o próximo, sem descanso.
+    var restAfter = true
+    var nextExerciseName: String?
     let action: () -> Void
+
+    private var subtitle: String {
+        if restAfter { return "Iniciar descanso" }
+        return nextExerciseName.map { "Sem descanso · \($0)" } ?? "Sem descanso · próximo exercício"
+    }
 
     var body: some View {
         Button(action: action) {
@@ -435,9 +461,10 @@ private struct CompleteSetButton: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("CONCLUIR SÉRIE \(setNumber)")
                         .font(.system(size: 12, weight: .black, design: .rounded))
-                    Text("Iniciar descanso")
+                    Text(subtitle)
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.8))
+                        .lineLimit(1)
                 }
 
                 Spacer(minLength: 2)
@@ -574,6 +601,8 @@ private struct NextSetStrip: View {
     let currentSet: Int
     let totalSets: Int
     var targetLoad: String?
+    /// "A1" quando o próximo exercício está num grupo.
+    var groupPosition: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -585,7 +614,7 @@ private struct NextSetStrip: View {
                     .font(.system(size: 7, weight: .black, design: .rounded))
                     .tracking(0.5)
                     .foregroundStyle(WatchTheme.tertiaryText)
-                Text(exerciseName)
+                Text(groupPosition.map { "\($0) · \(exerciseName)" } ?? exerciseName)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .lineLimit(1)
             }
@@ -761,6 +790,40 @@ private extension WatchWorkoutState {
         restEndDate: Date.now.addingTimeInterval(54),
         restTotal: 90,
         isWorkoutFinished: false
+    )
+
+    static let previewSuperset = WatchWorkoutState(
+        dayId: "peito",
+        dayName: "Peito e costas",
+        exerciseId: "supino",
+        exerciseName: "Supino reto",
+        targetReps: "10",
+        targetLoad: "40 kg",
+        currentSetIndex: 1,
+        exerciseSetCount: 3,
+        completedSetCount: 2,
+        totalSetCount: 14,
+        restEndDate: nil,
+        restTotal: 0,
+        isWorkoutFinished: false,
+        groupTitle: "Bi-set A",
+        groupPosition: "A1",
+        restAfterCurrentSet: false,
+        nextExerciseName: "A2 · Remada curvada"
+    )
+}
+
+#Preview("Bi-set") {
+    WorkoutWatchContent(
+        workout: .previewSuperset,
+        restRemaining: nil,
+        healthPhase: .running,
+        healthMetrics: nil,
+        onStartWorkout: {},
+        onCompleteSet: {},
+        onExtendRest: {},
+        onSkipRest: {},
+        onRefresh: {}
     )
 }
 

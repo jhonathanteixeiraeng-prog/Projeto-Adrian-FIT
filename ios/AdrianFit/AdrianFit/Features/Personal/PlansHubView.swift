@@ -374,15 +374,32 @@ private struct WorkoutTemplateDetailView: View {
     var body: some View {
         List {
             ForEach(template.templateDays) { day in
+                let groups = WorkoutGroups.describe(day.items)
                 Section(day.name) {
-                    ForEach(day.items) { item in
+                    ForEach(Array(day.items.enumerated()), id: \.element.id) { index, item in
+                        let group = groups[index]
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(item.exercise?.name ?? "Exercício").font(.headline)
-                            Text("\(item.sets) séries × \(item.reps) • \(item.rest)s").font(.caption).foregroundStyle(FitTheme.orange)
+                            if let group, group.isFirst {
+                                Label(group.title, systemImage: "link").font(.caption.bold()).foregroundStyle(FitTheme.orange)
+                            }
+                            HStack(spacing: 6) {
+                                if let group {
+                                    Text(group.badge)
+                                        .font(.caption.bold())
+                                        .foregroundStyle(FitTheme.orange)
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(FitTheme.orange.opacity(0.14), in: Capsule())
+                                }
+                                Text(item.exercise?.name ?? "Exercício").font(.headline)
+                            }
+                            Text(prescription(item, group: group)).font(.caption).foregroundStyle(FitTheme.orange)
                             if let target = item.loadPrescriptionSummary {
                                 Text("Meta: \(target)").font(.caption).foregroundStyle(FitTheme.secondaryText)
                             }
-                        }.padding(.vertical, 4)
+                        }
+                        .padding(.vertical, 4)
+                        .listRowBackground(group != nil ? groupedRowBackground : nil)
                     }
                 }
             }
@@ -400,6 +417,20 @@ private struct WorkoutTemplateDetailView: View {
         .alert("Aplicar modelo", isPresented: Binding(get: { feedback != nil }, set: { if !$0 { feedback = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(feedback ?? "") }
+    }
+
+    /// Num grupo, só o último exercício tem descanso, depois da volta.
+    private func prescription(_ item: WorkoutTemplateItemSummary, group: WorkoutGroups.Info?) -> String {
+        let base = "\(item.sets) séries × \(item.reps)"
+        guard let group else { return "\(base) • \(item.rest)s" }
+        return group.isLast ? "\(base) • \(item.rest)s após a volta" : "\(base) • sem descanso"
+    }
+
+    /// Fundo padrão da linha com um colchete ligando os exercícios do grupo.
+    private var groupedRowBackground: some View {
+        Color(uiColor: .secondarySystemGroupedBackground).overlay(alignment: .leading) {
+            Rectangle().fill(FitTheme.orange.opacity(0.7)).frame(width: 3)
+        }
     }
 
     private func apply(to student: StudentListItem) async {

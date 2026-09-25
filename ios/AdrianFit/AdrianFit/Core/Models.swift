@@ -113,7 +113,7 @@ extension TodayWorkout {
     var compactName: String { FitnessCopy.compactWorkoutName(name) }
 }
 
-struct TodayExercise: Codable, Identifiable, Sendable, LoadPrescription {
+struct TodayExercise: Codable, Identifiable, Sendable, LoadPrescription, GroupableWorkoutItem {
     let id: String
     let name: String
     let sets: Int
@@ -122,6 +122,8 @@ struct TodayExercise: Codable, Identifiable, Sendable, LoadPrescription {
     /// Carga (kg) e RPE prescritos; ausentes nas respostas de versões antigas da API.
     let load: String?
     let rpe: String?
+    /// Superset (bi-set, tri-set, circuito); ausente nas respostas de versões antigas da API.
+    let groupId: String?
     let completed: Bool
 
     var prescriptionIssue: String? {
@@ -161,7 +163,7 @@ extension WorkoutDay {
     var prescriptionIssue: String? { exercises.compactMap(\.prescriptionIssue).first }
 }
 
-struct ExerciseItem: Codable, Identifiable, Sendable, LoadPrescription {
+struct ExerciseItem: Codable, Identifiable, Sendable, LoadPrescription, GroupableWorkoutItem {
     let id: String
     let exerciseId: String?
     let name: String
@@ -173,6 +175,9 @@ struct ExerciseItem: Codable, Identifiable, Sendable, LoadPrescription {
     /// Carga (kg) e RPE prescritos; ausentes nas respostas de versões antigas da API.
     let load: String?
     let rpe: String?
+    /// Superset (bi-set, tri-set, circuito): exercícios seguidos do dia com o mesmo id. Ausente nas respostas
+    /// de versões antigas da API.
+    let groupId: String?
     let notes: String?
     let videoUrl: String?
     let instructions: String?
@@ -418,6 +423,182 @@ enum WorkoutLoad {
         guard integerDigits.contains(integer.count) else { return nil }
         if let fraction, !fractionDigits.contains(fraction.count) { return nil }
         return Double(fraction.map { "\(integer).\($0)" } ?? integer)
+    }
+}
+
+// MARK: - Supersets (bi-set, tri-set, circuito)
+
+/// Itens de treino que podem formar supersets: exercícios seguidos do dia com o mesmo `groupId`.
+protocol GroupableWorkoutItem {
+    var groupId: String? { get }
+    var sets: Int { get }
+}
+
+/// Supersets — port de src/lib/workout-groups.ts (mantenha os dois iguais).
+///
+/// Exercícios seguidos de um dia com o mesmo `groupId` formam um grupo (bi-set, tri-set, circuito), feito em
+/// voltas — A1 série 1 → A2 série 1 → descanso → A1 série 2 → A2 série 2 → descanso … —, com descanso só depois
+/// do último exercício de cada volta. Todos os exercícios de um grupo têm o mesmo número de séries.
+enum WorkoutGroups {
+    struct Issue: Equatable, Sendable {
+        let index: Int
+        let message: String
+    }
+
+    struct Info: Equatable, Sendable {
+        let groupId: String
+        /// "A", "B"… na ordem em que os grupos aparecem no dia.
+        let letter: String
+        /// Posição (a partir de 1) dentro do grupo: A1, A2…
+        let position: Int
+        let size: Int
+        let label: String
+        let isFirst: Bool
+        let isLast: Bool
+
+        /// "A1", "A2"…
+        var badge: String { "\(letter)\(position)" }
+        /// "Bi-set A", "Tri-set B", "Circuito C".
+        var title: String { "\(label) \(letter)" }
+    }
+
+    struct SessionStep: Equatable, Sendable {
+        let itemIndex: Int
+        let setIndex: Int
+        /// Falso em todos os exercícios de um grupo, menos no último da volta.
+        let restAfter: Bool
+    }
+
+    /// Item mínimo (grupo e séries), p. ex. para descrever uma lista com ids já normalizados.
+    struct Member: GroupableWorkoutItem, Sendable {
+        let groupId: String?
+        let sets: Int
+    }
+
+    /// "Bi-set" (2), "Tri-set" (3) ou "Circuito" (4+).
+    static func groupLabel(size: Int) -> String {
+        if size >= 4 { return "Circuito" }
+        if size == 3 { return "Tri-set" }
+        return "Bi-set"
+    }
+
+    /// Id para um grupo novo (o servidor aceita até 40 caracteres).
+    static func newGroupId() -> String { UUID().uuidString.lowercased() }
+
+    /// Problemas nos grupos de um dia, com as mesmas mensagens do servidor. Grupos de um exercício só não são
+    /// erro (o exercício simplesmente fica sem grupo).
+    static func findIssues<Item: GroupableWorkoutItem>(_ items: [Item]) -> [Issue] {
+        var issues: [Issue] = []
+        for (_, indexes) in groupPositions(items) {
+            guard indexes.count >= 2 else { continue }
+            let label = groupLabel(size: indexes.count)
+            if !isContiguous(indexes) {
+                let broken = (1..<indexes.count).first { indexes[$0] != indexes[$0 - 1] + 1 }.map { indexes[$0] } ?? indexes[1]
+                issues.append(Issue(index: broken, message: "\(label): os exercícios do grupo precisam ficar em sequência"))
+            }
+            let sets = items[indexes[0]].sets
+            if let different = indexes.first(where: { items[$0].sets != sets }) {
+                issues.append(Issue(index: different, message: "\(label): os exercícios do grupo precisam ter o mesmo número de séries"))
+            }
+        }
+        return issues
+    }
+
+    /// O id de grupo que cada item deve manter: grupos de um exercício só viram nil e, com `repairInvalid`,
+    /// também os grupos fora de sequência ou com séries diferentes.
+    static func normalizedIds<Item: GroupableWorkoutItem>(_ items: [Item], repairInvalid: Bool = false) -> [String?] {
+        var result: [String?] = items.map { item in
+            let id = cleanId(item.groupId)
+            return id.isEmpty ? nil : id
+        }
+        for (_, indexes) in groupPositions(items) {
+            let invalid = indexes.count < 2
+                || (repairInvalid && (!isContiguous(indexes) || indexes.contains { items[$0].sets != items[indexes[0]].sets }))
+            if invalid { indexes.forEach { result[$0] = nil } }
+        }
+        return result
+    }
+
+    /// Informações de exibição por item (nil fora de grupo). Pressupõe grupos válidos, em sequência.
+    static func describe<Item: GroupableWorkoutItem>(_ items: [Item]) -> [Info?] {
+        let ids = normalizedIds(items)
+        var order: [String] = []
+        var members: [String: [Int]] = [:]
+        for (index, id) in ids.enumerated() {
+            guard let id else { continue }
+            if members[id] == nil { order.append(id) }
+            members[id, default: []].append(index)
+        }
+        var letters: [String: String] = [:]
+        for (groupIndex, id) in order.enumerated() {
+            letters[id] = String(UnicodeScalar(UInt8(65 + groupIndex % 26)))
+        }
+        return ids.enumerated().map { index, id in
+            guard let id, let list = members[id], let position = list.firstIndex(of: index) else { return nil }
+            return Info(
+                groupId: id,
+                letter: letters[id] ?? "A",
+                position: position + 1,
+                size: list.count,
+                label: groupLabel(size: list.count),
+                isFirst: position == 0,
+                isLast: position == list.count - 1
+            )
+        }
+    }
+
+    /// Ordem em que as séries de um dia são feitas: exercícios sem grupo série por série e grupos volta por volta
+    /// (A1s1, A2s1, A1s2, A2s2…). Há descanso depois das séries sem grupo e depois do último exercício de cada volta.
+    static func sessionSequence<Item: GroupableWorkoutItem>(_ items: [Item]) -> [SessionStep] {
+        let info = describe(items)
+        var steps: [SessionStep] = []
+        var index = 0
+        while index < items.count {
+            guard let group = info[index] else {
+                for set in 0..<max(0, items[index].sets) {
+                    steps.append(SessionStep(itemIndex: index, setIndex: set, restAfter: true))
+                }
+                index += 1
+                continue
+            }
+            // Com grupos válidos (em sequência) são os `size` itens a partir daqui, como na web. Com dados
+            // inválidos, só entram os itens seguidos do mesmo grupo, para nunca passar do fim da lista.
+            var members: [Int] = []
+            while members.count < group.size, index + members.count < items.count,
+                  info[index + members.count]?.groupId == group.groupId {
+                members.append(index + members.count)
+            }
+            let rounds = members.map { max(0, items[$0].sets) }.max() ?? 0
+            for set in 0..<rounds {
+                let inRound = members.filter { set < items[$0].sets }
+                for (position, member) in inRound.enumerated() {
+                    steps.append(SessionStep(itemIndex: member, setIndex: set, restAfter: position == inRound.count - 1))
+                }
+            }
+            index += max(members.count, 1)
+        }
+        return steps
+    }
+
+    private static func cleanId(_ value: String?) -> String {
+        (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Posições de cada id de grupo, na ordem dos itens (grupos na ordem em que aparecem).
+    private static func groupPositions<Item: GroupableWorkoutItem>(_ items: [Item]) -> [(id: String, indexes: [Int])] {
+        var order: [String] = []
+        var positions: [String: [Int]] = [:]
+        for (index, item) in items.enumerated() {
+            let id = cleanId(item.groupId)
+            guard !id.isEmpty else { continue }
+            if positions[id] == nil { order.append(id) }
+            positions[id, default: []].append(index)
+        }
+        return order.map { ($0, positions[$0] ?? []) }
+    }
+
+    private static func isContiguous(_ indexes: [Int]) -> Bool {
+        indexes.indices.allSatisfy { $0 == 0 || indexes[$0] == indexes[$0 - 1] + 1 }
     }
 }
 
@@ -738,13 +919,14 @@ struct WorkoutTemplateDaySummary: Codable, Identifiable, Sendable {
     let items: [WorkoutTemplateItemSummary]
 }
 
-struct WorkoutTemplateItemSummary: Codable, Identifiable, Sendable, LoadPrescription {
+struct WorkoutTemplateItemSummary: Codable, Identifiable, Sendable, LoadPrescription, GroupableWorkoutItem {
     let id: String
     let sets: Int
     let reps: String
     let rest: Int
     let load: String?
     let rpe: String?
+    let groupId: String?
     let exercise: TemplateExercise?
 }
 

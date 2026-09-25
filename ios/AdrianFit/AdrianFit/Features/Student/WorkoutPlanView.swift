@@ -256,6 +256,80 @@ final class WorkoutSessionStore: ObservableObject {
     }
 }
 
+/// Ordem da sessão de um dia: exercícios sem grupo série por série e supersets (bi-set, tri-set, circuito)
+/// volta por volta, com descanso só depois do último exercício de cada volta.
+private struct WorkoutSessionPlan {
+    /// Um exercício avulso ou um grupo inteiro, na ordem do dia.
+    struct Block: Identifiable {
+        let indexes: [Int]
+        let group: WorkoutGroups.Info?
+        /// Voltas do grupo (o maior número de séries entre os exercícios dele).
+        let rounds: Int
+        var id: Int { indexes.first ?? -1 }
+    }
+
+    private struct StepKey: Hashable {
+        let item: Int
+        let set: Int
+    }
+
+    /// Grupo de cada exercício (letra, posição…); nil fora de grupo.
+    let groups: [WorkoutGroups.Info?]
+    let steps: [WorkoutGroups.SessionStep]
+    let blocks: [Block]
+    private let positions: [StepKey: Int]
+
+    init(exercises: [ExerciseItem]) {
+        // O servidor só devolve grupos válidos; por garantia, um grupo inválido vira exercícios avulsos.
+        let ids = WorkoutGroups.normalizedIds(exercises, repairInvalid: true)
+        let members = zip(ids, exercises).map { WorkoutGroups.Member(groupId: $0, sets: $1.sets) }
+        let groups = WorkoutGroups.describe(members)
+        self.groups = groups
+        steps = WorkoutGroups.sessionSequence(members)
+        positions = Dictionary(
+            steps.enumerated().map { (StepKey(item: $1.itemIndex, set: $1.setIndex), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        var blocks: [Block] = []
+        var index = 0
+        while index < exercises.count {
+            guard let group = groups[index] else {
+                blocks.append(Block(indexes: [index], group: nil, rounds: exercises[index].sets))
+                index += 1
+                continue
+            }
+            var indexes = [index]
+            while let next = indexes.last.map({ $0 + 1 }), next < exercises.count, groups[next]?.groupId == group.groupId {
+                indexes.append(next)
+            }
+            blocks.append(Block(indexes: indexes, group: group, rounds: indexes.map { exercises[$0].sets }.max() ?? 0))
+            index += indexes.count
+        }
+        self.blocks = blocks
+    }
+
+    func position(item: Int, set: Int) -> Int? {
+        positions[StepKey(item: item, set: set)]
+    }
+
+    /// Passos da volta de uma série: num grupo, a série `set` de cada exercício dele, na ordem (o último tem
+    /// `restAfter`); fora de grupo, só o próprio passo.
+    func round(item: Int, set: Int) -> [WorkoutGroups.SessionStep] {
+        guard let groupId = groups[item]?.groupId else {
+            return position(item: item, set: set).map { [steps[$0]] } ?? []
+        }
+        return steps.filter { $0.setIndex == set && groups[$0.itemIndex]?.groupId == groupId }
+    }
+
+    /// "A2" quando o exercício seguinte é do mesmo grupo.
+    func nextInGroup(after index: Int) -> String? {
+        guard let current = groups[index], groups.indices.contains(index + 1),
+              let next = groups[index + 1], next.groupId == current.groupId else { return nil }
+        return next.badge
+    }
+}
+
 private struct WorkoutFinishSummary: Identifiable {
     let id = UUID()
     let completedSets: Int
@@ -282,43 +356,71 @@ struct WorkoutDayDetailView: View {
     @State private var prBanner: String?
     @State private var showPartialConfirmation = false
     @State private var finalizedPercentage: Int?
+    /// Ordem das séries (supersets em voltas) e agrupamento dos exercícios do dia.
+    private let session: WorkoutSessionPlan
 
     init(day: WorkoutDay) {
         self.day = day
+        session = WorkoutSessionPlan(exercises: day.exercises)
         _store = StateObject(wrappedValue: WorkoutSessionStore(dayId: day.id))
         _finalizedPercentage = State(initialValue: WorkoutHistoryStore.finalizedPercentageToday(dayId: day.id))
     }
 
     private var totalSets: Int { day.exercises.reduce(0) { $0 + $1.sets } }
     private var doneSets: Int { day.exercises.reduce(0) { $0 + store.doneCount(exercise: $1.id) } }
+    /// Próxima série a fazer: a primeira não concluída na ordem da sessão — num bi-set, A2 série 1 logo depois
+    /// de A1 série 1.
+    private var currentStep: WorkoutGroups.SessionStep? {
+        session.steps.first { !isDone($0) }
+    }
     private var currentExercise: ExerciseItem? {
-        day.exercises.first { store.doneCount(exercise: $0.id) < $0.sets }
+        currentStep.map { day.exercises[$0.itemIndex] }
     }
     private var currentExerciseID: String? {
         currentExercise?.id
     }
     private var currentSetIndex: Int? {
-        guard let exercise = currentExercise else { return nil }
-        return (0..<exercise.sets).first { !store.isDone(exercise: exercise.id, set: $0) }
+        currentStep?.setIndex
+    }
+
+    private func isDone(_ step: WorkoutGroups.SessionStep) -> Bool {
+        store.isDone(exercise: day.exercises[step.itemIndex].id, set: step.setIndex)
+    }
+
+    /// Série seguinte ainda não concluída depois de `step`, na ordem da sessão.
+    private func nextStep(after step: WorkoutGroups.SessionStep) -> WorkoutGroups.SessionStep? {
+        guard let position = session.position(item: step.itemIndex, set: step.setIndex) else { return nil }
+        return session.steps[(position + 1)...].first { !isDone($0) }
+    }
+
+    /// "A1 · Supino reto · série 2/3" (sem a posição quando o exercício não está em grupo).
+    private func stepTitle(_ step: WorkoutGroups.SessionStep) -> String {
+        let exercise = day.exercises[step.itemIndex]
+        return "\(exerciseTitle(step.itemIndex)) · série \(step.setIndex + 1)/\(exercise.sets)"
+    }
+
+    /// "A2 · Remada curvada" ou só o nome, fora de grupo.
+    private func exerciseTitle(_ index: Int) -> String {
+        let name = day.exercises[index].name
+        return session.groups[index].map { "\($0.badge) · \(name)" } ?? name
+    }
+
+    private func group(of exercise: ExerciseItem) -> WorkoutGroups.Info? {
+        day.exercises.firstIndex { $0.id == exercise.id }.flatMap { session.groups[$0] }
     }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 WorkoutProgressCard(doneSets: doneSets, totalSets: totalSets)
-                ForEach(day.exercises) { exercise in
-                    ExerciseSessionRow(
-                        exercise: exercise,
-                        store: store,
-                        inputs: Binding(
-                            get: { setInputs[exercise.id] ?? plannedInputs(exercise) },
-                            set: { setInputs[exercise.id] = $0 }
-                        ),
-                        previous: previousLogs[exerciseKey(exercise)] ?? [:],
-                        isCurrent: finalizedPercentage == nil && currentExerciseID == exercise.id,
-                        onSetToggled: { index, marked in handleSetToggle(exercise: exercise, setIndex: index, marked: marked) },
-                        onShowDetail: { detailExercise = exercise }
-                    )
+                ForEach(session.blocks) { block in
+                    if let group = block.group {
+                        SupersetBlock(group: group, rounds: block.rounds) {
+                            ForEach(block.indexes, id: \.self) { index in exerciseRow(index) }
+                        }
+                    } else {
+                        ForEach(block.indexes, id: \.self) { index in exerciseRow(index) }
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -347,7 +449,7 @@ struct WorkoutDayDetailView: View {
             Text("Você concluiu \(doneSets) de \(totalSets) séries. O treino será contabilizado como parcial.")
         }
         .sheet(item: $detailExercise) { exercise in
-            ExerciseDetailSheet(exercise: exercise)
+            ExerciseDetailSheet(exercise: exercise, group: group(of: exercise))
         }
         .sheet(item: $finishSummary) { summary in
             WorkoutSummarySheet(
@@ -390,12 +492,31 @@ struct WorkoutDayDetailView: View {
         .sensoryFeedback(.impact(weight: .heavy), trigger: prBanner)
     }
 
+    private func exerciseRow(_ index: Int) -> some View {
+        let exercise = day.exercises[index]
+        return ExerciseSessionRow(
+            exercise: exercise,
+            group: session.groups[index],
+            nextInGroup: session.nextInGroup(after: index),
+            store: store,
+            inputs: Binding(
+                get: { setInputs[exercise.id] ?? plannedInputs(exercise) },
+                set: { setInputs[exercise.id] = $0 }
+            ),
+            previous: previousLogs[exerciseKey(exercise)] ?? [:],
+            isCurrent: finalizedPercentage == nil && currentExerciseID == exercise.id,
+            onSetToggled: { setIndex, marked in handleSetToggle(exercise: exercise, setIndex: setIndex, marked: marked) },
+            onShowDetail: { detailExercise = exercise }
+        )
+    }
+
     private var workoutFooter: some View {
         VStack(spacing: 8) {
             if let remaining = restRemaining {
                 RestTimerBar(
                     remaining: remaining,
                     total: restTotal,
+                    nextUp: currentStep.map { "A seguir: \(stepTitle($0))" },
                     onSkip: { stopRest() },
                     onExtend: { extendRest(by: 15) }
                 )
@@ -601,7 +722,12 @@ struct WorkoutDayDetailView: View {
         let reps = Int(input.reps) ?? 0
 
         if marked {
-            startRest(seconds: exercise.restAfterSet(setIndex), exerciseName: exercise.name)
+            if let restExercise = restExercise(afterMarking: exercise, setIndex: setIndex) {
+                startRest(seconds: restExercise.restAfterSet(setIndex), exerciseName: restExercise.name)
+            } else if restEndsAt != nil {
+                // Superset: o próximo exercício da volta vem sem descanso; um descanso anterior ainda na tela acabou.
+                stopRest()
+            }
             if weight > 0, weight > (prs[key] ?? 0) {
                 prs[key] = weight
                 withAnimation(.snappy) { prBanner = exercise.name }
@@ -633,6 +759,18 @@ struct WorkoutDayDetailView: View {
         )
         Task { let _: Saved? = try? await api.post("/api/student/set-logs", body: body) }
         publishWatchState()
+    }
+
+    /// Exercício cujo descanso começa ao marcar a série. Fora de grupo, o próprio. Num grupo, só há descanso
+    /// quando a volta fica completa — na ordem normal, ao marcar o último exercício dela (o passo com
+    /// `restAfter`) — e ele é o do último exercício da volta; antes disso, nil: o destaque passa direto para o
+    /// próximo exercício do grupo. Mesma regra da web, que também cobre séries marcadas fora de ordem.
+    private func restExercise(afterMarking exercise: ExerciseItem, setIndex: Int) -> ExerciseItem? {
+        guard let index = day.exercises.firstIndex(where: { $0.id == exercise.id }) else { return exercise }
+        let round = session.round(item: index, set: setIndex)
+        guard round.count > 1 else { return exercise }
+        guard round.allSatisfy(isDone), let last = round.last else { return nil }
+        return day.exercises[last.itemIndex]
     }
 
     private func startRest(seconds: Int, exerciseName: String) {
@@ -747,8 +885,16 @@ struct WorkoutDayDetailView: View {
     }
 
     private func publishWatchState() {
+        // O relógio mostra a série atual na ordem da sessão (num bi-set, A2 logo depois de A1, sem descanso).
+        let step = currentStep
         let exercise = currentExercise
         let setIndex = currentSetIndex
+        let group = step.flatMap { session.groups[$0.itemIndex] }
+        let restFollows = step.map { current in
+            // Concluir a série atual inicia o descanso quando fecha a volta (fora de grupo, sempre).
+            session.round(item: current.itemIndex, set: current.setIndex).allSatisfy { $0 == current || isDone($0) }
+        }
+        let next = step.flatMap { restFollows == false ? nextStep(after: $0) : nil }
         PhoneWorkoutConnectivity.shared.publish(
             WatchWorkoutState(
                 dayId: day.id,
@@ -763,7 +909,11 @@ struct WorkoutDayDetailView: View {
                 totalSetCount: totalSets,
                 restEndDate: restEndsAt,
                 restTotal: restEndsAt == nil ? 0 : restTotal,
-                isWorkoutFinished: finalizedPercentage != nil
+                isWorkoutFinished: finalizedPercentage != nil,
+                groupTitle: group?.title,
+                groupPosition: group?.badge,
+                restAfterCurrentSet: restFollows,
+                nextExerciseName: next.map { exerciseTitle($0.itemIndex) }
             )
         )
     }
@@ -806,6 +956,44 @@ private struct WorkoutProgressCard: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(FitTheme.separator.opacity(0.28))
         }
+    }
+}
+
+/// Bi-set, tri-set ou circuito na sessão: rótulo, voltas e um colchete ligando os exercícios do grupo.
+private struct SupersetBlock<Content: View>: View {
+    let group: WorkoutGroups.Info
+    let rounds: Int
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(group.title, systemImage: "link")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(FitTheme.orange)
+                Spacer(minLength: 8)
+                Text(rounds == 1 ? "1 volta" : "\(rounds) voltas")
+                    .font(.caption.bold())
+                    .foregroundStyle(FitTheme.secondaryText)
+            }
+            .accessibilityElement(children: .combine)
+
+            Text("Uma série de cada exercício, em sequência. Descanse só ao fim da volta.")
+                .font(.caption)
+                .foregroundStyle(FitTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 12) { content }
+                .padding(.leading, 12)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(FitTheme.orange.opacity(0.55))
+                        .frame(width: 3)
+                        .accessibilityHidden(true)
+                }
+        }
+        .padding(.top, 4)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -863,6 +1051,10 @@ extension Array {
 
 private struct ExerciseSessionRow: View {
     let exercise: ExerciseItem
+    /// Bi-set, tri-set ou circuito do exercício (nil fora de grupo).
+    let group: WorkoutGroups.Info?
+    /// "A2" quando o próximo exercício é do mesmo grupo (vem sem descanso).
+    let nextInGroup: String?
     @ObservedObject var store: WorkoutSessionStore
     @Binding var inputs: [SetInput]
     let previous: [Int: SetLogEntry]
@@ -874,6 +1066,14 @@ private struct ExerciseSessionRow: View {
 
     private var doneCount: Int { store.doneCount(exercise: exercise.id) }
     private var isComplete: Bool { exercise.sets > 0 && doneCount == exercise.sets }
+    /// Num grupo, só o último exercício da volta tem descanso depois da série.
+    private var restsAfterSet: Bool { group?.isLast ?? true }
+    private var prescriptionText: String {
+        let base = "\(exercise.sets) séries · \(exercise.displayReps)"
+        guard let group else { return "\(base) · descanso de \(exercise.rest)s" }
+        if group.isLast { return base }
+        return "\(base) · sem descanso, siga para o \(nextInGroup ?? "próximo")"
+    }
     private var visibleEquipment: String? {
         guard let equipment = exercise.equipment?.trimmingCharacters(in: .whitespacesAndNewlines),
               !equipment.isEmpty,
@@ -887,6 +1087,15 @@ private struct ExerciseSessionRow: View {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 6) {
+                            if let group {
+                                Text(group.badge)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(FitTheme.orange)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(FitTheme.orange.opacity(0.14), in: Capsule())
+                                    .accessibilityLabel("\(group.title), exercício \(group.position) de \(group.size)")
+                            }
                             Text(exercise.name)
                                 .font(.headline)
                                 .foregroundStyle(FitTheme.primaryText)
@@ -897,10 +1106,15 @@ private struct ExerciseSessionRow: View {
                                     .foregroundStyle(FitTheme.orange)
                             }
                         }
-                        Text("\(exercise.sets) séries · \(exercise.displayReps) · descanso de \(exercise.rest)s")
+                        Text(prescriptionText)
                             .font(.caption)
                             .foregroundStyle(FitTheme.orange)
                             .multilineTextAlignment(.leading)
+                        if group?.isLast == true {
+                            Label("Descanso após a volta: \(exercise.rest)s", systemImage: "timer")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(FitTheme.primaryText)
+                        }
                         if let target = exercise.loadPrescriptionSummary {
                             Label {
                                 Text("Meta: \(target)")
@@ -1120,7 +1334,13 @@ private struct ExerciseSessionRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(done ? "Série \(index + 1) concluída" : "Concluir série \(index + 1)")
-        .accessibilityHint(done ? "Toque duas vezes para desfazer" : "Toque duas vezes para iniciar o descanso")
+        .accessibilityHint(completionHint(done: done))
+    }
+
+    private func completionHint(done: Bool) -> String {
+        if done { return "Toque duas vezes para desfazer" }
+        if restsAfterSet { return "Toque duas vezes para iniciar o descanso" }
+        return "Toque duas vezes e siga, sem descanso, para o \(nextInGroup ?? "próximo exercício")"
     }
 
     private func formattedWeight(_ value: Double) -> String {
@@ -1133,6 +1353,8 @@ private struct ExerciseSessionRow: View {
 private struct RestTimerBar: View {
     let remaining: Int
     let total: Int
+    /// "A seguir: A1 · Supino reto · série 2/3", na ordem da sessão.
+    let nextUp: String?
     let onSkip: () -> Void
     let onExtend: () -> Void
 
@@ -1155,6 +1377,12 @@ private struct RestTimerBar: View {
                 }
                 ProgressView(value: Double(remaining), total: Double(max(total, 1)))
                     .tint(FitTheme.orange)
+                if let nextUp {
+                    Text(nextUp)
+                        .font(.caption2)
+                        .foregroundStyle(FitTheme.secondaryText)
+                        .lineLimit(1)
+                }
             }
             Button("+15s", action: onExtend)
                 .font(.caption.bold())
@@ -1173,7 +1401,7 @@ private struct RestTimerBar: View {
                 .stroke(FitTheme.orange.opacity(0.3))
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Descanso, \(remaining) segundos restantes")
+        .accessibilityLabel("Descanso, \(remaining) segundos restantes" + (nextUp.map { ". \($0)" } ?? ""))
     }
 
     private var durationText: String {
@@ -1221,6 +1449,8 @@ struct TodayWorkoutSessionView: View {
 struct ExerciseDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     let exercise: ExerciseItem
+    /// Bi-set, tri-set ou circuito do exercício (nil fora de grupo).
+    var group: WorkoutGroups.Info? = nil
 
     var body: some View {
         NavigationStack {
@@ -1241,10 +1471,20 @@ struct ExerciseDetailSheet: View {
                         }
                     }
 
+                    if let group {
+                        Label("\(group.title) · exercício \(group.badge): uma série de cada, em sequência, e descanso só ao fim da volta.", systemImage: "link")
+                            .font(.subheadline)
+                            .foregroundStyle(FitTheme.secondaryText)
+                    }
+
                     HStack(spacing: 12) {
                         MetricPill(icon: "square.stack.3d.up", value: "\(exercise.sets)", label: "séries")
                         MetricPill(icon: "repeat", value: exercise.displayReps, label: "repetições", tint: FitTheme.green)
-                        MetricPill(icon: "timer", value: "\(exercise.rest)s", label: "descanso", tint: FitTheme.blue)
+                        if let group, !group.isLast {
+                            MetricPill(icon: "timer", value: "—", label: "sem descanso", tint: FitTheme.blue)
+                        } else {
+                            MetricPill(icon: "timer", value: "\(exercise.rest)s", label: group == nil ? "descanso" : "após a volta", tint: FitTheme.blue)
+                        }
                     }
 
                     if exercise.loadPrescriptionSummary != nil {
