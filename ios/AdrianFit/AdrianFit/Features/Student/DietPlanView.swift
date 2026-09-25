@@ -231,7 +231,9 @@ struct DietPlanView: View {
             for food in meal.foods {
                 let quantity = food.quantity?.value ?? 0
                 let totalCalories = food.totalCalories?.value ?? ((food.calories?.value ?? 0) * quantity)
-                if quantity <= 0 || quantity > 20 || totalCalories <= 0 || totalCalories > 2_500 {
+                // Um item sem calorias (água, café ou tempero) deve ser
+                // sinalizado individualmente, não bloquear a dieta inteira.
+                if quantity <= 0 || quantity > 20 || totalCalories > 2_500 {
                     return "Seu plano alimentar foi bloqueado temporariamente porque há porções ou calorias que precisam de revisão pelo personal."
                 }
             }
@@ -278,6 +280,15 @@ enum WaterStore {
     static func set(_ value: Int) {
         UserDefaults.standard.set(max(0, min(value, 20)), forKey: key)
     }
+
+    static func litersText(for cups: Int) -> String {
+        (Double(cups) * 0.25)
+            .formatted(
+                .number
+                    .locale(Locale(identifier: "pt_BR"))
+                    .precision(.fractionLength(0...2))
+            )
+    }
 }
 
 extension DietPlanView {
@@ -289,7 +300,7 @@ extension DietPlanView {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(FitTheme.blue)
                     Spacer()
-                    Text("\(waterCups) de \(WaterStore.goal) copos • \(Int(Double(waterCups) * 0.25 * 10) / 10 == 0 ? "0" : String(format: "%.2g", Double(waterCups) * 0.25))L")
+                    Text("\(waterCups) de \(WaterStore.goal) copos • \(WaterStore.litersText(for: waterCups))L")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(FitTheme.secondaryText)
                 }

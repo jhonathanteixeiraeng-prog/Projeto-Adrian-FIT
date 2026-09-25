@@ -10,56 +10,132 @@
 		09691D4CB913C389F59325DE /* StudentProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */; };
 		228D862FAEE22B26C2D191E4 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */; };
 		25F2F21CAE87A9F22D3AD2CF /* DietPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5B2A6EE3658D054E31DCB9 /* DietPlanEditorView.swift */; };
+		29ACC1978FBB0E9A16D11DE2 /* WatchWorkoutConnectivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB2A67EB6663085BA90C4AD3 /* WatchWorkoutConnectivity.swift */; };
 		29BF72AA95DBD403E22D5F40 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 49CE12635CF08E9242E49655 /* Assets.xcassets */; };
+		30235EA4079D77197BB991EB /* WatchHealthWorkoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F43FDA7B56DE65B59A5C5A3E /* WatchHealthWorkoutManager.swift */; };
 		309D779D17748975878C82DA /* ReminderPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D04A1EB0ABEBDAB47164AF82 /* ReminderPreferencesView.swift */; };
 		37B0B2A62D0666D544D224E8 /* ProgressPhotosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282505F33B3A7F95F84F99C0 /* ProgressPhotosView.swift */; };
 		3B2EB812A280C641B4B4E32D /* DietPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC72FA13486BD5EA02350A05 /* DietPlanView.swift */; };
 		406427EA9F74BA8B0535EF81 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02B08CCC7BC0230A9575B914 /* LoginView.swift */; };
 		483E8DCC5F0316EE2B540E0B /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461A38547D890B6CA0441458 /* APIClient.swift */; };
+		509F6D308C95A6E15CAF5FA7 /* AdrianFitWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 66915534CD0F5A3FF1FC1565 /* AdrianFitWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5496DA5A451D02FBD77D6E28 /* StudentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9820640308665F0E60F707B /* StudentsView.swift */; };
+		59B7122277AC2B1B5BAC4585 /* RestTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C86B0F7D9E1D1E23F1E74D91 /* RestTimerLiveActivity.swift */; };
 		5C83D19CA0C29752E86410D1 /* PlansHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E7D3BFB45923E1F61FE1B6 /* PlansHubView.swift */; };
 		7438AC0D439AA027716A5187 /* ExercisesLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50838CCB841DA9EBDE469D7 /* ExercisesLibraryView.swift */; };
 		765729F5322E3808016A8993 /* ChatViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */; };
 		8429C62D34B7A2273CC6F784 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */; };
+		89930A245213DF1D9C80D7C2 /* AdrianFitWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 69C4B794C933F35DCD61BED8 /* AdrianFitWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		89DAA0766FC8E28F073CFC44 /* WorkoutWatchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60397181D8F86D402A00AFDE /* WorkoutWatchView.swift */; };
 		8E1F8108FB4BEFE3372ECD64 /* StudentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */; };
 		9A1E04BBA7BE5303BD8F83E3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 93F37C084CC98A4B63CE800C /* PrivacyInfo.xcprivacy */; };
+		9B041916DBF51C6BFB6E59B8 /* AdrianFitWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B789A57ACD4750742EAFF7 /* AdrianFitWatchApp.swift */; };
 		9B455621DFA2797D90F5751E /* PersonalDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */; };
 		9F73CB08EA5FCAEF1F25680D /* AdrianFitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A3E81491D666CBB30693A68 /* AdrianFitApp.swift */; };
 		A0C86F90EF024264B76F051B /* FitTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB93C07918F87807C96E24D /* FitTheme.swift */; };
 		B30175165B22A937E3CD01BC /* StudentFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807FBFDF34C86C3960595F23 /* StudentFormView.swift */; };
+		B34D6E99A22044962EA98C86 /* WorkoutHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9D1F604DFC2F372C7CB0C0 /* WorkoutHistoryView.swift */; };
 		B6761BDD4D807DE66CF58A19 /* EditingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */; };
 		BA6EE04CBAB4B2A28A250130 /* WorkoutPlanEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4752B74E84FC0783BCED7044 /* WorkoutPlanEditorView.swift */; };
 		C65E0401BD137633FA759B3F /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F50CA8CBBD4E648AE826F4 /* Models.swift */; };
+		CC1BD22EB4B84B7FD14E1635 /* WorkoutHistoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67403A0EE65A02FC73E5A91A /* WorkoutHistoryModels.swift */; };
+		D2C58F965E461F3FBA7486A4 /* WatchWorkoutSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3AFD7916200427482B17FDA /* WatchWorkoutSyncModels.swift */; };
+		D433538B4531623F570667A3 /* PhoneWorkoutConnectivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B530567E0C43AB87850F014 /* PhoneWorkoutConnectivity.swift */; };
 		D8DC13F5B92CCD791E642044 /* WorkoutPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */; };
 		D9151447A57EDD37379B2EB8 /* AppShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72A6AC5D3E7BD10994F51710 /* AppShell.swift */; };
+		DF095783C2E18325C742CA5E /* WatchWorkoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29F497E6444839E5432FC2DF /* WatchWorkoutStore.swift */; };
+		F486CD7D0FC7E6904E62AB76 /* RestLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45BA233ED18F2D1903113DB /* RestLiveActivityAttributes.swift */; };
+		F89266C46FBDD6A62654D551 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 49CE12635CF08E9242E49655 /* Assets.xcassets */; };
+		F9BF3EA312724002C8F47CDD /* RestLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0BA31C495A4E17C5E38F775 /* RestLiveActivity.swift */; };
 		FB86131448B3561F3BD3481D /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9072D2471734ED866A3D5E21 /* ProfileView.swift */; };
+		FC19A140AA5D97B050C92BBA /* RestLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45BA233ED18F2D1903113DB /* RestLiveActivityAttributes.swift */; };
+		FC7FA78ABDB8009C3885B8B8 /* WatchWorkoutSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3AFD7916200427482B17FDA /* WatchWorkoutSyncModels.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		665DBC8C97A1570FF56587F4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6ACAA4CCBCA514F32E6DA52C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE8B38B72F29227CBCAF6482;
+			remoteInfo = AdrianFitWidgets;
+		};
+		F4497055183068EBEBFC8E4B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6ACAA4CCBCA514F32E6DA52C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8DC4D33D155EFA43ACE66A13;
+			remoteInfo = AdrianFitWatch;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		92CF352816798812239A4A4C /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				89930A245213DF1D9C80D7C2 /* AdrianFitWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		972FCF11AE18858E03E63D3E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				509F6D308C95A6E15CAF5FA7 /* AdrianFitWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		02B08CCC7BC0230A9575B914 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		02BB9947032887B5E6F17170 /* PersonalDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalDashboardView.swift; sourceTree = "<group>"; };
 		1A3E81491D666CBB30693A68 /* AdrianFitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdrianFitApp.swift; sourceTree = "<group>"; };
 		282505F33B3A7F95F84F99C0 /* ProgressPhotosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressPhotosView.swift; sourceTree = "<group>"; };
+		29F497E6444839E5432FC2DF /* WatchWorkoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWorkoutStore.swift; sourceTree = "<group>"; };
+		33C164F86B1CC33CC9B4047A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3A86196C767B9C7BC99F2822 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3B530567E0C43AB87850F014 /* PhoneWorkoutConnectivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWorkoutConnectivity.swift; sourceTree = "<group>"; };
 		461A38547D890B6CA0441458 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		4752B74E84FC0783BCED7044 /* WorkoutPlanEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlanEditorView.swift; sourceTree = "<group>"; };
 		49CE12635CF08E9242E49655 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentHomeView.swift; sourceTree = "<group>"; };
+		523229225920A1E7A31F0BFF /* AdrianFitWatch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AdrianFitWatch.entitlements; sourceTree = "<group>"; };
+		60397181D8F86D402A00AFDE /* WorkoutWatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutWatchView.swift; sourceTree = "<group>"; };
 		6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlanView.swift; sourceTree = "<group>"; };
+		66915534CD0F5A3FF1FC1565 /* AdrianFitWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AdrianFitWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		67403A0EE65A02FC73E5A91A /* WorkoutHistoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHistoryModels.swift; sourceTree = "<group>"; };
+		69C4B794C933F35DCD61BED8 /* AdrianFitWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AdrianFitWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6E9D1F604DFC2F372C7CB0C0 /* WorkoutHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHistoryView.swift; sourceTree = "<group>"; };
 		72A6AC5D3E7BD10994F51710 /* AppShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShell.swift; sourceTree = "<group>"; };
+		7ABDD0EF67201CAE2087FB02 /* AdrianFit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AdrianFit.entitlements; sourceTree = "<group>"; };
 		7B9D9189F3F28223EBBC9A74 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		7D80E941FD0E10C1CB7A4CB3 /* ChatViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViews.swift; sourceTree = "<group>"; };
 		807FBFDF34C86C3960595F23 /* StudentFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentFormView.swift; sourceTree = "<group>"; };
+		81B789A57ACD4750742EAFF7 /* AdrianFitWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdrianFitWatchApp.swift; sourceTree = "<group>"; };
 		9072D2471734ED866A3D5E21 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		93F37C084CC98A4B63CE800C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AE5FD95549E1539FDA881A26 /* AdrianFit.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AdrianFit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC72FA13486BD5EA02350A05 /* DietPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DietPlanView.swift; sourceTree = "<group>"; };
+		C86B0F7D9E1D1E23F1E74D91 /* RestTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerLiveActivity.swift; sourceTree = "<group>"; };
+		CB2A67EB6663085BA90C4AD3 /* WatchWorkoutConnectivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWorkoutConnectivity.swift; sourceTree = "<group>"; };
 		D04A1EB0ABEBDAB47164AF82 /* ReminderPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderPreferencesView.swift; sourceTree = "<group>"; };
 		D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		D9820640308665F0E60F707B /* StudentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentsView.swift; sourceTree = "<group>"; };
 		D9F50CA8CBBD4E648AE826F4 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		E3AFD7916200427482B17FDA /* WatchWorkoutSyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWorkoutSyncModels.swift; sourceTree = "<group>"; };
+		E45BA233ED18F2D1903113DB /* RestLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestLiveActivityAttributes.swift; sourceTree = "<group>"; };
 		ECB93C07918F87807C96E24D /* FitTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitTheme.swift; sourceTree = "<group>"; };
+		F0BA31C495A4E17C5E38F775 /* RestLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestLiveActivity.swift; sourceTree = "<group>"; };
 		F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProgressView.swift; sourceTree = "<group>"; };
+		F43FDA7B56DE65B59A5C5A3E /* WatchHealthWorkoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchHealthWorkoutManager.swift; sourceTree = "<group>"; };
 		F50838CCB841DA9EBDE469D7 /* ExercisesLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisesLibraryView.swift; sourceTree = "<group>"; };
 		F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingModels.swift; sourceTree = "<group>"; };
 		F7E7D3BFB45923E1F61FE1B6 /* PlansHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlansHubView.swift; sourceTree = "<group>"; };
@@ -75,9 +151,32 @@
 				D04A1EB0ABEBDAB47164AF82 /* ReminderPreferencesView.swift */,
 				4F66FD5423CA6511F1B18417 /* StudentHomeView.swift */,
 				F1D0EC06AFAD0FFECA54E33F /* StudentProgressView.swift */,
+				6E9D1F604DFC2F372C7CB0C0 /* WorkoutHistoryView.swift */,
 				6607126E8B26A4BBE746769F /* WorkoutPlanView.swift */,
 			);
 			path = Student;
+			sourceTree = "<group>";
+		};
+		39D83AD0BEF857093FD9ACFE /* AdrianFitWatch */ = {
+			isa = PBXGroup;
+			children = (
+				523229225920A1E7A31F0BFF /* AdrianFitWatch.entitlements */,
+				81B789A57ACD4750742EAFF7 /* AdrianFitWatchApp.swift */,
+				F43FDA7B56DE65B59A5C5A3E /* WatchHealthWorkoutManager.swift */,
+				CB2A67EB6663085BA90C4AD3 /* WatchWorkoutConnectivity.swift */,
+				29F497E6444839E5432FC2DF /* WatchWorkoutStore.swift */,
+				60397181D8F86D402A00AFDE /* WorkoutWatchView.swift */,
+			);
+			path = AdrianFitWatch;
+			sourceTree = "<group>";
+		};
+		67F58E3741830712B507102E /* AdrianFitWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				33C164F86B1CC33CC9B4047A /* Info.plist */,
+				C86B0F7D9E1D1E23F1E74D91 /* RestTimerLiveActivity.swift */,
+			);
+			path = AdrianFitWidgets;
 			sourceTree = "<group>";
 		};
 		7248789CB7ADF8D090E59C5F /* App */ = {
@@ -93,8 +192,18 @@
 			isa = PBXGroup;
 			children = (
 				AE5FD95549E1539FDA881A26 /* AdrianFit.app */,
+				69C4B794C933F35DCD61BED8 /* AdrianFitWatch.app */,
+				66915534CD0F5A3FF1FC1565 /* AdrianFitWidgets.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		8B92EC1ABD00F501730CD678 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				E3AFD7916200427482B17FDA /* WatchWorkoutSyncModels.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		AD10CF1261E622A05E6C8A35 /* Features */ = {
@@ -115,7 +224,11 @@
 				F5DABBFE9393FE19FE1F1FB1 /* EditingModels.swift */,
 				ECB93C07918F87807C96E24D /* FitTheme.swift */,
 				D9F50CA8CBBD4E648AE826F4 /* Models.swift */,
+				3B530567E0C43AB87850F014 /* PhoneWorkoutConnectivity.swift */,
+				F0BA31C495A4E17C5E38F775 /* RestLiveActivity.swift */,
+				E45BA233ED18F2D1903113DB /* RestLiveActivityAttributes.swift */,
 				D2C1D6F2EE2937874C3FF23D /* SessionStore.swift */,
+				67403A0EE65A02FC73E5A91A /* WorkoutHistoryModels.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -148,6 +261,8 @@
 			isa = PBXGroup;
 			children = (
 				F398ECD92488819B2FDADABF /* AdrianFit */,
+				39D83AD0BEF857093FD9ACFE /* AdrianFitWatch */,
+				67F58E3741830712B507102E /* AdrianFitWidgets */,
 				84ED19BA83FFFBEA5081C095 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -155,12 +270,14 @@
 		F398ECD92488819B2FDADABF /* AdrianFit */ = {
 			isa = PBXGroup;
 			children = (
+				7ABDD0EF67201CAE2087FB02 /* AdrianFit.entitlements */,
 				49CE12635CF08E9242E49655 /* Assets.xcassets */,
 				3A86196C767B9C7BC99F2822 /* Info.plist */,
 				93F37C084CC98A4B63CE800C /* PrivacyInfo.xcprivacy */,
 				7248789CB7ADF8D090E59C5F /* App */,
 				C5A093E32FFBFA46BC3FB3E6 /* Core */,
 				AD10CF1261E622A05E6C8A35 /* Features */,
+				8B92EC1ABD00F501730CD678 /* Shared */,
 			);
 			path = AdrianFit;
 			sourceTree = "<group>";
@@ -182,10 +299,14 @@
 			buildPhases = (
 				C2D448743F5F1C6D5DC2D99B /* Sources */,
 				D3F0D9FC43884CEB032EAD0F /* Resources */,
+				972FCF11AE18858E03E63D3E /* Embed Foundation Extensions */,
+				92CF352816798812239A4A4C /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				9658D8D641BA0044AE81C9C0 /* PBXTargetDependency */,
+				116667D9E504FC8E2B6FC07C /* PBXTargetDependency */,
 			);
 			name = AdrianFit;
 			packageProductDependencies = (
@@ -193,6 +314,41 @@
 			productName = AdrianFit;
 			productReference = AE5FD95549E1539FDA881A26 /* AdrianFit.app */;
 			productType = "com.apple.product-type.application";
+		};
+		8DC4D33D155EFA43ACE66A13 /* AdrianFitWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC11264C8F364663687F1978 /* Build configuration list for PBXNativeTarget "AdrianFitWatch" */;
+			buildPhases = (
+				004DDD75A81B8EAB41EA6331 /* Sources */,
+				EDCE30120192AB2E680117D7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AdrianFitWatch;
+			packageProductDependencies = (
+			);
+			productName = AdrianFitWatch;
+			productReference = 69C4B794C933F35DCD61BED8 /* AdrianFitWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BE8B38B72F29227CBCAF6482 /* AdrianFitWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72B35DE1F8577553CDCB815A /* Build configuration list for PBXNativeTarget "AdrianFitWidgets" */;
+			buildPhases = (
+				6308E5DF1FE3E74426C434E4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AdrianFitWidgets;
+			packageProductDependencies = (
+			);
+			productName = AdrianFitWidgets;
+			productReference = 66915534CD0F5A3FF1FC1565 /* AdrianFitWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -204,7 +360,15 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					030A39E07332FDE158B5B901 = {
-						DevelopmentTeam = 8LC38UCNVW;
+						DevelopmentTeam = Y585ZD869A;
+						ProvisioningStyle = Automatic;
+					};
+					8DC4D33D155EFA43ACE66A13 = {
+						DevelopmentTeam = Y585ZD869A;
+						ProvisioningStyle = Automatic;
+					};
+					BE8B38B72F29227CBCAF6482 = {
+						DevelopmentTeam = Y585ZD869A;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -224,6 +388,8 @@
 			projectRoot = "";
 			targets = (
 				030A39E07332FDE158B5B901 /* AdrianFit */,
+				8DC4D33D155EFA43ACE66A13 /* AdrianFitWatch */,
+				BE8B38B72F29227CBCAF6482 /* AdrianFitWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -238,9 +404,39 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EDCE30120192AB2E680117D7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F89266C46FBDD6A62654D551 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		004DDD75A81B8EAB41EA6331 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B041916DBF51C6BFB6E59B8 /* AdrianFitWatchApp.swift in Sources */,
+				30235EA4079D77197BB991EB /* WatchHealthWorkoutManager.swift in Sources */,
+				29ACC1978FBB0E9A16D11DE2 /* WatchWorkoutConnectivity.swift in Sources */,
+				DF095783C2E18325C742CA5E /* WatchWorkoutStore.swift in Sources */,
+				D2C58F965E461F3FBA7486A4 /* WatchWorkoutSyncModels.swift in Sources */,
+				89DAA0766FC8E28F073CFC44 /* WorkoutWatchView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6308E5DF1FE3E74426C434E4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC19A140AA5D97B050C92BBA /* RestLiveActivityAttributes.swift in Sources */,
+				59B7122277AC2B1B5BAC4585 /* RestTimerLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C2D448743F5F1C6D5DC2D99B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -258,15 +454,21 @@
 				C65E0401BD137633FA759B3F /* Models.swift in Sources */,
 				8429C62D34B7A2273CC6F784 /* NotificationsView.swift in Sources */,
 				9B455621DFA2797D90F5751E /* PersonalDashboardView.swift in Sources */,
+				D433538B4531623F570667A3 /* PhoneWorkoutConnectivity.swift in Sources */,
 				5C83D19CA0C29752E86410D1 /* PlansHubView.swift in Sources */,
 				FB86131448B3561F3BD3481D /* ProfileView.swift in Sources */,
 				37B0B2A62D0666D544D224E8 /* ProgressPhotosView.swift in Sources */,
 				309D779D17748975878C82DA /* ReminderPreferencesView.swift in Sources */,
+				F9BF3EA312724002C8F47CDD /* RestLiveActivity.swift in Sources */,
+				F486CD7D0FC7E6904E62AB76 /* RestLiveActivityAttributes.swift in Sources */,
 				228D862FAEE22B26C2D191E4 /* SessionStore.swift in Sources */,
 				B30175165B22A937E3CD01BC /* StudentFormView.swift in Sources */,
 				8E1F8108FB4BEFE3372ECD64 /* StudentHomeView.swift in Sources */,
 				09691D4CB913C389F59325DE /* StudentProgressView.swift in Sources */,
 				5496DA5A451D02FBD77D6E28 /* StudentsView.swift in Sources */,
+				FC7FA78ABDB8009C3885B8B8 /* WatchWorkoutSyncModels.swift in Sources */,
+				CC1BD22EB4B84B7FD14E1635 /* WorkoutHistoryModels.swift in Sources */,
+				B34D6E99A22044962EA98C86 /* WorkoutHistoryView.swift in Sources */,
 				BA6EE04CBAB4B2A28A250130 /* WorkoutPlanEditorView.swift in Sources */,
 				D8DC13F5B92CCD791E642044 /* WorkoutPlanView.swift in Sources */,
 			);
@@ -274,7 +476,60 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		116667D9E504FC8E2B6FC07C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8DC4D33D155EFA43ACE66A13 /* AdrianFitWatch */;
+			targetProxy = F4497055183068EBEBFC8E4B /* PBXContainerItemProxy */;
+		};
+		9658D8D641BA0044AE81C9C0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE8B38B72F29227CBCAF6482 /* AdrianFitWidgets */;
+			targetProxy = 665DBC8C97A1570FF56587F4 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		0C4AA9123C35094DC7D24EB6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 2;
+				INFOPLIST_FILE = AdrianFitWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit.widgets;
+				PRODUCT_NAME = AdrianFitWidgets;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		23954EE95200D7C832802FE9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AdrianFitWatch/AdrianFitWatch.entitlements;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "O Adrian Fit usa energia ativa e frequência cardíaca durante o treino.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "O Adrian Fit salva seus treinos no app Saúde.";
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.adriansantos.fit;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit.watchkitapp;
+				PRODUCT_NAME = "Adrian Fit Watch";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
 		2E74C2995027D7CCDD373AD3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -311,7 +566,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 8LC38UCNVW;
+				DEVELOPMENT_TEAM = Y585ZD869A;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -333,10 +588,10 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Debug;
 		};
@@ -344,12 +599,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AdrianFit/AdrianFit.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AdrianFit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "O Adrian Fit usa seus dados de treino para exibir calorias e frequência cardíaca no histórico.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "O Adrian Fit salva no app Saúde os treinos iniciados pelo Apple Watch.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -366,16 +625,42 @@
 			};
 			name = Release;
 		};
+		5CF43DECF41A314A29B352D7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AdrianFitWatch/AdrianFitWatch.entitlements;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "O Adrian Fit usa energia ativa e frequência cardíaca durante o treino.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "O Adrian Fit salva seus treinos no app Saúde.";
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.adriansantos.fit;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit.watchkitapp;
+				PRODUCT_NAME = "Adrian Fit Watch";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
 		68E4B4A0B9F90F237E108F28 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AdrianFit/AdrianFit.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AdrianFit/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Adrian Fit";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "O Adrian Fit usa seus dados de treino para exibir calorias e frequência cardíaca no histórico.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "O Adrian Fit salva no app Saúde os treinos iniciados pelo Apple Watch.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -387,6 +672,24 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit;
 				PRODUCT_NAME = "Adrian Fit";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		9BE613CB1AB5BD2EE18D22E6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CURRENT_PROJECT_VERSION = 2;
+				INFOPLIST_FILE = AdrianFitWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adriansantos.fit.widgets;
+				PRODUCT_NAME = AdrianFitWidgets;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -428,7 +731,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 8LC38UCNVW;
+				DEVELOPMENT_TEAM = Y585ZD869A;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -443,10 +746,10 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Release;
 		};
@@ -462,11 +765,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		72B35DE1F8577553CDCB815A /* Build configuration list for PBXNativeTarget "AdrianFitWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9BE613CB1AB5BD2EE18D22E6 /* Debug */,
+				0C4AA9123C35094DC7D24EB6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		7CF7F0E087D286E45E3EA43A /* Build configuration list for PBXNativeTarget "AdrianFit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				68E4B4A0B9F90F237E108F28 /* Debug */,
 				5313050B1923A12E5B09C258 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BC11264C8F364663687F1978 /* Build configuration list for PBXNativeTarget "AdrianFitWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				23954EE95200D7C832802FE9 /* Debug */,
+				5CF43DECF41A314A29B352D7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

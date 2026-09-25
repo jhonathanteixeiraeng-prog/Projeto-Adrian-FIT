@@ -43,8 +43,18 @@ struct WorkoutItemDetail: Codable, Identifiable, Sendable {
 
 struct WorkoutPlanUpdateBody: Encodable {
     let title: String
+    let startDate: String?
+    let endDate: String?
     let active: Bool
     let workoutDays: [WorkoutDayBody]
+
+    init(title: String, startDate: String? = nil, endDate: String? = nil, active: Bool, workoutDays: [WorkoutDayBody]) {
+        self.title = title
+        self.startDate = startDate
+        self.endDate = endDate
+        self.active = active
+        self.workoutDays = workoutDays
+    }
 }
 
 struct WorkoutDayBody: Encodable {
@@ -60,6 +70,17 @@ struct WorkoutItemBody: Encodable {
     let rest: Int
     let restBySet: String?
     let notes: String
+    let order: Int?
+
+    init(exerciseId: String, sets: Int, reps: String, rest: Int, restBySet: String?, notes: String, order: Int? = nil) {
+        self.exerciseId = exerciseId
+        self.sets = sets
+        self.reps = reps
+        self.rest = rest
+        self.restBySet = restBySet
+        self.notes = notes
+        self.order = order
+    }
 }
 
 // Estado editável em memória
@@ -211,11 +232,9 @@ struct FoodSearchItem: Codable, Identifiable, Sendable {
 // MARK: - Geração automática de dieta (POST /api/diets/generate)
 
 struct GeneratedDietPlan: Codable, Sendable {
-    let calories: Int
-    let protein: Int
-    let carbs: Int
-    let fat: Int
+    let title: String
     let meals: [GeneratedDietMeal]
+    let warnings: [String]
 }
 
 struct GeneratedDietMeal: Codable, Sendable {
@@ -225,7 +244,6 @@ struct GeneratedDietMeal: Codable, Sendable {
 }
 
 struct GeneratedDietFood: Codable, Sendable {
-    let foodId: String
     let name: String
     let quantity: Double
     let portion: String
@@ -233,7 +251,7 @@ struct GeneratedDietFood: Codable, Sendable {
     let protein: Double
     let carbs: Double
     let fat: Double
-    let substitutionNote: String?
+    let notes: String
 }
 
 // MARK: - Criação de planos vazios
@@ -244,7 +262,26 @@ struct WorkoutPlanCreateBody: Encodable {
     let startDate: String
     let endDate: String
     let active: Bool
+    let saveAsTemplate: Bool?
     let workoutDays: [WorkoutDayBody]
+
+    init(
+        title: String,
+        studentId: String,
+        startDate: String,
+        endDate: String,
+        active: Bool,
+        saveAsTemplate: Bool? = nil,
+        workoutDays: [WorkoutDayBody]
+    ) {
+        self.title = title
+        self.studentId = studentId
+        self.startDate = startDate
+        self.endDate = endDate
+        self.active = active
+        self.saveAsTemplate = saveAsTemplate
+        self.workoutDays = workoutDays
+    }
 }
 
 struct DietPlanCreateBody: Encodable {
@@ -264,6 +301,7 @@ struct DietCreateMealBody: Encodable {
 }
 
 struct DietCreateItemBody: Encodable {
+    let foodId: String?
     let name: String
     let portion: String
     let quantity: Double
@@ -271,4 +309,10 @@ struct DietCreateItemBody: Encodable {
     let protein: Double
     let carbs: Double
     let fat: Double
+    let notes: String?
+}
+
+struct DietTemplateCreateBody: Encodable {
+    let title: String
+    let meals: [DietCreateMealBody]
 }

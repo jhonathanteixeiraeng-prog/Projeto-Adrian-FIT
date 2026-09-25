@@ -6,7 +6,18 @@ struct WorkoutPlanEditorView: View {
     @Environment(\.apiClient) private var api
     @Environment(\.dismiss) private var dismiss
 
-    let planId: String
+    let planId: String?
+
+    init(planId: String) {
+        self.planId = planId
+        _loading = State(initialValue: true)
+    }
+
+    init(newFor studentId: String? = nil) {
+        planId = nil
+        _selectedStudentId = State(initialValue: studentId ?? "")
+        _loading = State(initialValue: true)
+    }
 
     @State private var title = ""
     @State private var days: [EditableWorkoutDay] = []
@@ -15,8 +26,16 @@ struct WorkoutPlanEditorView: View {
     @State private var error: String?
     @State private var pickerDayId: UUID?
     @State private var showSaved = false
+    @State private var students: [StudentListItem] = []
+    @State private var selectedStudentId = ""
+    @State private var startDate = Date.now
+    @State private var endDate = Calendar.current.date(byAdding: .day, value: 90, to: .now) ?? .now
+    @State private var active = true
+    @State private var saveAsTemplate = false
 
     private var safetyIssue: String? {
+        if planId == nil && selectedStudentId.isEmpty { return "Selecione o aluno que receberá o treino." }
+        if endDate < startDate { return "A data final deve ser posterior à data inicial." }
         if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Informe o título do plano." }
         if days.isEmpty { return "Adicione pelo menos um dia de treino." }
         for day in days {
@@ -42,11 +61,11 @@ struct WorkoutPlanEditorView: View {
             } else { editor }
         }
         .fitScreen()
-        .navigationTitle("Editar treino")
+        .navigationTitle(planId == nil ? "Novo treino" : "Editar treino")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button(saving ? "Salvando…" : "Salvar") { Task { await save() } }
+                Button(saving ? "Salvando…" : (active ? "Salvar e enviar" : "Salvar inativo")) { Task { await save() } }
                     .disabled(saving || loading || safetyIssue != nil)
                     .fontWeight(.semibold)
             }
@@ -60,7 +79,11 @@ struct WorkoutPlanEditorView: View {
         }
         .alert("Treino salvo", isPresented: $showSaved) {
             Button("OK") { dismiss() }
-        } message: { Text("As alterações já estão disponíveis para o aluno.") }
+        } message: {
+            Text(active
+                 ? "As alterações já estão disponíveis para o aluno."
+                 : "O treino foi salvo como inativo e não aparecerá para o aluno.")
+        }
         .alert("Erro", isPresented: Binding(get: { error != nil && !loading && !(days.isEmpty && title.isEmpty) }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(error ?? "") }
@@ -68,6 +91,24 @@ struct WorkoutPlanEditorView: View {
 
     private var editor: some View {
         List {
+            Section("Destino e período") {
+                if planId == nil {
+                    Picker("Aluno", selection: $selectedStudentId) {
+                        Text("Selecione o aluno").tag("")
+                        ForEach(students) { student in
+                            Text(student.user.name).tag(student.id)
+                        }
+                    }
+                }
+                DatePicker("Início", selection: $startDate, displayedComponents: .date)
+                DatePicker("Término", selection: $endDate, displayedComponents: .date)
+                Toggle("Ativo no app do aluno", isOn: $active).tint(FitTheme.orange)
+                if planId == nil {
+                    Toggle("Também salvar como modelo", isOn: $saveAsTemplate).tint(FitTheme.orange)
+                }
+            }
+            .listRowBackground(FitTheme.surface)
+
             Section {
                 TextField("Título do plano", text: $title)
                     .font(.headline)
@@ -152,8 +193,19 @@ struct WorkoutPlanEditorView: View {
         loading = true
         defer { loading = false }
         do {
-            let plan: WorkoutPlanDetail = try await api.getRaw("/api/workout-plans/\(planId)")
+            async let studentRequest: [StudentListItem] = api.get("/api/students")
+            guard let planId else {
+                students = try await studentRequest
+                error = nil
+                return
+            }
+            async let planRequest: WorkoutPlanDetail = api.getRaw("/api/workout-plans/\(planId)")
+            let (plan, loadedStudents) = try await (planRequest, studentRequest)
+            students = loadedStudents
             title = plan.title
+            active = plan.active
+            startDate = Self.parseDate(plan.startDate) ?? startDate
+            endDate = Self.parseDate(plan.endDate) ?? endDate
             days = plan.workoutDays.map { day in
                 EditableWorkoutDay(
                     name: day.name,
@@ -179,27 +231,49 @@ struct WorkoutPlanEditorView: View {
         if let safetyIssue { error = safetyIssue; return }
         saving = true
         defer { saving = false }
-        let body = WorkoutPlanUpdateBody(
-            title: title.isEmpty ? "Plano de treino" : title,
-            active: true,
-            workoutDays: days.map { day in
+        let workoutDays = days.map { day in
                 WorkoutDayBody(
                     name: day.name.isEmpty ? "Dia de treino" : day.name,
                     dayOfWeek: day.dayOfWeek,
-                    items: day.items.map { item in
+                    items: day.items.enumerated().map { index, item in
                         WorkoutItemBody(
                             exerciseId: item.exerciseId, sets: item.sets, reps: item.reps, rest: item.rest,
                             restBySet: item.customRest ? encodeRests(item.restBySet) : nil,
-                            notes: item.notes
+                            notes: item.notes,
+                            order: index
                         )
                     }
                 )
             }
-        )
         do {
-            let _: WorkoutPlanDetail = try await api.put("/api/workout-plans/\(planId)", body: body)
+            if let planId {
+                let body = WorkoutPlanUpdateBody(
+                    title: title.isEmpty ? "Plano de treino" : title,
+                    startDate: ISO8601DateFormatter().string(from: startDate),
+                    endDate: ISO8601DateFormatter().string(from: endDate),
+                    active: active,
+                    workoutDays: workoutDays
+                )
+                let _: WorkoutPlanDetail = try await api.put("/api/workout-plans/\(planId)", body: body)
+            } else {
+                let body = WorkoutPlanCreateBody(
+                    title: title,
+                    studentId: selectedStudentId,
+                    startDate: ISO8601DateFormatter().string(from: startDate),
+                    endDate: ISO8601DateFormatter().string(from: endDate),
+                    active: active,
+                    saveAsTemplate: saveAsTemplate,
+                    workoutDays: workoutDays
+                )
+                let _: WorkoutPlanDetail = try await api.post("/api/workout-plans", body: body)
+            }
             showSaved = true
         } catch { self.error = error.localizedDescription }
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        (try? Date(value, strategy: .iso8601.year().month().day().timeZone(separator: .omitted).time(includingFractionalSeconds: true)))
+            ?? (try? Date(value, strategy: .iso8601))
     }
 
     private func decodeRests(_ value: String?, sets: Int, fallback: Int) -> [Int] {

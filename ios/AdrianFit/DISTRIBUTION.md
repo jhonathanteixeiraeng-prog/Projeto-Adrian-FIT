@@ -10,7 +10,7 @@
 - Dispositivo: iPhone
 - Orientação: retrato
 - Assinatura: automática
-- Team ID: `8LC38UCNVW`
+- Team ID: `Y585ZD869A`
 - Criptografia não isenta: não
 - Privacy Manifest: incluído
 - App Icon 1024 × 1024: incluído
@@ -18,7 +18,7 @@
 ## Gerar Archive
 
 1. Abra Xcode → Settings → Accounts e adicione a conta Apple Developer.
-2. Confirme que a equipe `8LC38UCNVW` aparece e que a assinatura automática está ativa.
+2. Confirme que a equipe `Y585ZD869A` aparece e que a assinatura automática está ativa.
 3. Execute:
 
 ```bash

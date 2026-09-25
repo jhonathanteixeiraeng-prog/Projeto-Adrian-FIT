@@ -70,6 +70,10 @@ struct StudentProgressView: View {
                     MetricPill(icon: "flame.fill", value: "\(WorkoutHistoryStore.totalWorkouts)", label: "treinos no total", tint: FitTheme.orange)
                 }
 
+                NavigationLink { WorkoutHistoryView() } label: {
+                    ProgressWorkoutHistoryEntry()
+                }.buttonStyle(.plain)
+
                 NavigationLink { ProgressPhotosView() } label: {
                     ProgressPhotosEntry()
                 }.buttonStyle(.plain)
@@ -123,6 +127,9 @@ struct StudentProgressView: View {
                     }
                 }
 
+                NavigationLink { WorkoutHistoryView() } label: {
+                    ProgressWorkoutHistoryEntry()
+                }.buttonStyle(.plain)
 
                 NavigationLink { ProgressPhotosView() } label: {
                     ProgressPhotosEntry()
@@ -200,6 +207,26 @@ struct StudentProgressView: View {
         defer { loading = false }
         do { checkins = try await api.get("/api/checkins"); error = nil }
         catch { self.error = error.localizedDescription }
+    }
+}
+
+private struct ProgressWorkoutHistoryEntry: View {
+    var body: some View {
+        SurfaceCard {
+            HStack(spacing: 14) {
+                Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                    .font(.title2)
+                    .foregroundStyle(FitTheme.green)
+                    .frame(width: 48, height: 48)
+                    .background(FitTheme.green.opacity(0.14), in: RoundedRectangle(cornerRadius: 15))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Histórico de treinos").font(.headline).foregroundStyle(FitTheme.primaryText)
+                    Text("Cargas, volume, duração e recordes").font(.caption).foregroundStyle(FitTheme.secondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(FitTheme.secondaryText)
+            }
+        }
     }
 }
 

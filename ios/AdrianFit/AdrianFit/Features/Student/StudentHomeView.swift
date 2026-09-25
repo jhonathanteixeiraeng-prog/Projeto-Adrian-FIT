@@ -9,6 +9,7 @@ struct StudentHomeView: View {
     @State private var personalUserId: String?
     @State private var localStats = (week: 0, total: 0)
     @State private var weeklyGoal = 0
+    @State private var remoteWeeklyStreak: Int?
     @State private var dietPlan: DietPlan?
     @State private var completedMealIds: Set<String> = []
     @State private var mealToggleFeedback: String?
@@ -29,6 +30,13 @@ struct StudentHomeView: View {
         .sensoryFeedback(.success, trigger: mealToggleFeedback)
         .refreshable { await load() }
         .task { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutHistoryDidChange)) { _ in
+            localStats = (WorkoutHistoryStore.workoutsThisWeek, WorkoutHistoryStore.totalWorkouts)
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                await refreshWorkoutStats()
+            }
+        }
     }
 
     private var header: some View {
@@ -88,7 +96,7 @@ struct StudentHomeView: View {
             )
             MetricPill(
                 icon: "flame.fill",
-                value: "\(WorkoutHistoryStore.weeklyStreak(goal: max(weeklyGoal, 1)))",
+                value: "\(remoteWeeklyStreak ?? WorkoutHistoryStore.weeklyStreak(goal: max(weeklyGoal, 1)))",
                 label: "semanas na meta",
                 tint: FitTheme.orange
             )
@@ -100,10 +108,10 @@ struct StudentHomeView: View {
                 HStack {
                     Label("PRÓXIMO MARCO", systemImage: "trophy.fill").font(.caption.bold()).foregroundStyle(FitTheme.orange)
                     Spacer()
-                    Text("\(localStats.total)/\(WorkoutHistoryStore.nextMilestone)").font(.caption.monospacedDigit()).foregroundStyle(FitTheme.secondaryText)
+                    Text("\(localStats.total)/\(nextMilestone)").font(.caption.monospacedDigit()).foregroundStyle(FitTheme.secondaryText)
                 }
                 Text(milestoneTitle).font(.headline)
-                ProgressView(value: Double(localStats.total), total: Double(WorkoutHistoryStore.nextMilestone)).tint(FitTheme.orange)
+                ProgressView(value: Double(localStats.total), total: Double(nextMilestone)).tint(FitTheme.orange)
             }
         }
 
@@ -317,8 +325,13 @@ struct StudentHomeView: View {
     }
 
     private var milestoneTitle: String {
-        let remaining = max(WorkoutHistoryStore.nextMilestone - localStats.total, 0)
+        let remaining = max(nextMilestone - localStats.total, 0)
         return remaining == 1 ? "Falta 1 treino para seu próximo marco" : "Faltam \(remaining) treinos para seu próximo marco"
+    }
+
+    private var nextMilestone: Int {
+        [1, 5, 10, 25, 50, 100].first(where: { $0 > localStats.total })
+            ?? (((localStats.total / 100) + 1) * 100)
     }
 
     private func load() async {
@@ -340,9 +353,26 @@ struct StudentHomeView: View {
             weeklyGoal = plan.workoutDays.filter { !$0.isRestDay && !$0.exercises.isEmpty }.count
         }
 
+        await refreshWorkoutStats()
+
         if let diet: DietPlan = try? await api.get("/api/student/diet") {
             dietPlan = diet
             completedMealIds = Set(diet.meals.filter { $0.completed == true }.map(\.id))
+        }
+    }
+
+    private func refreshWorkoutStats() async {
+        let local = (week: WorkoutHistoryStore.workoutsThisWeek, total: WorkoutHistoryStore.totalWorkouts)
+        let today = Date.now.formatted(.iso8601.year().month().day())
+        if let history: WorkoutHistoryResponse = try? await api.get("/api/student/workout/history?today=\(today)") {
+            localStats = (
+                max(local.week, history.summary.workoutsThisWeek),
+                max(local.total, history.summary.totalWorkouts)
+            )
+            weeklyGoal = max(weeklyGoal, history.summary.weeklyGoal)
+            remoteWeeklyStreak = history.summary.weeklyStreak
+        } else {
+            localStats = local
         }
     }
 

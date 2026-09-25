@@ -79,6 +79,15 @@ private struct WorkoutPlansListView: View {
             Button("Excluir", role: .destructive) { Task { await deletePlan() } }
             Button("Cancelar", role: .cancel) { pendingDelete = nil }
         } message: { Text("O aluno perde o acesso a este treino. Essa ação não pode ser desfeita.") }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink {
+                    WorkoutPlanEditorView(newFor: nil)
+                } label: {
+                    Label("Novo treino", systemImage: "plus")
+                }
+            }
+        }
         .task { await load() }
         .refreshable { await load() }
     }
@@ -120,6 +129,15 @@ private struct DietPlansListView: View {
             Button("Excluir", role: .destructive) { Task { await deletePlan() } }
             Button("Cancelar", role: .cancel) { pendingDelete = nil }
         } message: { Text("O aluno perde o acesso a esta dieta. Essa ação não pode ser desfeita.") }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink {
+                    DietPlanEditorView(newFor: nil)
+                } label: {
+                    Label("Nova dieta", systemImage: "plus")
+                }
+            }
+        }
         .task { await load() }
         .refreshable { await load() }
     }
@@ -138,6 +156,7 @@ private struct TemplatesListView: View {
     @State private var diets: [DietTemplateSummary] = []
     @State private var error: String?
     @State private var loading = true
+    @State private var pendingDelete: TemplateDeletion?
 
     var body: some View {
         Group {
@@ -152,6 +171,11 @@ private struct TemplatesListView: View {
                                 NavigationLink { WorkoutTemplateDetailView(template: template) } label: {
                                     PlanListRow(title: template.title, student: "Modelo de treino", detail: "\(template.templateDays.count) dias", active: true, color: FitTheme.blue)
                                 }
+                                .swipeActions {
+                                    Button(role: .destructive) { pendingDelete = .workout(template.id) } label: {
+                                        Label("Excluir", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
@@ -161,6 +185,11 @@ private struct TemplatesListView: View {
                                 NavigationLink { DietTemplateDetailView(template: template) } label: {
                                     PlanListRow(title: template.title, student: "Modelo alimentar", detail: "\(template.meals.count) refeições", active: true, color: FitTheme.green)
                                 }
+                                .swipeActions {
+                                    Button(role: .destructive) { pendingDelete = .diet(template.id) } label: {
+                                        Label("Excluir", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
@@ -168,6 +197,21 @@ private struct TemplatesListView: View {
             }
         }
         .fitScreen().navigationTitle("Modelos")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink {
+                    DietPlanEditorView(newFor: nil, asTemplate: true)
+                } label: {
+                    Label("Novo modelo alimentar", systemImage: "plus")
+                }
+            }
+        }
+        .confirmationDialog("Excluir modelo?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
+            Button("Excluir", role: .destructive) { Task { await deleteTemplate() } }
+            Button("Cancelar", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("O modelo será removido da biblioteca. Os planos já atribuídos aos alunos não serão alterados.")
+        }
         .task { await load() }.refreshable { await load() }
     }
 
@@ -180,6 +224,30 @@ private struct TemplatesListView: View {
             (workouts, diets) = try await (workoutRequest, dietRequest)
             error = nil
         } catch { self.error = error.localizedDescription }
+    }
+
+    private func deleteTemplate() async {
+        guard let pendingDelete else { return }
+        self.pendingDelete = nil
+        do {
+            switch pendingDelete {
+            case .workout(let id): try await api.delete("/api/workout-templates/\(id)")
+            case .diet(let id): try await api.delete("/api/diet-templates/\(id)")
+            }
+            await load()
+        } catch { self.error = error.localizedDescription }
+    }
+}
+
+private enum TemplateDeletion: Identifiable {
+    case workout(String)
+    case diet(String)
+
+    var id: String {
+        switch self {
+        case .workout(let id): "workout-\(id)"
+        case .diet(let id): "diet-\(id)"
+        }
     }
 }
 

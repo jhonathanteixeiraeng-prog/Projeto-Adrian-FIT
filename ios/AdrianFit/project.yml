@@ -3,10 +3,11 @@ options:
   bundleIdPrefix: com.adriansantos
   deploymentTarget:
     iOS: "17.0"
+    watchOS: "10.0"
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    DEVELOPMENT_TEAM: 8LC38UCNVW
+    DEVELOPMENT_TEAM: Y585ZD869A
     CODE_SIGN_STYLE: Automatic
 targets:
   AdrianFit:
@@ -14,12 +15,16 @@ targets:
     platform: iOS
     sources:
       - AdrianFit
+    dependencies:
+      - target: AdrianFitWidgets
+        embed: true
+      - target: AdrianFitWatch
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.adriansantos.fit
         PRODUCT_NAME: Adrian Fit
         MARKETING_VERSION: 1.0.0
-        CURRENT_PROJECT_VERSION: 1
+        CURRENT_PROJECT_VERSION: 2
         GENERATE_INFOPLIST_FILE: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: Adrian Fit
@@ -27,7 +32,48 @@ targets:
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
+        INFOPLIST_KEY_NSSupportsLiveActivities: true
+        INFOPLIST_KEY_NSHealthShareUsageDescription: O Adrian Fit usa seus dados de treino para exibir calorias e frequência cardíaca no histórico.
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: O Adrian Fit salva no app Saúde os treinos iniciados pelo Apple Watch.
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        CODE_SIGN_ENTITLEMENTS: AdrianFit/AdrianFit.entitlements
         TARGETED_DEVICE_FAMILY: "1"
     scheme:
       testTargets: []
+  AdrianFitWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - AdrianFitWidgets
+      - AdrianFit/Core/RestLiveActivityAttributes.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.adriansantos.fit.widgets
+        PRODUCT_NAME: AdrianFitWidgets
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 2
+        INFOPLIST_FILE: AdrianFitWidgets/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+  AdrianFitWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - AdrianFitWatch
+      - AdrianFit/Shared/WatchWorkoutSyncModels.swift
+      - AdrianFit/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.adriansantos.fit.watchkitapp
+        PRODUCT_NAME: Adrian Fit Watch
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 2
+        GENERATE_INFOPLIST_FILE: true
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: Adrian Fit
+        INFOPLIST_KEY_WKApplication: true
+        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.adriansantos.fit
+        INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: false
+        INFOPLIST_KEY_NSHealthShareUsageDescription: O Adrian Fit usa energia ativa e frequência cardíaca durante o treino.
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: O Adrian Fit salva seus treinos no app Saúde.
+        CODE_SIGN_ENTITLEMENTS: AdrianFitWatch/AdrianFitWatch.entitlements
+        TARGETED_DEVICE_FAMILY: "4"

@@ -12,6 +12,7 @@ struct StudentFull: Codable, Sendable {
     let status: String?
     let user: StudentUser
     let anamnesis: AnamnesisData?
+    let checkins: [CheckinSummary]?
 }
 
 struct AnamnesisData: Codable, Sendable {

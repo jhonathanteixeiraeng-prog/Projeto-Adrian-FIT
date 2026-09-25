@@ -4,17 +4,28 @@ struct DietPlanEditorView: View {
     @Environment(\.apiClient) private var api
     @Environment(\.dismiss) private var dismiss
 
-    let planId: String
+    let planId: String?
     let studentId: String?
 
     init(planId: String, studentId: String? = nil) {
         self.planId = planId
         self.studentId = studentId
+        _loading = State(initialValue: true)
+        _resolvedStudentId = State(initialValue: studentId)
+        _creationMode = State(initialValue: .student)
+    }
+
+    init(newFor studentId: String? = nil, asTemplate: Bool = false) {
+        planId = nil
+        self.studentId = studentId
+        _loading = State(initialValue: true)
+        _resolvedStudentId = State(initialValue: studentId)
+        _creationMode = State(initialValue: asTemplate ? .template : .student)
     }
 
     @State private var title = ""
     @State private var meals: [EditableDietMeal] = []
-    @State private var loading = true
+    @State private var loading: Bool
     @State private var saving = false
     @State private var generating = false
     @State private var error: String?
@@ -22,6 +33,12 @@ struct DietPlanEditorView: View {
     @State private var showSaved = false
     @State private var showGenerationOptions = false
     @State private var resolvedStudentId: String?
+    @State private var students: [StudentListItem] = []
+    @State private var creationMode: DietCreationMode
+    @State private var active = true
+    @State private var warnings: [String] = []
+    @State private var startDate = Date.now
+    @State private var endDate = Calendar.current.date(byAdding: .day, value: 90, to: .now) ?? .now
 
     var body: some View {
         Group {
@@ -31,11 +48,11 @@ struct DietPlanEditorView: View {
             } else { editor }
         }
         .fitScreen()
-        .navigationTitle("Editar dieta")
+        .navigationTitle(planId == nil ? (creationMode == .template ? "Novo modelo" : "Nova dieta") : "Editar dieta")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button(saving ? "Salvando…" : "Salvar") { Task { await save() } }
+                Button(saveButtonTitle) { Task { await save() } }
                     .disabled(saving || loading || generating || safetyIssue != nil)
                     .fontWeight(.semibold)
             }
@@ -48,17 +65,33 @@ struct DietPlanEditorView: View {
             }
         }
         .sheet(isPresented: $showGenerationOptions) {
-            DietGenerationOptionsView { targets in
+            DietGenerationOptionsView(
+                destination: creationMode,
+                studentId: creationMode == .student ? (resolvedStudentId ?? studentId) : nil
+            ) { request in
                 showGenerationOptions = false
-                Task { await generate(targets: targets) }
+                Task { await generate(request: request) }
             }
         }
-        .alert("Dieta salva", isPresented: $showSaved) {
+        .alert(creationMode == .template ? "Modelo salvo" : "Dieta salva", isPresented: $showSaved) {
             Button("OK") { dismiss() }
-        } message: { Text("As alterações já estão disponíveis para o aluno.") }
+        } message: { Text(savedMessage) }
         .alert("Erro", isPresented: Binding(get: { error != nil && !loading && !(meals.isEmpty && title.isEmpty) }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(error ?? "") }
+    }
+
+    private var saveButtonTitle: String {
+        if saving { return "Salvando…" }
+        if creationMode == .template { return "Salvar modelo" }
+        return active ? "Salvar e enviar" : "Salvar inativa"
+    }
+
+    private var savedMessage: String {
+        if creationMode == .template { return "O modelo já está disponível na biblioteca para ser atribuído depois." }
+        return active
+            ? "A dieta já está disponível no aplicativo do aluno."
+            : "A dieta foi salva como inativa e não aparecerá para o aluno."
     }
 
     private var totals: (calories: Int, protein: Int, carbs: Int, fat: Int) {
@@ -133,6 +166,8 @@ struct DietPlanEditorView: View {
     }
 
     private var safetyIssue: String? {
+        if planId == nil, creationMode == .student, resolvedStudentId == nil { return "Selecione o aluno que receberá a dieta." }
+        if creationMode == .student, endDate < startDate { return "A data final deve ser posterior à data inicial." }
         if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Informe o título do plano." }
         if meals.isEmpty { return "Adicione pelo menos uma refeição." }
         for meal in meals {
@@ -156,6 +191,32 @@ struct DietPlanEditorView: View {
 
     private var editor: some View {
         List {
+            if planId == nil {
+                Section("Destino") {
+                    Picker("Destino", selection: $creationMode) {
+                        ForEach(DietCreationMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if creationMode == .student {
+                        Picker("Aluno", selection: Binding(
+                            get: { resolvedStudentId ?? "" },
+                            set: { resolvedStudentId = $0.isEmpty ? nil : $0 }
+                        )) {
+                            Text("Selecione o aluno").tag("")
+                            ForEach(students) { student in
+                                Text(student.user.name).tag(student.id)
+                            }
+                        }
+                        DatePicker("Início", selection: $startDate, displayedComponents: .date)
+                        DatePicker("Término", selection: $endDate, displayedComponents: .date)
+                    }
+                }
+                .listRowBackground(FitTheme.surface)
+            }
+
             Section {
                 TextField("Título do plano", text: $title).font(.headline)
                 HStack(spacing: 14) {
@@ -173,6 +234,17 @@ struct DietPlanEditorView: View {
                 }
                 .disabled(generating)
                 .foregroundStyle(FitTheme.orange)
+                if creationMode == .student {
+                    Toggle("Ativa no app do aluno", isOn: $active)
+                        .tint(FitTheme.orange)
+                }
+                if !warnings.isEmpty {
+                    ForEach(warnings, id: \.self) { warning in
+                        Label(warning, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(FitTheme.orangeSoft)
+                    }
+                }
                 if let safetyIssue {
                     Label(safetyIssue, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -250,9 +322,20 @@ struct DietPlanEditorView: View {
         loading = true
         defer { loading = false }
         do {
-            let plan: DietPlanDetail = try await api.get("/api/diets/\(planId)")
+            async let studentRequest: [StudentListItem] = api.get("/api/students")
+
+            guard let planId else {
+                students = try await studentRequest
+                error = nil
+                return
+            }
+
+            async let planRequest: DietPlanDetail = api.get("/api/diets/\(planId)")
+            let (plan, loadedStudents) = try await (planRequest, studentRequest)
+            students = loadedStudents
             resolvedStudentId = plan.student?.id ?? studentId
             title = plan.title
+            active = plan.active
             meals = plan.meals.map { meal in
                 let foods = (try? JSONDecoder().decode([DietFoodRaw].self, from: Data(meal.foods.utf8))) ?? []
                 return EditableDietMeal(
@@ -278,23 +361,30 @@ struct DietPlanEditorView: View {
         } catch { self.error = error.localizedDescription }
     }
 
-    private func generate(targets: DietGenerationTargets) async {
+    private func generate(request: DietGenerationRequest) async {
         generating = true
         defer { generating = false }
         struct GenerateBody: Encodable {
-            let studentId: String
-            let calories: Int?
-            let protein: Int?
-            let carbs: Int?
-            let fat: Int?
+            let mode: String
+            let studentId: String?
+            let studentInfo: String
+            let requiredFoods: String
+            let mealCount: Int
         }
-        guard let targetStudentId = resolvedStudentId ?? studentId else {
-            error = "Não foi possível identificar o aluno deste plano."
+
+        let targetStudentId = resolvedStudentId ?? studentId
+        if creationMode == .student, targetStudentId == nil {
+            error = "Selecione o aluno antes de gerar a dieta."
             return
         }
+
         do {
             let plan: GeneratedDietPlan = try await api.post("/api/diets/generate", body: GenerateBody(
-                studentId: targetStudentId, calories: targets.calories, protein: targets.protein, carbs: targets.carbs, fat: targets.fat
+                mode: creationMode.rawValue,
+                studentId: creationMode == .student ? targetStudentId : nil,
+                studentInfo: request.studentInfo,
+                requiredFoods: request.requiredFoods,
+                mealCount: request.mealCount
             ))
             meals = plan.meals.map { meal in
                 EditableDietMeal(
@@ -303,49 +393,12 @@ struct DietPlanEditorView: View {
                     notes: "",
                     foods: meal.foods.map { food in
                         EditableDietFood(
-                            foodId: food.foodId,
+                            foodId: nil,
                             name: food.name,
                             quantity: Self.displayAmount(
                                 canonicalQuantity: food.quantity == food.quantity.rounded() ? String(Int(food.quantity)) : String(food.quantity),
                                 name: food.name, portion: food.portion
                             ),
-                            portion: food.portion,
-                            notes: food.substitutionNote ?? "",
-                            calories: food.calories,
-                            protein: food.protein,
-                            carbs: food.carbs,
-                            fat: food.fat
-                        )
-                    }
-                )
-            }
-            if title.isEmpty { title = "Plano Gerado - \(plan.calories) kcal" }
-            error = nil
-        } catch { self.error = error.localizedDescription }
-    }
-
-    private func save() async {
-        if let safetyIssue { error = safetyIssue; return }
-        saving = true
-        defer { saving = false }
-        let totals = totals
-        let body = DietPlanUpdateBody(
-            title: title.isEmpty ? "Plano alimentar" : title,
-            calories: totals.calories,
-            protein: totals.protein,
-            carbs: totals.carbs,
-            fat: totals.fat,
-            active: true,
-            meals: meals.map { meal in
-                DietMealBody(
-                    name: meal.name.isEmpty ? "Refeição" : meal.name,
-                    time: meal.time,
-                    notes: meal.notes,
-                    foods: meal.foods.map { food in
-                        DietFoodBody(
-                            foodId: food.foodId,
-                            name: food.name,
-                            quantity: String(Self.nutritionFactor(food.quantity, name: food.name, portion: food.portion)),
                             portion: food.portion,
                             notes: food.notes,
                             calories: food.calories,
@@ -356,46 +409,143 @@ struct DietPlanEditorView: View {
                     }
                 )
             }
-        )
+            title = plan.title
+            warnings = plan.warnings
+            error = nil
+        } catch { self.error = error.localizedDescription }
+    }
+
+    private func save() async {
+        if let safetyIssue { error = safetyIssue; return }
+        saving = true
+        defer { saving = false }
+        let totals = totals
+        let updateMeals = meals.map { meal in
+            DietMealBody(
+                name: meal.name.isEmpty ? "Refeição" : meal.name,
+                time: meal.time,
+                notes: meal.notes,
+                foods: meal.foods.map { food in
+                    DietFoodBody(
+                        foodId: food.foodId,
+                        name: food.name,
+                        quantity: String(Self.nutritionFactor(food.quantity, name: food.name, portion: food.portion)),
+                        portion: food.portion,
+                        notes: food.notes,
+                        calories: food.calories,
+                        protein: food.protein,
+                        carbs: food.carbs,
+                        fat: food.fat
+                    )
+                }
+            )
+        }
+        let createMeals = meals.map { meal in
+            DietCreateMealBody(
+                name: meal.name.isEmpty ? "Refeição" : meal.name,
+                time: meal.time,
+                items: meal.foods.map { food in
+                    DietCreateItemBody(
+                        foodId: food.foodId,
+                        name: food.name,
+                        portion: food.portion,
+                        quantity: Self.nutritionFactor(food.quantity, name: food.name, portion: food.portion),
+                        calories: food.calories,
+                        protein: food.protein,
+                        carbs: food.carbs,
+                        fat: food.fat,
+                        notes: food.notes.isEmpty ? nil : food.notes
+                    )
+                },
+                notes: meal.notes.isEmpty ? nil : meal.notes
+            )
+        }
+
         do {
-            let _: DietPlanDetail = try await api.put("/api/diets/\(planId)", body: body)
+            if let planId {
+                let body = DietPlanUpdateBody(
+                    title: title,
+                    calories: totals.calories,
+                    protein: totals.protein,
+                    carbs: totals.carbs,
+                    fat: totals.fat,
+                    active: active,
+                    meals: updateMeals
+                )
+                let _: DietPlanDetail = try await api.put("/api/diets/\(planId)", body: body)
+            } else if creationMode == .template {
+                let _: IdentifiedValue = try await api.post(
+                    "/api/diet-templates",
+                    body: DietTemplateCreateBody(title: title, meals: createMeals)
+                )
+            } else {
+                guard let targetStudentId = resolvedStudentId else {
+                    error = "Selecione o aluno que receberá a dieta."
+                    return
+                }
+                let body = DietPlanCreateBody(
+                    title: title,
+                    studentId: targetStudentId,
+                    startDate: ISO8601DateFormatter().string(from: startDate),
+                    endDate: ISO8601DateFormatter().string(from: endDate),
+                    active: active,
+                    meals: createMeals
+                )
+                let _: IdentifiedValue = try await api.postRaw("/api/diet-plans", body: body)
+            }
             showSaved = true
         } catch { self.error = error.localizedDescription }
     }
 }
 
-private struct DietGenerationTargets {
-    let calories: Int?
-    let protein: Int?
-    let carbs: Int?
-    let fat: Int?
+private enum DietCreationMode: String, CaseIterable, Identifiable {
+    case student
+    case template
+
+    var id: String { rawValue }
+    var title: String { self == .student ? "Para aluno" : "Modelo" }
+}
+
+private struct DietGenerationRequest {
+    let studentInfo: String
+    let requiredFoods: String
+    let mealCount: Int
 }
 
 private struct DietGenerationOptionsView: View {
+    @Environment(\.apiClient) private var api
     @Environment(\.dismiss) private var dismiss
-    let onGenerate: (DietGenerationTargets) -> Void
+    let destination: DietCreationMode
+    let studentId: String?
+    let onGenerate: (DietGenerationRequest) -> Void
 
-    @State private var custom = false
-    @State private var calories = ""
-    @State private var protein = ""
-    @State private var carbs = ""
-    @State private var fat = ""
-
-    private var values: DietGenerationTargets {
-        DietGenerationTargets(calories: Int(calories), protein: Int(protein), carbs: Int(carbs), fat: Int(fat))
-    }
+    @State private var studentInfo = ""
+    @State private var requiredFoods = ""
+    @State private var mealCount = 4
+    @State private var weight = ""
+    @State private var height = ""
+    @State private var birthDate = Calendar.current.date(byAdding: .year, value: -25, to: .now) ?? .now
+    @State private var hasBirthDate = false
+    @State private var profileLoading = false
+    @State private var preparing = false
+    @State private var error: String?
 
     private var validationMessage: String? {
-        guard custom else { return nil }
-        let targets = values
-        if let value = targets.calories, !(800...6000).contains(value) { return "Calorias devem ficar entre 800 e 6.000 kcal." }
-        if let value = targets.protein, !(20...400).contains(value) { return "Proteínas devem ficar entre 20 e 400 g." }
-        if let value = targets.carbs, !(20...800).contains(value) { return "Carboidratos devem ficar entre 20 e 800 g." }
-        if let value = targets.fat, !(10...300).contains(value) { return "Gorduras devem ficar entre 10 e 300 g." }
-        if targets.calories == nil && targets.protein == nil && targets.carbs == nil && targets.fat == nil { return "Preencha ao menos uma meta ou use o cálculo automático." }
-        if let kcal = targets.calories, let p = targets.protein, let c = targets.carbs, let f = targets.fat {
-            let macroCalories = p * 4 + c * 4 + f * 9
-            if Double(abs(macroCalories - kcal)) / Double(kcal) > 0.15 { return "Os macros não correspondem às calorias informadas (tolerância de 15%)." }
+        if destination == .student {
+            guard studentId != nil else { return "Selecione o aluno antes de gerar a dieta." }
+            guard let weightValue = Double(weight.replacingOccurrences(of: ",", with: ".")), (20...400).contains(weightValue) else {
+                return "Informe um peso válido entre 20 e 400 kg."
+            }
+            guard let heightValue = Double(height.replacingOccurrences(of: ",", with: ".")), (100...250).contains(heightValue) else {
+                return "Informe uma altura válida entre 100 e 250 cm."
+            }
+            if !hasBirthDate { return "Informe a data de nascimento do aluno." }
+        }
+        if studentInfo.trimmingCharacters(in: .whitespacesAndNewlines).count < 10 {
+            return "Descreva objetivo, rotina, horários e necessidades com mais detalhes."
+        }
+        if requiredFoods.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 {
+            return "Informe os alimentos que devem fazer parte da dieta."
         }
         return nil
     }
@@ -403,25 +553,96 @@ private struct DietGenerationOptionsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if destination == .student {
+                    Section {
+                        HStack {
+                            Text("Peso")
+                            Spacer()
+                            TextField("80", text: $weight)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 85)
+                            Text("kg").foregroundStyle(FitTheme.secondaryText)
+                        }
+                        HStack {
+                            Text("Altura")
+                            Spacer()
+                            TextField("175", text: $height)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 85)
+                            Text("cm").foregroundStyle(FitTheme.secondaryText)
+                        }
+                        Toggle("Informar nascimento", isOn: $hasBirthDate.animation())
+                        if hasBirthDate {
+                            DatePicker("Data de nascimento", selection: $birthDate, in: ...Date.now, displayedComponents: .date)
+                        }
+                    } header: {
+                        Text("Dados físicos do aluno")
+                    } footer: {
+                        Text("Esses dados serão atualizados no cadastro e usados para calcular a dieta.")
+                    }
+                    .listRowBackground(FitTheme.surface)
+                }
+
                 Section {
-                    Toggle("Definir metas manualmente", isOn: $custom)
+                    TextEditor(text: $studentInfo)
+                        .frame(minHeight: 120)
+                        .overlay(alignment: .topLeading) {
+                            if studentInfo.isEmpty {
+                                Text(destination == .student
+                                     ? "Ex.: emagrecimento, treina às 18h, precisa de refeições simples para o trabalho…"
+                                     : "Ex.: modelo para hipertrofia, rotina de treino no fim da tarde…")
+                                    .foregroundStyle(FitTheme.secondaryText)
+                                    .padding(.top, 8)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                } header: {
+                    Text("Informações e necessidades")
                 } footer: {
-                    Text(custom ? "Preencha somente as metas que deseja controlar. As demais serão calculadas pelo sistema." : "O sistema calculará as metas usando peso, altura, idade, objetivo e nível de atividade do aluno.")
+                    Text("Inclua rotina, objetivo, preferências, restrições e horários relevantes.")
                 }
                 .listRowBackground(FitTheme.surface)
 
-                if custom {
-                    Section("Metas diárias") {
-                        TargetInputRow(title: "Calorias", unit: "kcal", text: $calories)
-                        TargetInputRow(title: "Proteínas", unit: "g", text: $protein)
-                        TargetInputRow(title: "Carboidratos", unit: "g", text: $carbs)
-                        TargetInputRow(title: "Gorduras", unit: "g", text: $fat)
+                Section {
+                    TextEditor(text: $requiredFoods)
+                        .frame(minHeight: 90)
+                        .overlay(alignment: .topLeading) {
+                            if requiredFoods.isEmpty {
+                                Text("Ex.: arroz, feijão, ovos, frango, banana…")
+                                    .foregroundStyle(FitTheme.secondaryText)
+                                    .padding(.top, 8)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                } header: {
+                    Text("Alimentos obrigatórios")
+                } footer: {
+                    Text("Separe por vírgulas ou descreva combinações e condições de uso.")
+                }
+                .listRowBackground(FitTheme.surface)
+
+                Section("Estrutura") {
+                    Stepper("\(mealCount) refeições", value: $mealCount, in: 2...8)
+                }
+                .listRowBackground(FitTheme.surface)
+
+                if let validationMessage {
+                    Section {
+                        Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                     .listRowBackground(FitTheme.surface)
-                    if let validationMessage {
-                        Section { Label(validationMessage, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.red) }
-                            .listRowBackground(FitTheme.surface)
+                }
+                if let error {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
+                    .listRowBackground(FitTheme.surface)
                 }
             }
             .scrollContentBackground(.hidden).fitScreen()
@@ -429,26 +650,57 @@ private struct DietGenerationOptionsView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Gerar") { onGenerate(custom ? values : DietGenerationTargets(calories: nil, protein: nil, carbs: nil, fat: nil)) }
-                        .disabled(validationMessage != nil)
+                    Button(preparing ? "Preparando…" : "Gerar") { Task { await prepareAndGenerate() } }
+                        .disabled(validationMessage != nil || preparing || profileLoading)
                         .fontWeight(.semibold)
                 }
             }
+            .task { await loadStudentProfile() }
         }
     }
-}
 
-private struct TargetInputRow: View {
-    let title: String
-    let unit: String
-    @Binding var text: String
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            TextField("Automático", text: $text).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 100)
-            Text(unit).foregroundStyle(FitTheme.secondaryText).frame(width: 34, alignment: .leading)
-        }
+    private func loadStudentProfile() async {
+        guard destination == .student, let studentId else { return }
+        profileLoading = true
+        defer { profileLoading = false }
+        do {
+            let student: StudentFull = try await api.get("/api/students/\(studentId)")
+            weight = student.weight.map { String(format: "%.1f", $0).replacingOccurrences(of: ".0", with: "") } ?? ""
+            height = student.height.map { String(format: "%.0f", $0) } ?? ""
+            if let value = student.birthDate,
+               let parsed = (try? Date(value, strategy: .iso8601.year().month().day().timeZone(separator: .omitted).time(includingFractionalSeconds: true)))
+                ?? (try? Date(value, strategy: .iso8601)) {
+                birthDate = parsed
+                hasBirthDate = true
+            }
+            error = nil
+        } catch { self.error = error.localizedDescription }
+    }
+
+    private func prepareAndGenerate() async {
+        guard validationMessage == nil else { return }
+        preparing = true
+        defer { preparing = false }
+        do {
+            if destination == .student, let studentId {
+                struct PhysicalDataBody: Encodable {
+                    let weight: Double
+                    let height: Double
+                    let birthDate: String
+                }
+                let body = PhysicalDataBody(
+                    weight: Double(weight.replacingOccurrences(of: ",", with: ".")) ?? 0,
+                    height: Double(height.replacingOccurrences(of: ",", with: ".")) ?? 0,
+                    birthDate: ISO8601DateFormatter().string(from: birthDate)
+                )
+                try await api.putAck("/api/students/\(studentId)", body: body)
+            }
+            onGenerate(DietGenerationRequest(
+                studentInfo: studentInfo.trimmingCharacters(in: .whitespacesAndNewlines),
+                requiredFoods: requiredFoods.trimmingCharacters(in: .whitespacesAndNewlines),
+                mealCount: mealCount
+            ))
+        } catch { self.error = error.localizedDescription }
     }
 }
 
@@ -505,6 +757,7 @@ struct FoodPickerView: View {
     @State private var foods: [FoodSearchItem] = []
     @State private var loading = false
     @State private var error: String?
+    @State private var showCustomFood = false
 
     var body: some View {
         NavigationStack {
@@ -542,7 +795,18 @@ struct FoodPickerView: View {
             .navigationTitle("Alimentos")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Buscar alimento")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showCustomFood = true } label: { Label("Novo alimento", systemImage: "plus") }
+                }
+            }
+            .sheet(isPresented: $showCustomFood) {
+                CustomFoodFormView { food in
+                    onSelect(food)
+                    dismiss()
+                }
+            }
             .task(id: query) {
                 guard query.count >= 2 else { return }
                 try? await Task.sleep(for: .milliseconds(350))
@@ -560,5 +824,111 @@ struct FoodPickerView: View {
             foods = try await api.get("/api/foods/search?q=\(encoded)")
             error = nil
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+private struct CustomFoodFormView: View {
+    @Environment(\.apiClient) private var api
+    @Environment(\.dismiss) private var dismiss
+    let onSaved: (FoodSearchItem) -> Void
+
+    @State private var name = ""
+    @State private var portion = "100g"
+    @State private var calories = ""
+    @State private var protein = ""
+    @State private var carbs = ""
+    @State private var fat = ""
+    @State private var saving = false
+    @State private var error: String?
+
+    private var values: (calories: Double, protein: Double, carbs: Double, fat: Double)? {
+        let normalized = [calories, protein, carbs, fat].map { Double($0.replacingOccurrences(of: ",", with: ".")) }
+        guard normalized.allSatisfy({ $0 != nil && $0! >= 0 }) else { return nil }
+        return (normalized[0]!, normalized[1]!, normalized[2]!, normalized[3]!)
+    }
+
+    private var valid: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !portion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && values != nil
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Alimento") {
+                    TextField("Nome", text: $name)
+                    TextField("Porção de referência (ex.: 100g)", text: $portion)
+                }
+                .listRowBackground(FitTheme.surface)
+
+                Section("Informação nutricional da porção") {
+                    NutritionInputRow(title: "Calorias", value: $calories, unit: "kcal")
+                    NutritionInputRow(title: "Proteínas", value: $protein, unit: "g")
+                    NutritionInputRow(title: "Carboidratos", value: $carbs, unit: "g")
+                    NutritionInputRow(title: "Gorduras", value: $fat, unit: "g")
+                }
+                .listRowBackground(FitTheme.surface)
+
+                if let error {
+                    Section { Text(error).font(.caption).foregroundStyle(.red) }
+                        .listRowBackground(FitTheme.surface)
+                }
+            }
+            .scrollContentBackground(.hidden).fitScreen()
+            .navigationTitle("Novo alimento").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "Salvando…" : "Salvar") { Task { await save() } }
+                        .disabled(!valid || saving)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    private func save() async {
+        guard let values else { return }
+        saving = true
+        defer { saving = false }
+        struct Body: Encodable {
+            let name: String
+            let portion: String
+            let calories: Double
+            let protein: Double
+            let carbs: Double
+            let fat: Double
+        }
+        do {
+            let food: FoodSearchItem = try await api.post("/api/foods", body: Body(
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                portion: portion.trimmingCharacters(in: .whitespacesAndNewlines),
+                calories: values.calories,
+                protein: values.protein,
+                carbs: values.carbs,
+                fat: values.fat
+            ))
+            onSaved(food)
+            dismiss()
+        } catch { self.error = error.localizedDescription }
+    }
+}
+
+private struct NutritionInputRow: View {
+    let title: String
+    @Binding var value: String
+    let unit: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField("0", text: $value)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 85)
+            Text(unit).foregroundStyle(FitTheme.secondaryText)
+        }
     }
 }
