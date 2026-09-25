@@ -14,6 +14,21 @@ struct CheckinFull: Codable, Identifiable, Sendable {
     let workoutAdherence: Int
     let dietAdherence: Int
     let notes: String?
+    let chest: Double?
+    let waist: Double?
+    let abdomen: Double?
+    let hips: Double?
+    let armRight: Double?
+    let armLeft: Double?
+    let thighRight: Double?
+    let thighLeft: Double?
+    let calfRight: Double?
+    let calfLeft: Double?
+    let bodyFatPercentage: Double?
+
+    var hasMeasurements: Bool {
+        chest != nil || waist != nil || abdomen != nil || hips != nil || armRight != nil || thighRight != nil
+    }
 
     var day: Date {
         (try? Date(date, strategy: .iso8601.year().month().day().timeZone(separator: .omitted).time(includingFractionalSeconds: true)))
@@ -154,6 +169,34 @@ struct StudentProgressView: View {
                     }
                 }
 
+                if let latest = checkins.first, latest.hasMeasurements {
+                    SurfaceCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionHeading(title: "Medidas corporais recentes")
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                if let chest = latest.chest {
+                                    MeasurementMetricPill(label: "Tórax", value: chest)
+                                }
+                                if let waist = latest.waist {
+                                    MeasurementMetricPill(label: "Cintura", value: waist)
+                                }
+                                if let abdomen = latest.abdomen {
+                                    MeasurementMetricPill(label: "Abdômen", value: abdomen)
+                                }
+                                if let hips = latest.hips {
+                                    MeasurementMetricPill(label: "Quadril", value: hips)
+                                }
+                                if let arm = latest.armRight {
+                                    MeasurementMetricPill(label: "Braço D.", value: arm)
+                                }
+                                if let thigh = latest.thighRight {
+                                    MeasurementMetricPill(label: "Coxa D.", value: thigh)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 SurfaceCard {
                     VStack(alignment: .leading, spacing: 14) {
                         SectionHeading(title: "Adesão semanal")
@@ -276,6 +319,12 @@ struct CheckinFormView: View {
 
     @State private var weight = ""
     @State private var sleepHours = ""
+    @State private var chest = ""
+    @State private var waist = ""
+    @State private var abdomen = ""
+    @State private var hips = ""
+    @State private var armRight = ""
+    @State private var thighRight = ""
     @State private var energyLevel = 3
     @State private var hungerLevel = 3
     @State private var stressLevel = 3
@@ -288,7 +337,7 @@ struct CheckinFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Medidas") {
+                Section("Métricas básicas") {
                     HStack {
                         Label("Peso", systemImage: "scalemass")
                         Spacer()
@@ -306,6 +355,58 @@ struct CheckinFormView: View {
                             .multilineTextAlignment(.trailing)
                             .frame(width: 90)
                         Text("h").foregroundStyle(FitTheme.secondaryText)
+                    }
+                }
+                .listRowBackground(FitTheme.surface)
+
+                Section("Medidas corporais (cm - opcional)") {
+                    HStack {
+                        Text("Tórax / Peitoral")
+                        Spacer()
+                        TextField("cm", text: $chest)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    HStack {
+                        Text("Cintura")
+                        Spacer()
+                        TextField("cm", text: $waist)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    HStack {
+                        Text("Abdômen")
+                        Spacer()
+                        TextField("cm", text: $abdomen)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    HStack {
+                        Text("Quadril")
+                        Spacer()
+                        TextField("cm", text: $hips)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    HStack {
+                        Text("Braço Direito")
+                        Spacer()
+                        TextField("cm", text: $armRight)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    HStack {
+                        Text("Coxa Direita")
+                        Spacer()
+                        TextField("cm", text: $thighRight)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
                     }
                 }
                 .listRowBackground(FitTheme.surface)
@@ -378,6 +479,12 @@ struct CheckinFormView: View {
             let workoutAdherence: Int
             let dietAdherence: Int
             let notes: String
+            let chest: String?
+            let waist: String?
+            let abdomen: String?
+            let hips: String?
+            let armRight: String?
+            let thighRight: String?
         }
         let body = Body(
             weight: weight.replacingOccurrences(of: ",", with: "."),
@@ -387,13 +494,36 @@ struct CheckinFormView: View {
             stressLevel: stressLevel,
             workoutAdherence: Int(workoutAdherence),
             dietAdherence: Int(dietAdherence),
-            notes: notes
+            notes: notes,
+            chest: chest.isEmpty ? nil : chest.replacingOccurrences(of: ",", with: "."),
+            waist: waist.isEmpty ? nil : waist.replacingOccurrences(of: ",", with: "."),
+            abdomen: abdomen.isEmpty ? nil : abdomen.replacingOccurrences(of: ",", with: "."),
+            hips: hips.isEmpty ? nil : hips.replacingOccurrences(of: ",", with: "."),
+            armRight: armRight.isEmpty ? nil : armRight.replacingOccurrences(of: ",", with: "."),
+            thighRight: thighRight.isEmpty ? nil : thighRight.replacingOccurrences(of: ",", with: ".")
         )
         do {
             let _: CheckinFull = try await api.post("/api/checkins", body: body)
             onSubmitted()
             dismiss()
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+private struct MeasurementMetricPill: View {
+    let label: String
+    let value: Double
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.caption2).foregroundStyle(FitTheme.secondaryText)
+                Text(String(format: "%.1f cm", value)).font(.subheadline.bold())
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(FitTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

@@ -19,7 +19,8 @@ import {
     Clock,
     Loader2,
     Key,
-    X
+    X,
+    Camera
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge, Avatar, Button, Input } from '@/components/ui';
 
@@ -73,8 +74,29 @@ interface Student {
         id: string;
         date: string;
         weight: number | null;
+        sleepHours?: number | null;
         workoutAdherence: number;
         dietAdherence: number;
+        chest?: number | null;
+        waist?: number | null;
+        abdomen?: number | null;
+        hips?: number | null;
+        armRight?: number | null;
+        armLeft?: number | null;
+        thighRight?: number | null;
+        thighLeft?: number | null;
+        calfRight?: number | null;
+        calfLeft?: number | null;
+        bodyFatPercentage?: number | null;
+        notes?: string | null;
+        photos?: Array<{ id: string; url: string; angle: string }>;
+    }>;
+    progressPhotos?: Array<{
+        id: string;
+        url: string;
+        angle: string;
+        weight?: number | null;
+        createdAt: string;
     }>;
 }
 
@@ -914,9 +936,104 @@ export default function StudentDetailPage() {
 
                 {activeTab === 'progress' && (
                     <div className="space-y-6">
+                        {/* Fotos de Evolução */}
                         <Card>
                             <CardHeader>
-                                <CardTitle>Histórico de Check-ins</CardTitle>
+                                <CardTitle className="text-base flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                        <Camera className="w-5 h-5 text-indigo-500" />
+                                        Fotos de Evolução do Aluno
+                                    </span>
+                                    <span className="text-xs text-muted-foreground font-normal">
+                                        {student.progressPhotos?.length || 0} fotos
+                                    </span>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {student.progressPhotos && student.progressPhotos.length > 0 ? (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                        {student.progressPhotos.map((photo) => (
+                                            <div
+                                                key={photo.id}
+                                                className="group relative aspect-[3/4] rounded-xl overflow-hidden bg-black/40 border border-border"
+                                            >
+                                                <img
+                                                    src={photo.url}
+                                                    alt={photo.angle}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 p-2.5 flex flex-col justify-between">
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-xs self-start">
+                                                        {photo.angle === 'FRONT' ? 'Frente' : photo.angle === 'SIDE' ? 'Lado' : photo.angle === 'BACK' ? 'Costas' : photo.angle}
+                                                    </span>
+                                                    <div className="text-white text-xs">
+                                                        <p className="font-semibold">
+                                                            {new Date(photo.createdAt).toLocaleDateString('pt-BR')}
+                                                        </p>
+                                                        {photo.weight && (
+                                                            <p className="text-[11px] text-white/80">{photo.weight}kg</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-muted-foreground text-sm">
+                                        O aluno ainda não registrou fotos de evolução.
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Medidas Corporais Recentes */}
+                        {student.checkins && student.checkins.some(c => c.chest || c.waist || c.abdomen || c.hips || c.armRight || c.thighRight) && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base flex items-center gap-2">
+                                        <TrendingUp className="w-5 h-5 text-emerald-500" />
+                                        Últimas Medidas Corporais
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {(() => {
+                                        const latest = student.checkins.find(c => c.chest || c.waist || c.abdomen || c.hips || c.armRight || c.thighRight);
+                                        if (!latest) return null;
+                                        const metrics = [
+                                            { label: 'Tórax / Peitoral', value: latest.chest, unit: 'cm' },
+                                            { label: 'Cintura', value: latest.waist, unit: 'cm' },
+                                            { label: 'Abdômen', value: latest.abdomen, unit: 'cm' },
+                                            { label: 'Quadril', value: latest.hips, unit: 'cm' },
+                                            { label: 'Braço Direito', value: latest.armRight, unit: 'cm' },
+                                            { label: 'Braço Esquerdo', value: latest.armLeft, unit: 'cm' },
+                                            { label: 'Coxa Direita', value: latest.thighRight, unit: 'cm' },
+                                            { label: 'Coxa Esquerda', value: latest.thighLeft, unit: 'cm' },
+                                            { label: 'Panturrilha D.', value: latest.calfRight, unit: 'cm' },
+                                            { label: 'Panturrilha E.', value: latest.calfLeft, unit: 'cm' },
+                                            { label: '% Gordura (BF)', value: latest.bodyFatPercentage, unit: '%' },
+                                        ].filter(m => m.value !== null && m.value !== undefined);
+
+                                        return (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                                                {metrics.map(m => (
+                                                    <div key={m.label} className="p-3 bg-muted rounded-xl border border-border">
+                                                        <p className="text-xs text-muted-foreground">{m.label}</p>
+                                                        <p className="text-base font-bold text-foreground mt-0.5">
+                                                            {m.value} {m.unit}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Histórico de Check-ins */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base">Histórico Completo de Check-ins</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {student.checkins && student.checkins.length > 0 ? (
@@ -924,26 +1041,41 @@ export default function StudentDetailPage() {
                                         {student.checkins.map((checkin) => (
                                             <div
                                                 key={checkin.id}
-                                                className="flex items-center justify-between p-4 bg-muted rounded-xl"
+                                                className="p-4 bg-muted rounded-xl space-y-2 border border-border"
                                             >
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-full bg-[#F88022]/10 flex items-center justify-center">
-                                                        <Calendar className="w-6 h-6 text-[#F88022]" />
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-full bg-[#F88022]/10 flex items-center justify-center">
+                                                            <Calendar className="w-5 h-5 text-[#F88022]" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-foreground text-sm">
+                                                                {new Date(checkin.date).toLocaleDateString('pt-BR', {
+                                                                    weekday: 'long',
+                                                                    day: '2-digit',
+                                                                    month: 'long',
+                                                                })}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Peso: <strong className="text-foreground">{checkin.weight || '-'}kg</strong> {checkin.sleepHours ? `| Sono: ${checkin.sleepHours}h/noite` : ''}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="font-medium text-foreground">
-                                                            {new Date(checkin.date).toLocaleDateString('pt-BR', {
-                                                                weekday: 'long',
-                                                                day: '2-digit',
-                                                                month: 'long',
-                                                            })}
-                                                        </p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            Peso: {checkin.weight || '-'}kg | Treino: {checkin.workoutAdherence}% | Dieta: {checkin.dietAdherence}%
-                                                        </p>
+                                                    <div className="flex items-center gap-2 text-xs">
+                                                        <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
+                                                            Treino {checkin.workoutAdherence}%
+                                                        </Badge>
+                                                        <Badge variant="outline" className="text-blue-500 border-blue-500/30">
+                                                            Dieta {checkin.dietAdherence}%
+                                                        </Badge>
                                                     </div>
                                                 </div>
-                                                <ChevronRight className="w-5 h-5 text-muted-foreground" />
+
+                                                {checkin.notes && (
+                                                    <p className="text-xs text-muted-foreground bg-background/50 p-2.5 rounded-lg border border-border italic">
+                                                        "{checkin.notes}"
+                                                    </p>
+                                                )}
                                             </div>
                                         ))}
                                     </div>

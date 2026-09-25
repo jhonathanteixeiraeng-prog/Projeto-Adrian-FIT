@@ -111,6 +111,34 @@ struct APIClient: Sendable {
         _ = try await perform(request)
     }
 
+    /// Faz upload multipart de imagem para o servidor (/api/upload) e retorna a URL pública gerada.
+    func uploadImage(data: Data, mimeType: String = "image/jpeg", filename: String = "photo.jpg") async throws -> String {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url(for: "/api/upload"))
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(data)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let responseData = try await perform(request)
+        struct UploadResponse: Decodable {
+            let success: Bool
+            let url: String?
+            let error: String?
+        }
+        let parsed = try decoder.decode(UploadResponse.self, from: responseData)
+        guard parsed.success, let photoUrl = parsed.url else {
+            throw APIError.server(parsed.error ?? "Falha ao enviar imagem.")
+        }
+        return photoUrl
+    }
+
     /// Para rotas que retornam o objeto direto, sem envelope { success, data }.
     func getRaw<Value: Decodable & Sendable>(_ path: String, as type: Value.Type = Value.self) async throws -> Value {
         try await raw(path: path)
