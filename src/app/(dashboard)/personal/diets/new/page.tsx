@@ -16,7 +16,8 @@ import {
     Utensils,
     Flame,
     Library,
-    Sparkles
+    Sparkles,
+    AlertTriangle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge } from '@/components/ui';
 
@@ -49,6 +50,7 @@ interface FoodItem {
     protein: number;
     carbs: number;
     fat: number;
+    notes?: string;
 }
 
 interface Meal {
@@ -76,11 +78,13 @@ export default function NewDietPage() {
     // AI Generation State
     const [showAIModal, setShowAIModal] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [aiGoal, setAiGoal] = useState('cutting');
-    const [aiPreference, setAiPreference] = useState('none');
     const [aiMealCount, setAiMealCount] = useState(4);
-
-    const [aiCalorieReduction, setAiCalorieReduction] = useState(0);
+    const [aiStudentInfo, setAiStudentInfo] = useState('');
+    const [aiRequiredFoods, setAiRequiredFoods] = useState('');
+    const [aiError, setAiError] = useState('');
+    const [aiWarnings, setAiWarnings] = useState<string[]>([]);
+    const [creationMode, setCreationMode] = useState<'student' | 'template'>('student');
+    const [generatedDraftReady, setGeneratedDraftReady] = useState(false);
 
     // Data
     const [students, setStudents] = useState<Student[]>([]);
@@ -235,205 +239,94 @@ export default function NewDietPage() {
         updateFoodQuantity(mealId, itemId, quantity);
     };
 
-    // AI Generation Logic (Mock)
+    // AI generation creates a preview; the personal can edit it before saving.
     const handleGenerateDiet = async () => {
-        setIsGenerating(true);
-
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Generate items based on goal
-        const generateItems = (mealType: string): FoodItem[] => {
-            const items: FoodItem[] = [];
-
-            // Adjust portions based on goal
-            let portionMultiplier = aiGoal === 'bulking' ? 1.3 : (aiGoal === 'cutting' ? 0.75 : 1);
-
-            // Apply calorie reduction factor (simple heuristc: 0.1 reduction per 200kcal)
-            if (aiCalorieReduction > 0) {
-                const reductionFactor = 1 - (aiCalorieReduction / 2500); // Assuming base ~2500
-                portionMultiplier *= Math.max(0.5, reductionFactor); // Floor at 50%
-            }
-
-            // Basic selection (simplified logic)
-            if (mealType.includes('Café')) {
-                const eggs = foodDatabase.find(f => f.name === 'Ovo inteiro')!;
-                const oats = foodDatabase.find(f => f.name === 'Aveia')!;
-                const fruit = foodDatabase.find(f => f.name === 'Banana')!;
-
-                items.push({
-                    id: Date.now().toString() + '1',
-                    foodId: eggs.id,
-                    name: eggs.name,
-                    portion: eggs.portion,
-                    quantity: parseFloat((3 * portionMultiplier).toFixed(1)),
-                    calories: eggs.calories,
-                    protein: eggs.protein,
-                    carbs: eggs.carbs,
-                    fat: eggs.fat
-                });
-
-                items.push({
-                    id: Date.now().toString() + '2',
-                    foodId: oats.id,
-                    name: oats.name,
-                    portion: oats.portion,
-                    quantity: parseFloat((1.5 * portionMultiplier).toFixed(1)),
-                    calories: oats.calories,
-                    protein: oats.protein,
-                    carbs: oats.carbs,
-                    fat: oats.fat
-                });
-
-                items.push({
-                    id: Date.now().toString() + '3',
-                    foodId: fruit.id,
-                    name: fruit.name,
-                    portion: fruit.portion,
-                    quantity: 1,
-                    calories: fruit.calories,
-                    protein: fruit.protein,
-                    carbs: fruit.carbs,
-                    fat: fruit.fat
-                });
-            } else if (mealType.includes('Almoço') || mealType.includes('Jantar')) {
-                const meat = foodDatabase.find(f => f.name === 'Frango grelhado')!;
-                const rice = foodDatabase.find(f => f.name === 'Arroz branco')!;
-                const veg = foodDatabase.find(f => f.name === 'Brócolis')!;
-                const oil = foodDatabase.find(f => f.name === 'Azeite de oliva')!;
-
-                items.push({
-                    id: Date.now().toString() + '4',
-                    foodId: meat.id,
-                    name: meat.name,
-                    portion: meat.portion,
-                    quantity: parseFloat((2 * portionMultiplier).toFixed(1)),
-                    calories: meat.calories,
-                    protein: meat.protein,
-                    carbs: meat.carbs,
-                    fat: meat.fat
-                });
-
-                items.push({
-                    id: Date.now().toString() + '5',
-                    foodId: rice.id,
-                    name: rice.name,
-                    portion: rice.portion,
-                    quantity: parseFloat((2 * portionMultiplier).toFixed(1)),
-                    calories: rice.calories,
-                    protein: rice.protein,
-                    carbs: rice.carbs,
-                    fat: rice.fat
-                });
-
-                items.push({
-                    id: Date.now().toString() + '6',
-                    foodId: veg.id,
-                    name: veg.name,
-                    portion: veg.portion,
-                    quantity: 1,
-                    calories: veg.calories,
-                    protein: veg.protein,
-                    carbs: veg.carbs,
-                    fat: veg.fat
-                });
-
-                items.push({
-                    id: Date.now().toString() + '7',
-                    foodId: oil.id,
-                    name: oil.name,
-                    portion: oil.portion,
-                    quantity: 1,
-                    calories: oil.calories,
-                    protein: oil.protein,
-                    carbs: oil.carbs,
-                    fat: oil.fat
-                });
-
-            } else {
-                const fruit = foodDatabase.find(f => f.name === 'Banana')!;
-                const whey = foodDatabase.find(f => f.name === 'Whey Protein')!;
-                const nuts = foodDatabase.find(f => f.name === 'Amendoim')!;
-
-                items.push({
-                    id: Date.now().toString() + '8',
-                    foodId: fruit.id,
-                    name: fruit.name,
-                    portion: fruit.portion,
-                    quantity: 1,
-                    calories: fruit.calories,
-                    protein: fruit.protein,
-                    carbs: fruit.carbs,
-                    fat: fruit.fat
-                });
-
-                items.push({
-                    id: Date.now().toString() + '9',
-                    foodId: whey.id,
-                    name: whey.name,
-                    portion: whey.portion,
-                    quantity: 1,
-                    calories: whey.calories,
-                    protein: whey.protein,
-                    carbs: whey.carbs,
-                    fat: whey.fat
-                });
-
-                items.push({
-                    id: Date.now().toString() + '10',
-                    foodId: nuts.id,
-                    name: nuts.name,
-                    portion: nuts.portion,
-                    quantity: 1,
-                    calories: nuts.calories,
-                    protein: nuts.protein,
-                    carbs: nuts.carbs,
-                    fat: nuts.fat
-                });
-            }
-
-            return items;
-        };
-
-        const mealNames = ['Café da manhã', 'Almoço', 'Lanche da tarde', 'Jantar', 'Ceia', 'Pré-treino'];
-        const mealTimes = ['07:00', '12:00', '15:30', '19:00', '21:30', '06:00'];
-
-        const newMeals: Meal[] = [];
-        for (let i = 0; i < aiMealCount; i++) {
-            const name = mealNames[i] || `Refeição ${i + 1}`;
-            newMeals.push({
-                id: Date.now().toString() + i,
-                name: name,
-                time: mealTimes[i] || '08:00',
-                items: generateItems(name),
-                expanded: true
-            });
+        if (creationMode === 'student' && !studentId) {
+            setAiError('Selecione o aluno nas informações básicas antes de gerar a dieta.');
+            return;
+        }
+        if (aiStudentInfo.trim().length < 10) {
+            setAiError('Descreva as necessidades do aluno com um pouco mais de detalhe.');
+            return;
+        }
+        if (aiRequiredFoods.trim().length < 2) {
+            setAiError('Informe os alimentos que devem fazer parte da dieta.');
+            return;
         }
 
-        setMeals(newMeals);
-        setIsGenerating(false);
-        setShowAIModal(false);
-        setTitle(`Dieta ${aiGoal === 'cutting' ? 'Definição' : (aiGoal === 'bulking' ? 'Hipertrofia' : 'Manutenção')} - Gerada por IA`);
+        setAiError('');
+        setIsGenerating(true);
+
+        try {
+            const response = await fetch('/api/diets/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: creationMode,
+                    studentId: creationMode === 'student' ? studentId : undefined,
+                    studentInfo: aiStudentInfo,
+                    requiredFoods: aiRequiredFoods,
+                    mealCount: aiMealCount,
+                }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                setAiError(result.error || 'Não foi possível gerar a dieta.');
+                return;
+            }
+
+            const generationId = Date.now().toString();
+            const generatedMeals: Meal[] = result.data.meals.map((meal: any, mealIndex: number) => ({
+                id: `${generationId}-${mealIndex}`,
+                name: meal.name,
+                time: meal.time,
+                expanded: true,
+                items: meal.foods.map((food: any, foodIndex: number): FoodItem => ({
+                    id: `${generationId}-${mealIndex}-${foodIndex}`,
+                    foodId: '',
+                    name: food.name,
+                    portion: food.portion,
+                    quantity: food.quantity,
+                    calories: food.calories,
+                    protein: food.protein,
+                    carbs: food.carbs,
+                    fat: food.fat,
+                    notes: food.notes || undefined,
+                })),
+            }));
+
+            setTitle(result.data.title);
+            setMeals(generatedMeals);
+            setAiWarnings(Array.isArray(result.data.warnings) ? result.data.warnings : []);
+            setGeneratedDraftReady(true);
+            setShowAIModal(false);
+        } catch {
+            setAiError('Erro ao conectar com o servidor. Tente novamente.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const handleSave = async () => {
-        if (!title || !studentId || !startDate || !endDate || meals.length === 0) {
+        const missingStudentPlanData = creationMode === 'student' && (!studentId || !startDate || !endDate);
+        if (!title || meals.length === 0 || missingStudentPlanData) {
             alert('Preencha todos os campos obrigatórios');
             return;
         }
 
         setSaving(true);
 
+        const mealsPayload = meals.map(meal => ({
+            name: meal.name,
+            time: meal.time,
+            items: meal.items,
+        }));
         const payload = {
             title,
             studentId,
             startDate,
             endDate,
-            meals: meals.map(meal => ({
-                name: meal.name,
-                time: meal.time,
-                items: meal.items
-            })),
+            meals: mealsPayload,
             saveAsTemplate,
             // Pass macros targets? Using calculated totals for now if needed by API
             targetCalories: Math.round(totals.calories),
@@ -443,16 +336,16 @@ export default function NewDietPage() {
         };
 
         try {
-            const response = await fetch('/api/diet-plans', {
+            const response = await fetch(creationMode === 'template' ? '/api/diet-templates' : '/api/diet-plans', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(creationMode === 'template' ? { title, meals: mealsPayload } : payload)
             });
 
             const result = await response.json();
 
             if (response.ok) {
-                router.push('/personal/diets');
+                router.push(creationMode === 'template' ? '/personal/diets#templates' : '/personal/diets');
             } else {
                 alert(result.error || 'Erro ao salvar dieta');
             }
@@ -460,18 +353,6 @@ export default function NewDietPage() {
             alert('Erro ao conectar com o servidor');
         } finally {
             setSaving(false);
-        }
-    };
-
-    const handleCalorieChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        if (value === '') {
-            setAiCalorieReduction(0);
-            return;
-        }
-        const parsed = parseInt(value);
-        if (!isNaN(parsed) && parsed >= 0) {
-            setAiCalorieReduction(parsed);
         }
     };
 
@@ -486,15 +367,22 @@ export default function NewDietPage() {
                         </Button>
                     </Link>
                     <div className="min-w-0">
-                        <h1 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">Novo Plano Alimentar</h1>
-                        <p className="text-muted-foreground">Configure a dieta do aluno</p>
+                        <h1 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">
+                            {creationMode === 'template' ? 'Novo Modelo de Dieta' : 'Novo Plano Alimentar'}
+                        </h1>
+                        <p className="text-muted-foreground">
+                            {creationMode === 'template' ? 'Crie um modelo para atribuir posteriormente' : 'Configure a dieta do aluno'}
+                        </p>
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                     <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setShowAIModal(true)}
+                        onClick={() => {
+                            setAiError('');
+                            setShowAIModal(true);
+                        }}
                         className="w-full sm:w-auto border-[#F88022] text-[#F88022] hover:bg-[#F88022]/10"
                     >
                         <Sparkles className="w-4 h-4 mr-2" />
@@ -502,10 +390,28 @@ export default function NewDietPage() {
                     </Button>
                     <Button onClick={handleSave} loading={saving} className="w-full sm:w-auto bg-[#F88022] hover:bg-[#F88022]/90 text-white">
                         <Save className="w-5 h-5 mr-2" />
-                        Salvar
+                        {creationMode === 'template' ? 'Salvar Modelo' : 'Salvar e enviar ao aluno'}
                     </Button>
                 </div>
             </div>
+
+            {generatedDraftReady ? (
+                <Card className="border-[#F88022]/50 bg-[#F88022]/10">
+                    <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                            <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-[#F88022]" />
+                            <div>
+                                <p className="font-medium text-foreground">Dieta gerada como rascunho</p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    {creationMode === 'template'
+                                        ? 'Revise as refeições e clique em Salvar Modelo para concluir.'
+                                        : 'Revise as refeições e clique em Salvar e enviar ao aluno para a dieta aparecer no aplicativo.'}
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : null}
 
             {/* Macros Summary */}
             <Card className="overflow-hidden bg-gradient-to-r from-secondary/10 to-accent/10 border-secondary/30">
@@ -532,6 +438,24 @@ export default function NewDietPage() {
                 </CardContent>
             </Card>
 
+            {aiWarnings.length > 0 ? (
+                <Card className="border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+                    <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                            <div>
+                                <p className="font-medium text-amber-900 dark:text-amber-200">Revise estes pontos antes de salvar</p>
+                                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800 dark:text-amber-300">
+                                    {aiWarnings.map((warning, index) => (
+                                        <li key={`${warning}-${index}`}>{warning}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : null}
+
             {/* Basic Info */}
             <Card>
                 <CardHeader>
@@ -540,53 +464,69 @@ export default function NewDietPage() {
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input
-                            label="Título do Plano"
+                            label={creationMode === 'template' ? 'Título do Modelo' : 'Título do Plano'}
                             placeholder="Ex: Cutting - 2000kcal"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                         />
                         <Select
-                            label="Aluno"
-                            value={studentId}
-                            onChange={(e) => setStudentId(e.target.value)}
+                            label="Tipo de criação"
+                            value={creationMode}
+                            onChange={(event) => setCreationMode(event.target.value as 'student' | 'template')}
                             options={[
-                                { value: '', label: 'Selecione o aluno' },
-                                ...students.map(s => ({ value: s.id, label: s.user.name }))
+                                { value: 'student', label: 'Dieta para um aluno' },
+                                { value: 'template', label: 'Modelo sem aluno' },
                             ]}
                         />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input
-                            type="date"
-                            label="Data de Início"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                        />
-                        <Input
-                            type="date"
-                            label="Data de Término"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                        />
-                    </div>
+                    {creationMode === 'student' ? (
+                        <>
+                            <Select
+                                label="Aluno"
+                                value={studentId}
+                                onChange={(e) => setStudentId(e.target.value)}
+                                options={[
+                                    { value: '', label: 'Selecione o aluno' },
+                                    ...students.map(s => ({ value: s.id, label: s.user.name }))
+                                ]}
+                            />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <Input
+                                    type="date"
+                                    label="Data de Início"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                />
+                                <Input
+                                    type="date"
+                                    label="Data de Término"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                />
+                            </div>
 
-                    {/* Save as Template Checkbox */}
-                    <div className="flex items-center space-x-2 pt-2">
-                        <input
-                            type="checkbox"
-                            id="saveAsTemplate"
-                            checked={saveAsTemplate}
-                            onChange={(e) => setSaveAsTemplate(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-[#F88022] focus:ring-[#F88022]"
-                        />
-                        <label
-                            htmlFor="saveAsTemplate"
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2"
-                        >
-                            <Library className="w-4 h-4 text-muted-foreground" />
-                            Salvar como modelo na biblioteca
-                        </label>
-                    </div>
+                            <div className="flex items-center space-x-2 pt-2">
+                                <input
+                                    type="checkbox"
+                                    id="saveAsTemplate"
+                                    checked={saveAsTemplate}
+                                    onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-[#F88022] focus:ring-[#F88022]"
+                                />
+                                <label
+                                    htmlFor="saveAsTemplate"
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2"
+                                >
+                                    <Library className="w-4 h-4 text-muted-foreground" />
+                                    Também salvar como modelo na biblioteca
+                                </label>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="rounded-xl border border-[#F88022]/30 bg-[#F88022]/5 p-4 text-sm text-muted-foreground">
+                            Este modelo ficará na Biblioteca de Modelos e poderá ser atribuído a qualquer aluno posteriormente.
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -683,6 +623,9 @@ export default function NewDietPage() {
                                                 >
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-medium text-foreground">{item.name}</p>
+                                                        {item.notes ? (
+                                                            <p className="mt-0.5 text-xs text-muted-foreground">{item.notes}</p>
+                                                        ) : null}
                                                     </div>
                                                     <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-3">
                                                         <div className="flex items-center gap-2">
@@ -759,44 +702,99 @@ export default function NewDietPage() {
             {/* AI Generation Modal */}
             {showAIModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-                    <div className="bg-card rounded-2xl w-full max-w-md overflow-hidden shadow-xl border border-secondary/20">
+                    <div className="bg-card rounded-2xl w-full max-w-xl max-h-[90vh] overflow-hidden shadow-xl border border-secondary/20">
                         <div className="p-4 border-b border-border flex items-center justify-between bg-secondary/5">
                             <div className="flex items-center gap-2">
                                 <Sparkles className="w-5 h-5 text-[#F88022]" />
                                 <h3 className="text-lg font-semibold text-foreground">Gerar Dieta Automática</h3>
                             </div>
-                            <button onClick={() => setShowAIModal(false)}>
+                            <button onClick={() => setShowAIModal(false)} aria-label="Fechar geração de dieta">
                                 <X className="w-5 h-5 text-muted-foreground hover:text-foreground" />
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-4">
+                        <div className="p-6 space-y-5 overflow-y-auto max-h-[calc(90vh-65px)]">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Objetivo</label>
+                                <p className="text-sm text-muted-foreground">
+                                    {creationMode === 'student'
+                                        ? 'A IA usará os dados cadastrados do aluno junto com as orientações abaixo. O resultado será aberto para sua revisão antes de salvar.'
+                                        : 'A IA criará um modelo sem aluno atribuído. Descreva abaixo o perfil e a finalidade para os quais o modelo deve ser preparado.'}
+                                </p>
+                            </div>
+
+                            <Select
+                                label="Destino da dieta"
+                                value={creationMode}
+                                onChange={(event) => {
+                                    setCreationMode(event.target.value as 'student' | 'template');
+                                    setAiError('');
+                                }}
+                                options={[
+                                    { value: 'student', label: 'Atribuir a um aluno agora' },
+                                    { value: 'template', label: 'Salvar como modelo sem aluno' },
+                                ]}
+                            />
+
+                            {creationMode === 'student' ? (
                                 <Select
-                                    value={aiGoal}
-                                    onChange={(e) => setAiGoal(e.target.value)}
+                                    label="Aluno"
+                                    value={studentId}
+                                    onChange={(event) => {
+                                        setStudentId(event.target.value);
+                                        if (event.target.value) setAiError('');
+                                    }}
                                     options={[
-                                        { value: 'cutting', label: 'Emagrecimento (Cutting)' },
-                                        { value: 'bulking', label: 'Hipertrofia (Bulking)' },
-                                        { value: 'maintenance', label: 'Manutenção' }
+                                        { value: '', label: 'Selecione o aluno' },
+                                        ...students.map((student) => ({
+                                            value: student.id,
+                                            label: student.user.name,
+                                        })),
                                     ]}
                                 />
+                            ) : (
+                                <div className="rounded-xl border border-[#F88022]/30 bg-[#F88022]/5 p-3 text-sm text-muted-foreground">
+                                    Nenhum aluno será necessário. Após salvar, o modelo ficará disponível na Biblioteca de Modelos.
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-foreground" htmlFor="ai-student-info">
+                                    {creationMode === 'template' ? 'Perfil e finalidade do modelo' : 'Informações e necessidades do aluno'}
+                                </label>
+                                <textarea
+                                    id="ai-student-info"
+                                    value={aiStudentInfo}
+                                    onChange={(event) => {
+                                        setAiStudentInfo(event.target.value);
+                                    }}
+                                    placeholder={creationMode === 'template'
+                                        ? 'Ex: modelo para emagrecimento, rotina de trabalho, refeições simples, meta aproximada de 2.000 kcal...'
+                                        : 'Ex: objetivo de emagrecimento, treina às 18h, precisa de refeições simples para levar ao trabalho, meta aproximada de 2.000 kcal...'}
+                                    maxLength={4000}
+                                    rows={5}
+                                    className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[#F88022] focus:ring-2 focus:ring-[#F88022]/20"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Inclua rotina, objetivo, preferências, horários e qualquer orientação relevante.
+                                </p>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Preferência Alimentar</label>
-                                <Select
-                                    value={aiPreference}
-                                    onChange={(e) => setAiPreference(e.target.value)}
-                                    options={[
-                                        { value: 'none', label: 'Nenhuma' },
-                                        { value: 'vegan', label: 'Vegano' },
-                                        { value: 'vegetarian', label: 'Vegetariano' },
-                                        { value: 'lactose-free', label: 'Sem Lactose' },
-                                        { value: 'gluten-free', label: 'Sem Glúten' }
-                                    ]}
+                                <label className="text-sm font-medium text-foreground" htmlFor="ai-required-foods">
+                                    Alimentos que devem estar na dieta
+                                </label>
+                                <textarea
+                                    id="ai-required-foods"
+                                    value={aiRequiredFoods}
+                                    onChange={(event) => setAiRequiredFoods(event.target.value)}
+                                    placeholder="Ex: arroz, feijão, frango, ovos, banana, aveia e iogurte natural"
+                                    maxLength={2000}
+                                    rows={3}
+                                    className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[#F88022] focus:ring-2 focus:ring-[#F88022]/20"
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                    Separe por vírgulas ou descreva combinações e condições de uso.
+                                </p>
                             </div>
 
                             <div className="space-y-2">
@@ -805,28 +803,22 @@ export default function NewDietPage() {
                                     value={aiMealCount.toString()}
                                     onChange={(e) => setAiMealCount(parseInt(e.target.value))}
                                     options={[
+                                        { value: '2', label: '2 Refeições' },
                                         { value: '3', label: '3 Refeições' },
                                         { value: '4', label: '4 Refeições' },
                                         { value: '5', label: '5 Refeições' },
-                                        { value: '6', label: '6 Refeições' }
+                                        { value: '6', label: '6 Refeições' },
+                                        { value: '7', label: '7 Refeições' },
+                                        { value: '8', label: '8 Refeições' }
                                     ]}
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Redução Calórica (kcal)</label>
-                                <Input
-                                    type="number"
-                                    placeholder="Ex: 500"
-                                    value={aiCalorieReduction || ''}
-                                    onChange={handleCalorieChange}
-                                    min="0"
-                                    step="50"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Opcional: Reduz a quantidade total de calorias calculada pela IA.
-                                </p>
-                            </div>
+                            {aiError ? (
+                                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                                    {aiError}
+                                </div>
+                            ) : null}
 
                             <Button
                                 onClick={handleGenerateDiet}
@@ -834,7 +826,7 @@ export default function NewDietPage() {
                                 className="w-full bg-[#F88022] hover:bg-[#F88022]/90 text-white mt-4"
                             >
                                 {isGenerating ? (
-                                    <>Generating...</>
+                                    <>Montando dieta...</>
                                 ) : (
                                     <>
                                         <Sparkles className="w-4 h-4 mr-2" />

@@ -17,14 +17,14 @@ import {
     Flame,
     Copy,
     Loader2,
-    Wand2 // Icon for auto-generate
+    Wand2,
+    AlertTriangle
 } from 'lucide-react';
 import {
-    Card, CardContent, CardHeader, CardTitle, Button, Input, Badge, Avatar,
+    Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge, Avatar,
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui';
 import { foodDatabase } from '@/lib/food-database';
-import { generateDietPlan, type FoodInput } from '@/lib/diet-generator';
 
 interface FoodItem {
     id: string;
@@ -36,6 +36,7 @@ interface FoodItem {
     protein: number;
     carbs: number;
     fat: number;
+    notes?: string;
     source?: 'local' | 'external';
 }
 
@@ -62,7 +63,15 @@ export default function EditDietPage() {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [foodSearchError, setFoodSearchError] = useState('');
-    const [generationFoods, setGenerationFoods] = useState<FoodInput[]>([]);
+    const [showGenerationModal, setShowGenerationModal] = useState(false);
+    const [generationError, setGenerationError] = useState('');
+    const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
+    const [generationWeight, setGenerationWeight] = useState('');
+    const [generationHeight, setGenerationHeight] = useState('');
+    const [generationBirthDate, setGenerationBirthDate] = useState('');
+    const [generationStudentInfo, setGenerationStudentInfo] = useState('');
+    const [generationRequiredFoods, setGenerationRequiredFoods] = useState('');
+    const [generationMealCount, setGenerationMealCount] = useState(4);
 
     // Student data for generation
     const [studentData, setStudentData] = useState<any>(null);
@@ -288,28 +297,8 @@ export default function EditDietPage() {
     const fetchDietPlan = async () => {
         try {
             setLoading(true);
-            const [response, foodsRes] = await Promise.all([
-                fetch(`/api/diets/${params.id}`),
-                fetch('/api/foods?systemOnly=true&limit=800')
-            ]);
-            const [result, foodsData] = await Promise.all([
-                response.json(),
-                foodsRes.json()
-            ]);
-
-            if (foodsData.success && Array.isArray(foodsData.data)) {
-                setGenerationFoods(
-                    foodsData.data.map((food: any) => ({
-                        id: String(food.id),
-                        name: String(food.name),
-                        portion: String(food.portion || '100g'),
-                        calories: Number(food.calories || 0),
-                        protein: Number(food.protein || 0),
-                        carbs: Number(food.carbs || 0),
-                        fat: Number(food.fat || 0),
-                    }))
-                );
-            }
+            const response = await fetch(`/api/diets/${params.id}`);
+            const result = await response.json();
 
             if (result.success && result.data) {
                 const plan = result.data;
@@ -346,97 +335,120 @@ export default function EditDietPage() {
             return;
         }
 
-        // Basic validation
-        const weight = Number(studentData.weight);
-        const height = Number(studentData.height);
-        let birthDateRaw = studentData.birthDate || studentData.user?.birthDate;
+        const birthDate = studentData.birthDate || studentData.user?.birthDate || '';
+        setGenerationWeight(studentData.weight ? String(studentData.weight) : '');
+        setGenerationHeight(studentData.height ? String(studentData.height) : '');
+        setGenerationBirthDate(birthDate ? String(birthDate).slice(0, 10) : '');
+        setGenerationError('');
+        setShowGenerationModal(true);
+    };
 
-        if (!weight || !height || !birthDateRaw) {
-            alert('O aluno precisa ter peso, altura e data de nascimento cadastrados para gerar a dieta.');
+    const continueGeneration = () => {
+        const weight = Number(generationWeight.replace(',', '.'));
+        const height = Number(generationHeight.replace(',', '.'));
+        if (!Number.isFinite(weight) || weight < 20 || weight > 400) {
+            setGenerationError('Informe um peso válido entre 20 e 400 kg.');
+            return;
+        }
+        if (!Number.isFinite(height) || height < 100 || height > 250) {
+            setGenerationError('Informe uma altura válida entre 100 e 250 cm.');
+            return;
+        }
+        if (!generationBirthDate) {
+            setGenerationError('Informe a data de nascimento do aluno.');
+            return;
+        }
+        if (generationStudentInfo.trim().length < 10) {
+            setGenerationError('Descreva as necessidades do aluno com um pouco mais de detalhe.');
+            return;
+        }
+        if (generationRequiredFoods.trim().length < 2) {
+            setGenerationError('Informe os alimentos que devem estar na dieta.');
             return;
         }
 
+        setGenerationError('');
+        setShowGenerationModal(false);
         if (meals.length > 0) {
             setShowConfirmDialog(true);
         } else {
-            generateDiet();
+            void generateDiet();
         }
     };
 
-    const generateDiet = () => {
+    const generateDiet = async () => {
         setGenerating(true);
         setShowConfirmDialog(false);
 
-        // Parse metrics again just to be safe/consistent
-        const weight = Number(studentData.weight);
-        const height = Number(studentData.height);
-        let birthDateRaw = studentData.birthDate || studentData.user?.birthDate;
+        try {
+            const studentId = studentData?.id;
+            if (!studentId) throw new Error('Aluno não identificado.');
 
-        setTimeout(() => {
-            try {
-                // Calculate age robustly
-                const birthDate = new Date(birthDateRaw);
-                let age = 25; // Fallback
-
-                if (!isNaN(birthDate.getTime())) {
-                    const today = new Date();
-                    age = today.getFullYear() - birthDate.getFullYear();
-                    const m = today.getMonth() - birthDate.getMonth();
-                    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                        age--;
-                    }
-                } else {
-                    console.error('Invalid birth date:', birthDateRaw);
-                }
-
-                console.log('Generating diet with:', { weight, height, age });
-
-                const generatedPlan = generateDietPlan({
-                    weight,
-                    height,
-                    age,
-                    gender: studentData.gender || 'MALE',
-                    activityLevel: studentData.anamnesis?.activityLevel || 'MODERATE',
-                    goal: studentData.goal || 'MAINTENANCE',
-                    foods: generationFoods,
-                    restrictions: studentData.anamnesis?.restrictions || '',
-                });
-
-                console.log('Generated Plan:', generatedPlan);
-
-                if (isNaN(generatedPlan.calories)) {
-                    throw new Error('Generated calories is NaN');
-                }
-
-                // Update state
-                const newMeals: Meal[] = generatedPlan.meals.map((m, index) => ({
-                    id: Date.now().toString() + index,
-                    name: m.name,
-                    time: m.time,
-                    expanded: true,
-                    items: m.foods.map((f, fIndex) => ({
-                        id: Date.now().toString() + index + fIndex,
-                        foodId: f.foodId,
-                        name: f.name,
-                        portion: f.portion,
-                        quantity: f.quantity,
-                        calories: f.calories,
-                        protein: f.protein,
-                        carbs: f.carbs,
-                        fat: f.fat
-                    }))
-                }));
-
-                setMeals(newMeals);
-                if (!title) setTitle(`Dieta Automática - ${Math.round(generatedPlan.calories)} kcal`);
-                alert(`Dieta gerada com sucesso! (${Math.round(generatedPlan.calories)} kcal)`);
-            } catch (err) {
-                console.error('Error calculating diet:', err);
-                alert('Erro ao gerar dieta. Verifique o console para mais detalhes.');
-            } finally {
-                setGenerating(false);
+            const profileResponse = await fetch(`/api/students/${studentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    weight: Number(generationWeight.replace(',', '.')),
+                    height: Number(generationHeight.replace(',', '.')),
+                    birthDate: generationBirthDate,
+                }),
+            });
+            const profileResult = await profileResponse.json();
+            if (!profileResponse.ok || !profileResult.success) {
+                throw new Error(profileResult.error || 'Não foi possível atualizar os dados do aluno.');
             }
-        }, 500);
+
+            const response = await fetch('/api/diets/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    studentId,
+                    studentInfo: generationStudentInfo,
+                    requiredFoods: generationRequiredFoods,
+                    mealCount: generationMealCount,
+                }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Não foi possível gerar a dieta.');
+            }
+
+            const generationId = Date.now().toString();
+            const newMeals: Meal[] = result.data.meals.map((meal: any, mealIndex: number) => ({
+                id: `${generationId}-${mealIndex}`,
+                name: meal.name,
+                time: meal.time,
+                expanded: true,
+                items: meal.foods.map((food: any, foodIndex: number) => ({
+                    id: `${generationId}-${mealIndex}-${foodIndex}`,
+                    foodId: '',
+                    name: food.name,
+                    portion: food.portion,
+                    quantity: food.quantity,
+                    calories: food.calories,
+                    protein: food.protein,
+                    carbs: food.carbs,
+                    fat: food.fat,
+                    notes: food.notes || undefined,
+                })),
+            }));
+
+            setStudentData((current: any) => ({
+                ...current,
+                weight: Number(generationWeight.replace(',', '.')),
+                height: Number(generationHeight.replace(',', '.')),
+                birthDate: generationBirthDate,
+            }));
+            setMeals(newMeals);
+            setTitle(result.data.title);
+            setGenerationWarnings(Array.isArray(result.data.warnings) ? result.data.warnings : []);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Erro ao gerar dieta.';
+            setGenerationError(message);
+            setShowGenerationModal(true);
+        } finally {
+            setGenerating(false);
+        }
     };
 
     // Debounced search effect
@@ -688,7 +700,11 @@ export default function EditDietPage() {
             const result = await response.json();
 
             if (result.success) {
-                alert('Plano alimentar atualizado com sucesso!');
+                const studentName = studentData?.user?.name || 'o aluno';
+                alert(active
+                    ? `Dieta salva e enviada para ${studentName}. Ela já está disponível no aplicativo do aluno.`
+                    : 'Dieta salva como inativa. Ela não será exibida no aplicativo do aluno.'
+                );
                 router.push('/personal/diets');
             } else {
                 alert(result.error || 'Erro ao atualizar plano');
@@ -789,7 +805,7 @@ export default function EditDietPage() {
                     </Button>
                     <Button onClick={handleSave} loading={saving}>
                         <Save className="w-5 h-5" />
-                        Salvar
+                        {active ? 'Salvar e enviar ao aluno' : 'Salvar como inativa'}
                     </Button>
                 </div>
             </div>
@@ -815,6 +831,24 @@ export default function EditDietPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {generationWarnings.length > 0 ? (
+                <Card className="border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+                    <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                            <div>
+                                <p className="font-medium text-amber-900 dark:text-amber-200">Revise estes pontos antes de salvar</p>
+                                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800 dark:text-amber-300">
+                                    {generationWarnings.map((warning, index) => (
+                                        <li key={`${warning}-${index}`}>{warning}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : null}
 
             {/* Macros Summary */}
             <Card className="bg-gradient-to-r from-secondary/10 to-accent/10 border-secondary/30">
@@ -935,6 +969,9 @@ export default function EditDietPage() {
                                             >
                                                 <div className="flex-1">
                                                     <p className="font-medium text-foreground">{item.name}</p>
+                                                    {item.notes ? (
+                                                        <p className="mt-0.5 text-xs text-muted-foreground">{item.notes}</p>
+                                                    ) : null}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     {(() => {
@@ -1004,6 +1041,116 @@ export default function EditDietPage() {
                     );
                 })}
             </div>
+
+            {showGenerationModal ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-secondary/20 bg-card shadow-xl">
+                        <div className="flex items-center justify-between border-b border-border bg-secondary/5 p-4">
+                            <div className="flex items-center gap-2">
+                                <Wand2 className="h-5 w-5 text-[#F88022]" />
+                                <h3 className="text-lg font-semibold text-foreground">Gerar dieta automaticamente</h3>
+                            </div>
+                            <button onClick={() => setShowGenerationModal(false)} aria-label="Fechar geração de dieta">
+                                <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                            </button>
+                        </div>
+
+                        <div className="max-h-[calc(90vh-65px)] space-y-5 overflow-y-auto p-6">
+                            <div>
+                                <h4 className="text-sm font-semibold text-foreground">Dados do aluno</h4>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Preencha os dados ausentes. Eles também serão atualizados no cadastro do aluno.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <Input
+                                    label="Peso (kg)"
+                                    type="number"
+                                    min="20"
+                                    max="400"
+                                    step="0.1"
+                                    placeholder="Ex: 65"
+                                    value={generationWeight}
+                                    onChange={(event) => setGenerationWeight(event.target.value)}
+                                />
+                                <Input
+                                    label="Altura (cm)"
+                                    type="number"
+                                    min="100"
+                                    max="250"
+                                    step="1"
+                                    placeholder="Ex: 165"
+                                    value={generationHeight}
+                                    onChange={(event) => setGenerationHeight(event.target.value)}
+                                />
+                                <Input
+                                    label="Data de nascimento"
+                                    type="date"
+                                    value={generationBirthDate}
+                                    onChange={(event) => setGenerationBirthDate(event.target.value)}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="generation-student-info" className="text-sm font-medium text-foreground">
+                                    Informações e necessidades do aluno
+                                </label>
+                                <textarea
+                                    id="generation-student-info"
+                                    value={generationStudentInfo}
+                                    onChange={(event) => setGenerationStudentInfo(event.target.value)}
+                                    placeholder="Ex: objetivo de hipertrofia, treina às 18h, precisa de refeições simples para levar ao trabalho..."
+                                    maxLength={4000}
+                                    rows={4}
+                                    className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-[#F88022] focus:ring-2 focus:ring-[#F88022]/20"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="generation-required-foods" className="text-sm font-medium text-foreground">
+                                    Alimentos que devem estar na dieta
+                                </label>
+                                <textarea
+                                    id="generation-required-foods"
+                                    value={generationRequiredFoods}
+                                    onChange={(event) => setGenerationRequiredFoods(event.target.value)}
+                                    placeholder="Ex: arroz, feijão, frango, ovos, banana e aveia"
+                                    maxLength={2000}
+                                    rows={3}
+                                    className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-[#F88022] focus:ring-2 focus:ring-[#F88022]/20"
+                                />
+                            </div>
+
+                            <Select
+                                label="Número de refeições"
+                                value={String(generationMealCount)}
+                                onChange={(event) => setGenerationMealCount(Number(event.target.value))}
+                                options={[
+                                    { value: '2', label: '2 refeições' },
+                                    { value: '3', label: '3 refeições' },
+                                    { value: '4', label: '4 refeições' },
+                                    { value: '5', label: '5 refeições' },
+                                    { value: '6', label: '6 refeições' },
+                                    { value: '7', label: '7 refeições' },
+                                    { value: '8', label: '8 refeições' },
+                                ]}
+                            />
+
+                            {generationError ? (
+                                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                                    {generationError}
+                                </div>
+                            ) : null}
+
+                            <Button onClick={continueGeneration} className="w-full bg-[#F88022] text-white hover:bg-[#F88022]/90">
+                                <Wand2 className="mr-2 h-4 w-4" />
+                                Continuar
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
 
             {/* Confirmation Dialog */}
             <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

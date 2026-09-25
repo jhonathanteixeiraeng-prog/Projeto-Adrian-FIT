@@ -64,6 +64,12 @@ export default function DietsPage() {
     const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
 
     useEffect(() => {
+        if (window.location.hash === '#templates') {
+            setActiveTab('templates');
+        }
+    }, []);
+
+    useEffect(() => {
         fetchData();
     }, [activeTab]);
 
