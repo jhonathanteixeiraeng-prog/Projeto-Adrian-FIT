@@ -1,521 +1,440 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import {
-    ArrowLeft,
-    Printer,
-    Download,
-    Scale,
-    TrendingUp,
-    TrendingDown,
-    Dumbbell,
-    Utensils,
-    Calendar,
-    Ruler,
-    Camera,
-    CheckCircle2,
-    Loader2,
-    Shield
-} from 'lucide-react';
-import { Button } from '@/components/ui';
+import { useParams } from 'next/navigation';
+import { AlertTriangle, ArrowLeft, Calendar, Camera, Dumbbell, Printer, RefreshCw, Ruler, Scale, TrendingUp, Utensils } from 'lucide-react';
+import { usePageMeta } from '@/components/personal/page-meta';
+import { crmHref, formatDate, formatDelta, formatNumber, PHOTO_ANGLE_LABELS, reportKey } from '@/components/personal/students/lib';
+import { MEASURES } from '@/components/personal/students/progress-section';
+import type { Checkin, ProgressPhoto, StudentReport } from '@/components/personal/students/types';
+import { primarySmallButtonClass, smallButtonClass, textareaClass } from '@/components/personal/students/ui';
+import { useInstantUrlValue } from '@/components/personal/students/use-instant-url-value';
+import { useApi } from '@/hooks/use-api';
+import { useLocalStorageState } from '@/hooks/use-local-storage';
+import { useUrlState } from '@/hooks/use-url-state';
+import { cn } from '@/lib/utils';
 
-interface StudentReportData {
-    id: string;
-    status: string;
-    goal: string | null;
-    height: number | null;
-    weight: number | null;
-    gender: string | null;
-    birthDate: string | null;
-    createdAt: string;
-    user: {
-        name: string;
-        email: string;
-        phone: string | null;
-    };
-    personal?: {
-        brandName?: string | null;
-        user: {
-            name: string;
-            email: string;
-            phone: string | null;
-        };
-    };
-    checkins: Array<{
-        id: string;
-        date: string;
-        weight: number | null;
-        sleepHours?: number | null;
-        energyLevel?: number | null;
-        hungerLevel?: number | null;
-        stressLevel?: number | null;
-        workoutAdherence: number;
-        dietAdherence: number;
-        notes?: string | null;
-        chest?: number | null;
-        waist?: number | null;
-        abdomen?: number | null;
-        hips?: number | null;
-        armRight?: number | null;
-        armLeft?: number | null;
-        thighRight?: number | null;
-        thighLeft?: number | null;
-        calfRight?: number | null;
-        calfLeft?: number | null;
-        bodyFatPercentage?: number | null;
-        photos?: Array<{ id: string; url: string; angle: string }>;
-    }>;
-    progressPhotos?: Array<{
-        id: string;
-        url: string;
-        angle: string;
-        weight?: number | null;
-        createdAt: string;
-    }>;
+const PERIODS = [
+    { id: '30', label: 'Últimos 30 dias', days: 30 },
+    { id: '90', label: 'Últimos 90 dias', days: 90 },
+    { id: '180', label: 'Últimos 6 meses', days: 180 },
+    { id: 'all', label: 'Todo o acompanhamento', days: null },
+] as const;
+type PeriodId = (typeof PERIODS)[number]['id'];
+
+const FALLBACK_BRAND = 'Adrian Fit';
+const HISTORY_ROWS = 10;
+
+/**
+ * The report sheet is always light (it is a paper document); print hides the app chrome
+ * (sidebar, headers, mobile bottom nav) and keeps the colored badges.
+ */
+const REPORT_STYLES = `
+.report-sheet {
+  --background: #ffffff; --foreground: #09090b; --card: #ffffff; --card-foreground: #09090b;
+  --muted: #f4f4f5; --muted-foreground: #52525b; --border: #e4e4e7;
+  color-scheme: light; background: #ffffff; color: #09090b;
+}
+@media print {
+  @page { margin: 12mm; }
+  html, body { background: #ffffff !important; }
+  header, nav, aside { display: none !important; }
+  [class*="lg:ml-"] { margin-left: 0 !important; }
+  main { padding: 0 !important; margin: 0 !important; }
+  main > div { padding: 0 !important; max-width: none !important; }
+  .report-sheet { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 0 !important; }
+  .report-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-avoid-break { break-inside: avoid; page-break-inside: avoid; }
+}
+`;
+
+const byDateAsc = (a: Checkin, b: Checkin) => new Date(a.date).getTime() - new Date(b.date).getTime();
+
+function average(values: number[]): number | null {
+    if (values.length === 0) return null;
+    return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function Kpi({ icon, label, value, delta, detail }: { icon: React.ReactNode; label: string; value: string; delta?: string | null; detail: string }) {
+    return (
+        <div className="report-avoid-break space-y-1 rounded-2xl border border-border p-4">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                {icon}
+                {label}
+            </span>
+            <div className="flex items-baseline justify-between gap-2">
+                <span className="text-xl font-bold text-foreground">{value}</span>
+                {delta && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground">{delta}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">{detail}</p>
+        </div>
+    );
 }
 
 export default function StudentEvolutionReportPage() {
     const params = useParams();
-    const router = useRouter();
-    const [student, setStudent] = useState<StudentReportData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const id = String(params?.id ?? '');
+    const { data: student, error, isLoading, isValidating, mutate } = useApi<StudentReport>(id ? reportKey(id) : null);
 
-    useEffect(() => {
-        if (params.id) {
-            fetchStudent();
-        }
-    }, [params.id]);
+    const [urlPeriod, setUrlPeriod] = useUrlState('period', 'all');
+    const [periodValue, setPeriod] = useInstantUrlValue(urlPeriod, setUrlPeriod);
+    const period = (PERIODS.some((item) => item.id === periodValue) ? periodValue : 'all') as PeriodId;
+    const [opinion, setOpinion] = useLocalStorageState<string>(`personal:report-opinion:${id}`, '');
 
-    const fetchStudent = async () => {
-        try {
-            setLoading(true);
-            const res = await fetch(`/api/students/${params.id}`);
-            const json = await res.json();
-            if (json.success) {
-                setStudent(json.data);
-            } else {
-                setError(json.error || 'Erro ao carregar dados do aluno');
-            }
-        } catch (err) {
-            setError('Falha de conexão com o servidor');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[500px] gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-[#F88022]" />
-                <p className="text-sm text-muted-foreground">Gerando relatório de evolução...</p>
-            </div>
-        );
-    }
-
-    if (error || !student) {
-        return (
-            <div className="max-w-2xl mx-auto p-6 space-y-4">
-                <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-sm">
-                    {error || 'Aluno não encontrado'}
-                </div>
-                <Button onClick={() => router.back()} variant="outline">
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
-                </Button>
-            </div>
-        );
-    }
-
-    // Process check-ins ordered chronologically (oldest to newest)
-    const sortedCheckins = [...student.checkins].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const firstCheckin = sortedCheckins[0];
-    const latestCheckin = sortedCheckins[sortedCheckins.length - 1];
-
-    const initialWeight = firstCheckin?.weight || student.weight || null;
-    const currentWeight = latestCheckin?.weight || student.weight || null;
-    const weightDelta = (initialWeight && currentWeight) ? +(currentWeight - initialWeight).toFixed(1) : null;
-
-    // BMI calculation
-    const heightInMeters = student.height ? student.height / 100 : null;
-    const initialBMI = (initialWeight && heightInMeters) ? +(initialWeight / (heightInMeters * heightInMeters)).toFixed(1) : null;
-    const currentBMI = (currentWeight && heightInMeters) ? +(currentWeight / (heightInMeters * heightInMeters)).toFixed(1) : null;
-
-    // Average adherence
-    const avgWorkoutAdherence = sortedCheckins.length > 0
-        ? Math.round(sortedCheckins.reduce((acc, c) => acc + (c.workoutAdherence || 0), 0) / sortedCheckins.length)
-        : 0;
-    const avgDietAdherence = sortedCheckins.length > 0
-        ? Math.round(sortedCheckins.reduce((acc, c) => acc + (c.dietAdherence || 0), 0) / sortedCheckins.length)
-        : 0;
-
-    // Measurements comparison
-    const measurementKeys: Array<{ key: keyof typeof firstCheckin; label: string }> = [
-        { key: 'chest', label: 'Tórax / Peitoral' },
-        { key: 'waist', label: 'Cintura' },
-        { key: 'abdomen', label: 'Abdômen' },
-        { key: 'hips', label: 'Quadril' },
-        { key: 'armRight', label: 'Braço Direito' },
-        { key: 'armLeft', label: 'Braço Esquerdo' },
-        { key: 'thighRight', label: 'Coxa Direita' },
-        { key: 'thighLeft', label: 'Coxa Esquerda' },
-        { key: 'calfRight', label: 'Panturrilha Direita' },
-        { key: 'calfLeft', label: 'Panturrilha Esquerda' },
-        { key: 'bodyFatPercentage', label: '% Gordura (BF)' },
-    ];
-
-    const measurementsWithData = measurementKeys.filter(m => {
-        return sortedCheckins.some(c => c[m.key] !== null && c[m.key] !== undefined);
-    }).map(m => {
-        const initialVal = sortedCheckins.find(c => c[m.key] != null)?.[m.key] as number | undefined;
-        const currentVal = [...sortedCheckins].reverse().find(c => c[m.key] != null)?.[m.key] as number | undefined;
-        const delta = (initialVal != null && currentVal != null) ? +(currentVal - initialVal).toFixed(1) : null;
-        return {
-            label: m.label,
-            isBf: m.key === 'bodyFatPercentage',
-            initial: initialVal,
-            current: currentVal,
-            delta,
-        };
+    const [backHref, setBackHref] = useState('/personal/students');
+    useEffect(() => setBackHref(crmHref()), []);
+    const name = student?.user.name ?? 'Aluno';
+    usePageMeta({
+        title: student ? `${student.user.name} · Relatório` : 'Relatório',
+        breadcrumbs: [{ label: 'Alunos', href: backHref }, { label: name, href: `/personal/students/${id}` }, { label: 'Relatório' }],
     });
 
-    // Photos comparison (oldest vs newest by angle)
-    const angles: Array<'FRONT' | 'SIDE' | 'BACK'> = ['FRONT', 'SIDE', 'BACK'];
-    const photosComparison = angles.map(angle => {
-        const anglePhotos = (student.progressPhotos || []).filter(p => p.angle === angle)
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        return {
-            angle,
-            label: angle === 'FRONT' ? 'Frente' : angle === 'SIDE' ? 'Perfil / Lado' : 'Costas',
-            before: anglePhotos[0] || null,
-            after: anglePhotos.length > 1 ? anglePhotos[anglePhotos.length - 1] : null,
-        };
-    }).filter(p => p.before || p.after);
+    const report = useMemo(() => {
+        if (!student) return null;
+        const periodConfig = PERIODS.find((item) => item.id === period)!;
+        const now = new Date();
+        const start = periodConfig.days ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - periodConfig.days) : null;
 
-    const handlePrint = () => {
-        window.print();
-    };
+        const checkins = [...student.checkins].sort(byDateAsc);
+        const inPeriod = start ? checkins.filter((checkin) => new Date(checkin.date) >= start) : checkins;
+        const before = start ? checkins.filter((checkin) => new Date(checkin.date) < start) : [];
+        // Baseline: the real first check-in for the whole follow-up, or the last one before the period started.
+        const baseline = start ? before[before.length - 1] ?? inPeriod[0] ?? null : student.firstCheckin ?? checkins[0] ?? null;
+        const latest = inPeriod[inPeriod.length - 1] ?? null;
+        const series = baseline && !inPeriod.some((checkin) => checkin.id === baseline.id) ? [baseline, ...inPeriod] : inPeriod;
+
+        const initialWeight = baseline?.weight ?? null;
+        const currentWeight = latest?.weight ?? null;
+        const heightMeters = student.height ? student.height / 100 : null;
+        const bmi = (weight: number | null) => (weight && heightMeters ? weight / (heightMeters * heightMeters) : null);
+
+        const measurements = MEASURES.map((measure) => {
+            const initial = series.find((checkin) => checkin[measure.key] != null)?.[measure.key] ?? null;
+            const current = [...series].reverse().find((checkin) => checkin[measure.key] != null)?.[measure.key] ?? null;
+            return { ...measure, initial, current };
+        }).filter((row) => row.initial != null || row.current != null);
+
+        const photos = (student.progressPhotos ?? [])
+            .filter((photo) => !start || new Date(photo.createdAt) >= start)
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        const angles = ['FRONT', 'SIDE', 'BACK'];
+        const photoPairs = angles
+            .map((angle) => {
+                const list = photos.filter((photo) => photo.angle === angle);
+                return {
+                    angle,
+                    before: list[0] ?? null,
+                    after: list.length > 1 ? list[list.length - 1] : null,
+                };
+            })
+            .filter((pair) => pair.before);
+
+        return {
+            start,
+            inPeriod,
+            baseline,
+            latest,
+            initialWeight,
+            currentWeight,
+            initialBmi: bmi(initialWeight),
+            currentBmi: bmi(currentWeight),
+            avgWorkout: average(inPeriod.map((checkin) => checkin.workoutAdherence)),
+            avgDiet: average(inPeriod.map((checkin) => checkin.dietAdherence)),
+            measurements,
+            photoPairs,
+            history: [...inPeriod].reverse().slice(0, HISTORY_ROWS),
+        };
+    }, [student, period]);
+
+    if (isLoading) {
+        return (
+            <div className="mx-auto max-w-5xl space-y-4" aria-busy="true" aria-label="Carregando relatório">
+                <div className="h-14 animate-pulse rounded-2xl bg-muted" />
+                <div className="h-[600px] animate-pulse rounded-3xl bg-muted/70" />
+            </div>
+        );
+    }
+
+    if (!student || !report) {
+        return (
+            <div className="mx-auto max-w-2xl space-y-4 rounded-2xl border border-red-500/30 bg-red-500/5 p-8 text-center" role="alert">
+                <AlertTriangle className="mx-auto h-8 w-8 text-red-500" />
+                <p className="font-semibold text-foreground">Não foi possível gerar o relatório</p>
+                <p className="text-sm text-muted-foreground">{error?.message ?? 'Aluno não encontrado.'}</p>
+                <div className="flex justify-center gap-2">
+                    <button type="button" onClick={() => mutate()} className={smallButtonClass}>
+                        <RefreshCw className={cn('h-3.5 w-3.5', isValidating && 'animate-spin')} />
+                        Tentar de novo
+                    </button>
+                    <Link href={`/personal/students/${id}`} className={primarySmallButtonClass}>
+                        Voltar para a ficha
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    const brand = student.personal?.brandName?.trim() || FALLBACK_BRAND;
+    const coach = student.personal?.user?.name || 'Personal trainer';
+    const periodLabel = report.start
+        ? `${formatDate(report.start)} a ${formatDate(new Date())}`
+        : `Todo o acompanhamento, desde ${formatDate(student.createdAt)}`;
+    const weightDelta = formatDelta(report.currentWeight, report.initialWeight, ' kg');
+    const bmiDelta = formatDelta(report.currentBmi, report.initialBmi);
+    const noCheckins = report.inPeriod.length === 0;
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto pb-16">
-            {/* Top Toolbar - Hidden during print */}
-            <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-card border border-border print:hidden shadow-sm">
-                <Link
-                    href={`/personal/students/${student.id}`}
-                    className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                    Voltar para ficha do aluno
+        <div className="mx-auto max-w-5xl space-y-4 pb-16">
+            <style>{REPORT_STYLES}</style>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 print:hidden">
+                <Link href={`/personal/students/${student.id}?tab=progress`} className={cn(smallButtonClass, 'border-transparent bg-transparent')}>
+                    <ArrowLeft className="h-4 w-4" />
+                    Voltar para a ficha
                 </Link>
-                <div className="flex items-center gap-3">
-                    <Button onClick={handlePrint} className="bg-[#F88022] hover:bg-[#F88022]/90 text-white font-medium">
-                        <Printer className="w-4 h-4 mr-2" />
-                        Imprimir / Salvar em PDF
-                    </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <label htmlFor="report-period" className="text-xs font-semibold text-muted-foreground">
+                        Período
+                    </label>
+                    <select
+                        id="report-period"
+                        value={period}
+                        onChange={(event) => setPeriod(event.target.value)}
+                        className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground focus:border-[#F88022] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/30"
+                    >
+                        {PERIODS.map((item) => (
+                            <option key={item.id} value={item.id}>
+                                {item.label}
+                            </option>
+                        ))}
+                    </select>
+                    <button type="button" onClick={() => window.print()} className={primarySmallButtonClass}>
+                        <Printer className="h-3.5 w-3.5" />
+                        Imprimir / salvar PDF
+                    </button>
                 </div>
             </div>
 
-            {/* Printable Document Container */}
-            <div className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50 border border-border rounded-3xl p-6 sm:p-10 shadow-sm space-y-8 print:border-none print:shadow-none print:p-0 print:m-0 print:bg-white print:text-zinc-900">
-                {/* Document Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-6 print:border-zinc-300">
+            <article className="report-sheet space-y-7 rounded-3xl border border-border p-6 shadow-sm sm:p-10">
+                {/* Document header */}
+                <div className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                            <div className="w-9 h-9 rounded-xl bg-[#F88022] text-white flex items-center justify-center font-black text-lg">
-                                A
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F88022] text-lg font-black text-white">
+                                {brand.charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-xl font-black tracking-tight text-[#F88022]">ADRIAN FIT</span>
+                            <span className="text-xl font-black uppercase tracking-tight text-[#F88022]">{brand}</span>
                         </div>
-                        <h1 className="text-2xl font-bold text-foreground">Relatório de Evolução Física</h1>
-                        <p className="text-xs text-muted-foreground">
-                            Acompanhamento de Metas, Métricas Corporais e Adesão ao Planejamento
-                        </p>
+                        <h1 className="text-2xl font-bold text-foreground">Relatório de evolução</h1>
+                        <p className="text-xs text-muted-foreground">Período: {periodLabel}</p>
                     </div>
-
-                    <div className="text-right text-xs space-y-0.5 sm:border-l sm:pl-6 border-zinc-200 dark:border-zinc-800 print:border-zinc-300">
-                        <p className="font-semibold text-foreground">
-                            Coach: {student.personal?.user?.name || 'Personal Trainer'}
-                        </p>
-                        {student.personal?.user?.phone && (
-                            <p className="text-muted-foreground">{student.personal.user.phone}</p>
-                        )}
-                        <p className="text-muted-foreground">
-                            Emissão: {new Date().toLocaleDateString('pt-BR')}
-                        </p>
+                    <div className="space-y-0.5 text-xs sm:border-l sm:border-border sm:pl-6 sm:text-right">
+                        <p className="font-semibold text-foreground">Treinador: {coach}</p>
+                        {student.personal?.user?.phone && <p className="text-muted-foreground">{student.personal.user.phone}</p>}
+                        <p className="text-muted-foreground">Emitido em {formatDate(new Date())}</p>
                     </div>
                 </div>
 
-                {/* Student Info Card */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 print:bg-zinc-50 print:border-zinc-200">
+                {/* Student */}
+                <div className="grid grid-cols-2 gap-4 rounded-2xl border border-border bg-muted p-5 sm:grid-cols-4">
                     <div>
-                        <span className="text-xs text-muted-foreground block font-medium">Aluno</span>
-                        <strong className="text-sm font-semibold">{student.user.name}</strong>
+                        <span className="block text-xs font-medium text-muted-foreground">Aluno</span>
+                        <strong className="text-sm font-semibold text-foreground">{student.user.name}</strong>
                     </div>
                     <div>
-                        <span className="text-xs text-muted-foreground block font-medium">Objetivo</span>
-                        <strong className="text-sm font-semibold">{student.goal || 'Hipertrofia / Performance'}</strong>
+                        <span className="block text-xs font-medium text-muted-foreground">Objetivo</span>
+                        <strong className="text-sm font-semibold text-foreground">{student.goal || '—'}</strong>
                     </div>
                     <div>
-                        <span className="text-xs text-muted-foreground block font-medium">Altura</span>
-                        <strong className="text-sm font-semibold">{student.height ? `${student.height} cm` : '-'}</strong>
+                        <span className="block text-xs font-medium text-muted-foreground">Altura</span>
+                        <strong className="text-sm font-semibold text-foreground">{formatNumber(student.height, ' cm')}</strong>
                     </div>
                     <div>
-                        <span className="text-xs text-muted-foreground block font-medium">Início do Acompanhamento</span>
-                        <strong className="text-sm font-semibold">
-                            {new Date(student.createdAt).toLocaleDateString('pt-BR')}
-                        </strong>
+                        <span className="block text-xs font-medium text-muted-foreground">Início do acompanhamento</span>
+                        <strong className="text-sm font-semibold text-foreground">{formatDate(student.createdAt)}</strong>
                     </div>
                 </div>
 
-                {/* Key KPIs Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {/* Weight Evolution */}
-                    <div className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-card space-y-2">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
-                            <Scale className="w-3.5 h-3.5 text-blue-500" /> Peso Corporal
-                        </span>
-                        <div className="flex items-baseline justify-between">
-                            <span className="text-xl font-bold">{currentWeight ? `${currentWeight} kg` : '-'}</span>
-                            {weightDelta !== null && (
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${
-                                    weightDelta <= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-blue-500/10 text-blue-600'
-                                }`}>
-                                    {weightDelta > 0 ? `+${weightDelta} kg` : `${weightDelta} kg`}
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                            Inicial: {initialWeight ? `${initialWeight} kg` : '-'}
-                        </p>
-                    </div>
+                {noCheckins && (
+                    <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        Nenhum check-in neste período. Escolha um período maior ou peça um check-in ao aluno.
+                    </p>
+                )}
 
-                    {/* BMI */}
-                    <div className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-card space-y-2">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
-                            <TrendingUp className="w-3.5 h-3.5 text-purple-500" /> IMC
-                        </span>
-                        <div className="flex items-baseline justify-between">
-                            <span className="text-xl font-bold">{currentBMI || '-'}</span>
-                            {initialBMI && currentBMI && (
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600">
-                                    {(currentBMI - initialBMI) > 0 ? `+${(currentBMI - initialBMI).toFixed(1)}` : (currentBMI - initialBMI).toFixed(1)}
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                            Inicial: {initialBMI || '-'}
-                        </p>
-                    </div>
-
-                    {/* Workout Adherence */}
-                    <div className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-card space-y-2">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
-                            <Dumbbell className="w-3.5 h-3.5 text-[#F88022]" /> Média Treino
-                        </span>
-                        <div className="flex items-baseline justify-between">
-                            <span className="text-xl font-bold text-[#F88022]">{avgWorkoutAdherence}%</span>
-                            <span className="text-xs font-medium text-muted-foreground">
-                                {sortedCheckins.length} check-ins
-                            </span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                            Adesão média aos treinos prescritos
-                        </p>
-                    </div>
-
-                    {/* Diet Adherence */}
-                    <div className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-card space-y-2">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
-                            <Utensils className="w-3.5 h-3.5 text-emerald-500" /> Média Dieta
-                        </span>
-                        <div className="flex items-baseline justify-between">
-                            <span className="text-xl font-bold text-emerald-500">{avgDietAdherence}%</span>
-                            <span className="text-xs font-medium text-muted-foreground">
-                                Consistência
-                            </span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                            Cumprimento do plano alimentar
-                        </p>
-                    </div>
+                {/* KPIs */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Kpi
+                        icon={<Scale className="h-3.5 w-3.5 text-blue-600" />}
+                        label="Peso corporal"
+                        value={formatNumber(report.currentWeight, ' kg')}
+                        delta={report.baseline && report.latest && report.baseline.id !== report.latest.id ? weightDelta : null}
+                        detail={report.baseline ? `Inicial: ${formatNumber(report.initialWeight, ' kg')} em ${formatDate(report.baseline.date)}` : 'Sem registro inicial'}
+                    />
+                    <Kpi
+                        icon={<TrendingUp className="h-3.5 w-3.5 text-purple-600" />}
+                        label="IMC"
+                        value={formatNumber(report.currentBmi)}
+                        delta={report.baseline && report.latest && report.baseline.id !== report.latest.id ? bmiDelta : null}
+                        detail={student.height ? `Inicial: ${formatNumber(report.initialBmi)}` : 'Altura não informada'}
+                    />
+                    <Kpi
+                        icon={<Dumbbell className="h-3.5 w-3.5 text-[#F88022]" />}
+                        label="Adesão média ao treino"
+                        value={report.avgWorkout === null ? '—' : `${report.avgWorkout}%`}
+                        detail={`${report.inPeriod.length} ${report.inPeriod.length === 1 ? 'check-in' : 'check-ins'} no período`}
+                    />
+                    <Kpi
+                        icon={<Utensils className="h-3.5 w-3.5 text-emerald-600" />}
+                        label="Adesão média à dieta"
+                        value={report.avgDiet === null ? '—' : `${report.avgDiet}%`}
+                        detail="Cumprimento do plano alimentar"
+                    />
                 </div>
 
-                {/* Body Measurements Evolution Table */}
-                {measurementsWithData.length > 0 && (
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-base font-bold flex items-center gap-2">
-                                <Ruler className="w-4 h-4 text-emerald-500" />
-                                Evolução das Medidas Corporais
-                            </h2>
-                            <span className="text-xs text-muted-foreground">Valores em centímetros (cm)</span>
-                        </div>
-
-                        <div className="border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden print:border-zinc-200">
-                            <table className="w-full text-left text-xs border-collapse">
+                {/* Measurements */}
+                {report.measurements.length > 0 && (
+                    <section className="report-avoid-break space-y-3">
+                        <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+                            <Ruler className="h-4 w-4 text-emerald-600" />
+                            Evolução das medidas corporais
+                        </h2>
+                        <div className="overflow-hidden rounded-2xl border border-border">
+                            <table className="w-full text-left text-sm">
                                 <thead>
-                                    <tr className="bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 font-semibold text-muted-foreground print:bg-zinc-100">
-                                        <th className="p-3">Circunferência</th>
-                                        <th className="p-3 text-center">Medida Inicial</th>
-                                        <th className="p-3 text-center">Medida Atual</th>
-                                        <th className="p-3 text-right">Variação (Delta)</th>
+                                    <tr className="border-b border-border bg-muted text-xs font-semibold text-muted-foreground">
+                                        <th className="p-3">Medida</th>
+                                        <th className="p-3 text-center">Inicial</th>
+                                        <th className="p-3 text-center">Atual</th>
+                                        <th className="p-3 text-right">Variação</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                                    {measurementsWithData.map((row, i) => {
-                                        const unit = row.isBf ? '%' : ' cm';
+                                <tbody className="divide-y divide-border">
+                                    {report.measurements.map((row) => {
+                                        const unit = row.unit.trim() === '%' ? '%' : ' cm';
+                                        const delta = formatDelta(row.current, row.initial, row.unit.trim() === '%' ? ' p.p.' : ' cm');
                                         return (
-                                            <tr key={i} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50">
+                                            <tr key={row.key}>
                                                 <td className="p-3 font-medium text-foreground">{row.label}</td>
-                                                <td className="p-3 text-center text-muted-foreground">
-                                                    {row.initial != null ? `${row.initial}${unit}` : '-'}
-                                                </td>
-                                                <td className="p-3 text-center font-semibold text-foreground">
-                                                    {row.current != null ? `${row.current}${unit}` : '-'}
-                                                </td>
-                                                <td className="p-3 text-right">
-                                                    {row.delta !== null ? (
-                                                        <span className={`inline-block font-semibold px-2 py-0.5 rounded-full ${
-                                                            row.delta < 0 ? 'bg-emerald-500/10 text-emerald-600' : row.delta > 0 ? 'bg-blue-500/10 text-blue-600' : 'text-muted-foreground'
-                                                        }`}>
-                                                            {row.delta > 0 ? `+${row.delta}${unit}` : `${row.delta}${unit}`}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-muted-foreground">-</span>
-                                                    )}
-                                                </td>
+                                                <td className="p-3 text-center text-muted-foreground">{formatNumber(row.initial, unit)}</td>
+                                                <td className="p-3 text-center font-semibold text-foreground">{formatNumber(row.current, unit)}</td>
+                                                <td className="p-3 text-right font-semibold text-foreground">{delta ?? '—'}</td>
                                             </tr>
                                         );
                                     })}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </section>
                 )}
 
-                {/* Visual Progress - Before and After Photos */}
-                {photosComparison.length > 0 && (
-                    <div className="space-y-4 break-inside-avoid">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-base font-bold flex items-center gap-2">
-                                <Camera className="w-4 h-4 text-indigo-500" />
-                                Comparativo Fotográfico (Antes & Depois)
-                            </h2>
-                            <span className="text-xs text-muted-foreground">Registros de progresso visual</span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            {photosComparison.map((item) => (
-                                <div key={item.angle} className="border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3 bg-zinc-50 dark:bg-zinc-900/40 space-y-2">
-                                    <span className="text-xs font-bold block text-center uppercase tracking-wider text-muted-foreground">
-                                        {item.label}
+                {/* Photos */}
+                {report.photoPairs.length > 0 && (
+                    <section className="report-avoid-break space-y-3">
+                        <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+                            <Camera className="h-4 w-4 text-indigo-600" />
+                            Comparativo fotográfico
+                        </h2>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            {report.photoPairs.map((pair) => (
+                                <div key={pair.angle} className="space-y-2 rounded-2xl border border-border bg-muted p-3">
+                                    <span className="block text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        {PHOTO_ANGLE_LABELS[pair.angle] ?? pair.angle}
                                     </span>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {/* Before */}
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] text-muted-foreground block text-center font-medium">
-                                                {item.before ? new Date(item.before.createdAt).toLocaleDateString('pt-BR') : 'Inicial'}
-                                            </span>
-                                            <div className="aspect-[3/4] rounded-xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 border border-border flex items-center justify-center">
-                                                {item.before ? (
-                                                    <img
-                                                        src={item.before.url}
-                                                        alt={`${item.label} Antes`}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <span className="text-[10px] text-muted-foreground">Sem foto</span>
-                                                )}
+                                        {[pair.before, pair.after].map((photo: ProgressPhoto | null, index) => (
+                                            <div key={index} className="space-y-1">
+                                                <span className={cn('block text-center text-xs font-semibold', index === 1 ? 'text-[#F88022]' : 'text-muted-foreground')}>
+                                                    {photo ? formatDate(photo.createdAt) : 'Sem foto posterior'}
+                                                </span>
+                                                <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border border-border bg-white">
+                                                    {photo ? (
+                                                        <img src={photo.url} alt={`${PHOTO_ANGLE_LABELS[pair.angle] ?? pair.angle} em ${formatDate(photo.createdAt)}`} className="h-full w-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">—</span>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-
-                                        {/* After */}
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] text-[#F88022] block text-center font-bold">
-                                                {item.after ? new Date(item.after.createdAt).toLocaleDateString('pt-BR') : 'Atual'}
-                                            </span>
-                                            <div className="aspect-[3/4] rounded-xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 border border-[#F88022]/30 flex items-center justify-center">
-                                                {item.after ? (
-                                                    <img
-                                                        src={item.after.url}
-                                                        alt={`${item.label} Atual`}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <span className="text-[10px] text-muted-foreground">Aguardando</span>
-                                                )}
-                                            </div>
-                                        </div>
+                                        ))}
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </section>
                 )}
 
-                {/* Recent Check-in Logs */}
-                {sortedCheckins.length > 0 && (
-                    <div className="space-y-3 break-inside-avoid">
-                        <h2 className="text-base font-bold flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-blue-500" />
-                            Histórico Recente de Check-ins
+                {/* Check-in history */}
+                {report.history.length > 0 && (
+                    <section className="report-avoid-break space-y-3">
+                        <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+                            <Calendar className="h-4 w-4 text-blue-600" />
+                            Check-ins do período
+                            {report.inPeriod.length > HISTORY_ROWS && (
+                                <span className="text-xs font-normal text-muted-foreground">(últimos {HISTORY_ROWS} de {report.inPeriod.length})</span>
+                            )}
                         </h2>
-                        <div className="border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden print:border-zinc-200">
-                            <table className="w-full text-left text-xs border-collapse">
+                        <div className="overflow-hidden rounded-2xl border border-border">
+                            <table className="w-full text-left text-sm">
                                 <thead>
-                                    <tr className="bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 font-semibold text-muted-foreground print:bg-zinc-100">
+                                    <tr className="border-b border-border bg-muted text-xs font-semibold text-muted-foreground">
                                         <th className="p-3">Data</th>
                                         <th className="p-3 text-center">Peso</th>
                                         <th className="p-3 text-center">Sono</th>
                                         <th className="p-3 text-center">Treino</th>
                                         <th className="p-3 text-center">Dieta</th>
-                                        <th className="p-3">Observações do Aluno</th>
+                                        <th className="p-3">Observações do aluno</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                                    {sortedCheckins.slice(-5).reverse().map((c) => (
-                                        <tr key={c.id}>
-                                            <td className="p-3 font-medium">
-                                                {new Date(c.date).toLocaleDateString('pt-BR')}
-                                            </td>
-                                            <td className="p-3 text-center font-semibold">{c.weight ? `${c.weight} kg` : '-'}</td>
-                                            <td className="p-3 text-center text-muted-foreground">{c.sleepHours ? `${c.sleepHours}h` : '-'}</td>
-                                            <td className="p-3 text-center font-semibold text-[#F88022]">{c.workoutAdherence}%</td>
-                                            <td className="p-3 text-center font-semibold text-emerald-500">{c.dietAdherence}%</td>
-                                            <td className="p-3 text-muted-foreground truncate max-w-[200px]">{c.notes || 'Sem observações'}</td>
+                                <tbody className="divide-y divide-border">
+                                    {report.history.map((checkin) => (
+                                        <tr key={checkin.id}>
+                                            <td className="whitespace-nowrap p-3 font-medium text-foreground">{formatDate(checkin.date)}</td>
+                                            <td className="p-3 text-center font-semibold text-foreground">{formatNumber(checkin.weight, ' kg')}</td>
+                                            <td className="p-3 text-center text-muted-foreground">{formatNumber(checkin.sleepHours, ' h')}</td>
+                                            <td className="p-3 text-center font-semibold text-[#F88022]">{checkin.workoutAdherence}%</td>
+                                            <td className="p-3 text-center font-semibold text-emerald-600">{checkin.dietAdherence}%</td>
+                                            <td className="p-3 text-muted-foreground">{checkin.notes || '—'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </section>
                 )}
 
-                {/* Coach Feedback & Signature Block */}
-                <div className="pt-6 border-t border-zinc-200 dark:border-zinc-800 space-y-8 break-inside-avoid print:border-zinc-300">
+                {/* Trainer opinion and signature */}
+                <section className="report-avoid-break space-y-8 border-t border-border pt-6">
                     <div className="space-y-2">
-                        <h3 className="text-sm font-bold text-foreground">Parecer do Treinador:</h3>
-                        <div className="min-h-[80px] p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 text-xs text-muted-foreground">
-                            Evolução consistente acompanhada através do protocolo Adrian FIT. Metas de adesão cumpridas dentro da periodicidade estabelecida. Seguir com a progressão da fase vigente.
+                        <label htmlFor="report-opinion" className="block text-sm font-bold text-foreground">
+                            Parecer do treinador
+                        </label>
+                        <textarea
+                            id="report-opinion"
+                            value={opinion}
+                            onChange={(event) => setOpinion(event.target.value)}
+                            rows={5}
+                            placeholder="Escreva sua análise do período: pontos fortes, o que ajustar e os próximos passos. O texto fica salvo neste navegador para este aluno e aparece na impressão."
+                            className={cn(textareaClass, 'bg-white text-sm print:hidden')}
+                        />
+                        <p className="text-xs text-muted-foreground print:hidden">Salvo automaticamente neste navegador.</p>
+                        <div className="hidden min-h-[96px] whitespace-pre-wrap rounded-xl border border-border p-4 text-sm text-foreground print:block">
+                            {opinion.trim()}
                         </div>
                     </div>
 
-                    <div className="flex justify-between items-end pt-4">
-                        <div className="text-[11px] text-muted-foreground">
-                            <p>Adrian FIT App · Plataforma Oficial de Consultoria</p>
+                    <div className="flex items-end justify-between gap-6 pt-4">
+                        <div className="text-xs text-muted-foreground">
+                            <p>{brand}</p>
                             <p>Relatório gerado em {new Date().toLocaleString('pt-BR')}</p>
                         </div>
-                        <div className="text-center space-y-1">
-                            <div className="w-56 border-b border-zinc-400 dark:border-zinc-600 mb-1"></div>
-                            <p className="text-xs font-bold text-foreground">
-                                {student.personal?.user?.name || 'Personal Trainer'}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">Responsável Técnico</p>
+                        <div className="space-y-1 text-center">
+                            <div className="mb-1 w-56 border-b border-zinc-400" />
+                            <p className="text-xs font-bold text-foreground">{coach}</p>
+                            <p className="text-xs text-muted-foreground">Responsável técnico</p>
                         </div>
                     </div>
-                </div>
-            </div>
+                </section>
+            </article>
         </div>
     );
 }

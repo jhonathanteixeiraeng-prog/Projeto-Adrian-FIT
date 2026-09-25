@@ -1,1484 +1,817 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 import {
+    AlertTriangle,
     ArrowLeft,
-    Dumbbell,
-    Utensils,
-    MessageCircle,
-    TrendingUp,
-    Calendar,
-    Scale,
-    Target,
-    Edit,
-    Copy,
-    Plus,
-    ChevronRight,
-    ChevronLeft,
-    Clock,
-    Loader2,
-    Key,
-    X,
     Camera,
-    FileText,
-    Sparkles
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    Copy,
+    Dumbbell,
+    History,
+    Library,
+    Loader2,
+    Pencil,
+    RefreshCw,
+    Ruler,
+    Scale,
+    Sparkles,
+    TrendingUp,
+    User,
+    Utensils,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge, Avatar, Button, Input, useToast } from '@/components/ui';
+import { Avatar, useDialogs, useToast } from '@/components/ui';
+import { rememberRecentStudent } from '@/components/personal/command-palette';
+import { usePageMeta } from '@/components/personal/page-meta';
+import { ContractDialog } from '@/components/personal/students/contract-form';
+import {
+    GENDER_LABELS,
+    STUDENTS_KEY,
+    ageFrom,
+    calendarDate,
+    crmHref,
+    errorMessage,
+    formatDate,
+    formatDelta,
+    formatNumber,
+    formatShortDate,
+    isOtherDialogOpen,
+    planEndInfo,
+    profileKey,
+    readNavNames,
+    readNavOrder,
+    relativeDaysLabel,
+    removeStudentFromCaches,
+    requestJson,
+    saveNavOrder,
+    toneText,
+    updateStudent,
+} from '@/components/personal/students/lib';
+import { AssignDietTemplateDialog, AssignWorkoutTemplateDialog, CloneWorkoutDialog } from '@/components/personal/students/plan-dialogs';
+import { DietPlanView, EmptyPlan, WorkoutPlanView } from '@/components/personal/students/plan-views';
+import { AnamnesisDialog, PersonalInfoDialog, ResetPasswordDialog } from '@/components/personal/students/profile-dialogs';
+import { AnamnesisCard, ContactCard, ContractCard, QuickActionsCard, StatusCard } from '@/components/personal/students/profile-sidebar';
+import { CheckinsTable, MeasurementsSummary, PhotoGallery } from '@/components/personal/students/progress-section';
+import { ReminderDialog } from '@/components/personal/students/reminder-dialog';
+import { StudentSwitcher } from '@/components/personal/students/student-switcher';
+import type { StudentListItem, StudentProfile } from '@/components/personal/students/types';
+import { BillingBadge, InfoRow, Kbd, SectionCard, StudentStatusBadge, primarySmallButtonClass, smallButtonClass } from '@/components/personal/students/ui';
+import { useInstantUrlValue } from '@/components/personal/students/use-instant-url-value';
+import { useStickySupported } from '@/components/personal/students/use-sticky-supported';
+import { useApi } from '@/hooks/use-api';
+import { useHotkey } from '@/hooks/use-hotkey';
+import { useUrlState } from '@/hooks/use-url-state';
+import { CHECKIN_EXPECTED_DAYS, INACTIVITY_ALERT_DAYS, daysSince, getBillingInfo } from '@/lib/student-status';
 import { cn } from '@/lib/utils';
 
-interface Student {
-    id: string;
-    status: string;
-    goal: string | null;
-    user: {
-        name: string;
-        email: string;
-        phone: string | null;
-    };
-    birthDate: string | null;
-    height: number | null;
-    weight: number | null;
-    gender: string | null;
-    workoutPlans: Array<{
-        id: string;
-        title: string;
-        startDate: string;
-        endDate: string;
-        active: boolean;
-        workoutDays?: Array<{
-            id: string;
-            dayOfWeek: number;
-            name: string;
-            items?: Array<{
-                id: string;
-            }>;
-        }>;
-    }>;
-    dietPlans: Array<{
-        id: string;
-        title: string;
-        startDate: string | null;
-        endDate: string | null;
-        calories: number | null;
-        protein: number | null;
-        carbs: number | null;
-        fat: number | null;
-        active: boolean;
-        meals?: Array<{
-            id: string;
-            name: string;
-            time: string;
-            foods: string;
-            order: number;
-        }>;
-    }>;
-    checkins: Array<{
-        id: string;
-        date: string;
-        weight: number | null;
-        sleepHours?: number | null;
-        workoutAdherence: number;
-        dietAdherence: number;
-        chest?: number | null;
-        waist?: number | null;
-        abdomen?: number | null;
-        hips?: number | null;
-        armRight?: number | null;
-        armLeft?: number | null;
-        thighRight?: number | null;
-        thighLeft?: number | null;
-        calfRight?: number | null;
-        calfLeft?: number | null;
-        bodyFatPercentage?: number | null;
-        notes?: string | null;
-        photos?: Array<{ id: string; url: string; angle: string }>;
-    }>;
-    progressPhotos?: Array<{
-        id: string;
-        url: string;
-        angle: string;
-        weight?: number | null;
-        createdAt: string;
-    }>;
+const TABS = [
+    { id: 'overview', label: 'Visão geral', icon: User },
+    { id: 'workout', label: 'Treino', icon: Dumbbell },
+    { id: 'diet', label: 'Dieta', icon: Utensils },
+    { id: 'progress', label: 'Evolução', icon: TrendingUp },
+] as const;
+type ProfileTab = (typeof TABS)[number]['id'];
+
+type DialogName = 'contract' | 'info' | 'anamnesis' | 'password' | 'reminder' | 'assignWorkout' | 'cloneWorkout' | 'assignDiet';
+
+function KpiCard({
+    label,
+    icon,
+    value,
+    detail,
+    tone = 'muted',
+}: {
+    label: string;
+    icon: React.ReactNode;
+    value: React.ReactNode;
+    detail: React.ReactNode;
+    tone?: 'ok' | 'warn' | 'danger' | 'muted';
+}) {
+    return (
+        <div className="rounded-2xl border border-border bg-card p-3.5">
+            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {icon}
+                {label}
+            </p>
+            <p className={cn('mt-1 text-lg font-bold leading-tight', tone === 'muted' ? 'text-foreground' : toneText[tone])}>{value}</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">{detail}</p>
+        </div>
+    );
 }
 
-export default function StudentDetailPage() {
+function ProfileSkeleton() {
+    return (
+        <div className="space-y-4" aria-busy="true" aria-label="Carregando ficha do aluno">
+            <div className="h-8 w-40 animate-pulse rounded-lg bg-muted" />
+            <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
+                <div className="h-16 w-16 animate-pulse rounded-full bg-muted" />
+                <div className="space-y-2">
+                    <div className="h-6 w-56 animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-72 animate-pulse rounded bg-muted/70" />
+                </div>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                        {Array.from({ length: 4 }).map((_, index) => (
+                            <div key={index} className="h-24 animate-pulse rounded-2xl bg-muted" />
+                        ))}
+                    </div>
+                    <div className="h-80 animate-pulse rounded-2xl bg-muted/70" />
+                </div>
+                <div className="space-y-3">
+                    <div className="h-40 animate-pulse rounded-2xl bg-muted" />
+                    <div className="h-56 animate-pulse rounded-2xl bg-muted" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const formatDuration = (seconds: number) => {
+    if (!seconds) return '—';
+    const minutes = Math.round(seconds / 60);
+    return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+};
+
+export default function StudentProfilePage() {
     const params = useParams();
+    const id = String(params?.id ?? '');
     const router = useRouter();
     const { toast } = useToast();
-    const [student, setStudent] = useState<Student | null>(null);
-    const [allStudents, setAllStudents] = useState<Array<{ id: string; name: string }>>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState<'overview' | 'workout' | 'diet' | 'progress'>('overview');
-    const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
-    const [newPassword, setNewPassword] = useState('');
-    const [resettingPassword, setResettingPassword] = useState(false);
-    const [showLibraryModal, setShowLibraryModal] = useState(false);
-    const [templates, setTemplates] = useState<any[]>([]);
-    const [selectedTemplateId, setSelectedTemplateId] = useState('');
-    const [cloneTitle, setCloneTitle] = useState('');
-    const [cloneStartDate, setCloneStartDate] = useState('');
-    const [cloneEndDate, setCloneEndDate] = useState('');
-    const [cloning, setCloning] = useState(false);
+    const { confirm, prompt } = useDialogs();
 
-    // Diet Library State
-    const [showDietLibraryModal, setShowDietLibraryModal] = useState(false);
-    const [dietTemplates, setDietTemplates] = useState<any[]>([]);
-    const [selectedDietTemplateId, setSelectedDietTemplateId] = useState('');
-    const [cloneDietTitle, setCloneDietTitle] = useState('');
-    const [copyingWorkoutTemplate, setCopyingWorkoutTemplate] = useState(false);
-    const [copyingDietTemplate, setCopyingDietTemplate] = useState(false);
+    const { data: student, error, isLoading, isValidating, mutate } = useApi<StudentProfile>(id ? profileKey(id) : null);
 
-    // Clone From Another Student State
-    const [showCloneStudentModal, setShowCloneStudentModal] = useState(false);
-    const [peerStudents, setPeerStudents] = useState<any[]>([]);
-    const [selectedSourceStudentId, setSelectedSourceStudentId] = useState('');
-    const [cloningFromStudent, setCloningFromStudent] = useState(false);
+    const [urlTab, setUrlTab] = useUrlState('tab', 'overview');
+    const [tabValue, setTab] = useInstantUrlValue(urlTab, setUrlTab);
+    const tab: ProfileTab = TABS.some((item) => item.id === tabValue) ? (tabValue as ProfileTab) : 'overview';
+    const [dialog, setDialog] = useState<DialogName | null>(null);
+    const asideRef = useRef<HTMLElement>(null);
+    const stickyAside = useStickySupported(asideRef);
+    const [savingTemplate, setSavingTemplate] = useState<'workout' | 'diet' | null>(null);
 
-    const fetchPeerStudents = async () => {
-        try {
-            const res = await fetch('/api/students');
-            const data = await res.json();
-            if (data.success && Array.isArray(data.data)) {
-                setAllStudents(data.data.map((s: any) => ({ id: s.id, name: s.user?.name || 'Aluno' })));
-                const list = data.data.filter((s: any) => s.id !== params.id && s.workoutPlans?.length > 0);
-                setPeerStudents(list);
-                if (list.length > 0) setSelectedSourceStudentId(list[0].id);
-            }
-        } catch (err) {
-            console.error('Erro ao buscar alunos para clonagem:', err);
-        }
-    };
+    const [backHref, setBackHref] = useState('/personal/students');
+    useEffect(() => setBackHref(crmHref()), []);
 
-    const handleCloneFromStudent = async () => {
-        if (!selectedSourceStudentId) {
-            toast.warning('Selecione um aluno de origem');
-            return;
-        }
-        try {
-            setCloningFromStudent(true);
-            const res = await fetch('/api/workout-plans/clone', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sourceStudentId: selectedSourceStudentId,
-                    targetStudentId: params.id,
-                }),
-            });
-            const data = await res.json();
-            if (data.success) {
-                toast.success('Ficha clonada com sucesso!', data.message);
-                setShowCloneStudentModal(false);
-                fetchStudent();
-            } else {
-                toast.error(data.error || 'Erro ao clonar ficha');
-            }
-        } catch {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setCloningFromStudent(false);
-        }
-    };
+    const name = student?.user.name ?? 'Aluno';
+    usePageMeta({
+        title: student ? student.user.name : 'Aluno',
+        breadcrumbs: [{ label: 'Alunos', href: backHref }, { label: name }],
+    });
 
     useEffect(() => {
-        if (params.id) {
-            fetchStudent();
-            fetchPeerStudents();
-        }
-    }, [params.id]);
+        if (student?.id) rememberRecentStudent(student.id);
+    }, [student?.id]);
 
-    const fetchStudent = async () => {
-        try {
-            setLoading(true);
-            setError('');
-            const response = await fetch(`/api/students/${params.id}`);
-            const result = await response.json();
-
-            if (result.success) {
-                setStudent(result.data);
-            } else {
-                setError(result.error || 'Erro ao carregar aluno');
-            }
-        } catch (err) {
-            setError('Erro ao conectar com o servidor');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleResetPassword = async () => {
-        if (!newPassword || newPassword.length < 6) {
-            toast.warning('A senha deve ter no mínimo 6 caracteres');
-            return;
-        }
-
-        try {
-            setResettingPassword(true);
-            const response = await fetch(`/api/students/${params.id}/reset-password`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newPassword }),
-            });
-            const result = await response.json();
-
-            if (result.success) {
-                toast.success('Senha redefinida!', result.message);
-                setShowResetPasswordModal(false);
-                setNewPassword('');
-            } else {
-                toast.error(result.error || 'Erro ao redefinir senha');
-            }
-        } catch (err) {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setResettingPassword(false);
-        }
-    };
-
-    const tabs = [
-        { id: 'overview', label: 'Visão Geral', icon: TrendingUp },
-        { id: 'workout', label: 'Treino', icon: Dumbbell },
-        { id: 'diet', label: 'Dieta', icon: Utensils },
-        { id: 'progress', label: 'Evolução', icon: TrendingUp },
-    ];
-
-    const calculateIMC = () => {
-        if (!student?.height || !student?.weight) return null;
-        const heightInMeters = student.height / 100;
-        return (student.weight / (heightInMeters * heightInMeters)).toFixed(1);
-    };
-
-    const getAge = () => {
-        if (!student?.birthDate) return null;
-        const today = new Date();
-        const birth = new Date(student.birthDate);
-        let age = today.getFullYear() - birth.getFullYear();
-        const m = today.getMonth() - birth.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-            age--;
-        }
-        return age;
-    };
-
-    const getLatestCheckin = () => {
-        if (!student?.checkins || student.checkins.length === 0) return null;
-        return student.checkins[0];
-    };
-
-    const getActiveWorkout = () => {
-        return student?.workoutPlans?.find(p => p.active) || null;
-    };
-
-    const getActiveDiet = () => {
-        return student?.dietPlans?.find(p => p.active) || null;
-    };
-
-    const formatPlanDate = (date: string | null | undefined) => {
-        if (!date) return '-';
-        return new Date(date).toLocaleDateString('pt-BR');
-    };
-
-    const getWorkoutExerciseCount = (workoutPlan: Student['workoutPlans'][number] | null) => {
-        if (!workoutPlan?.workoutDays?.length) return 0;
-        return workoutPlan.workoutDays.reduce((acc, day) => acc + (day.items?.length || 0), 0);
-    };
-
-    const getMealFoodsCount = (foods: string | null | undefined) => {
-        if (!foods) return 0;
-        try {
-            const parsed = JSON.parse(foods);
-            return Array.isArray(parsed) ? parsed.length : 0;
-        } catch {
-            return 0;
-        }
-    };
-
-    const getDietFoodsCount = (dietPlan: Student['dietPlans'][number] | null) => {
-        if (!dietPlan?.meals?.length) return 0;
-        return dietPlan.meals.reduce((acc, meal) => acc + getMealFoodsCount(meal.foods), 0);
-    };
-
-    const handleAssignFromLibrary = async () => {
-        if (!selectedTemplateId || !cloneTitle || !cloneStartDate || !cloneEndDate) {
-            toast.warning('Por favor, preencha todos os campos obrigatórios');
-            return;
-        }
-
-        try {
-            setCloning(true);
-            const response = await fetch('/api/workout-plans/from-template', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    templateId: selectedTemplateId,
-                    studentId: params.id,
-                    title: cloneTitle,
-                    startDate: cloneStartDate,
-                    endDate: cloneEndDate,
-                }),
-            });
-            const result = await response.json();
-
-            if (result.success) {
-                toast.success('Plano de treino atribuído com sucesso!');
-                setShowLibraryModal(false);
-                fetchStudent(); // Refresh data
-            } else {
-                toast.error(result.error || 'Erro ao atribuir plano');
-            }
-        } catch (err) {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setCloning(false);
-        }
-    };
-
-    const handleAssignDietFromLibrary = async () => {
-        if (!selectedDietTemplateId || !cloneDietTitle || !cloneStartDate || !cloneEndDate) {
-            toast.warning('Por favor, preencha todos os campos obrigatórios');
-            return;
-        }
-
-        try {
-            setCloning(true);
-            const response = await fetch('/api/diet-plans/from-template', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    templateId: selectedDietTemplateId,
-                    studentId: params.id,
-                    startDate: cloneStartDate,
-                    endDate: cloneEndDate,
-                }),
-            });
-
-            if (response.ok) {
-                toast.success('Plano alimentar atribuído com sucesso!');
-                setShowDietLibraryModal(false);
-                fetchStudent();
-            } else {
-                const result = await response.json();
-                toast.error(result.error || 'Erro ao atribuir dieta');
-            }
-        } catch (err) {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setCloning(false);
-        }
-    };
-
-    const handleCopyWorkoutToLibrary = async () => {
-        const activeWorkout = getActiveWorkout();
-        if (!activeWorkout) {
-            toast.warning('Nenhum treino ativo para copiar');
-            return;
-        }
-
-        const suggestedTitle = `${activeWorkout.title} - Modelo`;
-        const typed = window.prompt('Nome do modelo de treino na biblioteca:', suggestedTitle);
-        if (typed === null) return;
-
-        const title = typed.trim() || suggestedTitle;
-
-        try {
-            setCopyingWorkoutTemplate(true);
-            const response = await fetch('/api/workout-templates/from-plan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    planId: activeWorkout.id,
-                    title,
-                }),
-            });
-            const result = await response.json();
-
-            if (result.success) {
-                toast.success('Treino copiado para a biblioteca com sucesso!');
-            } else {
-                toast.error(result.error || 'Erro ao copiar treino para biblioteca');
-            }
-        } catch (err) {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setCopyingWorkoutTemplate(false);
-        }
-    };
-
-    const handleCopyDietToLibrary = async () => {
-        const activeDiet = getActiveDiet();
-        if (!activeDiet) {
-            toast.warning('Nenhuma dieta ativa para copiar');
-            return;
-        }
-
-        const suggestedTitle = `${activeDiet.title} - Modelo`;
-        const typed = window.prompt('Nome do modelo de dieta na biblioteca:', suggestedTitle);
-        if (typed === null) return;
-
-        const title = typed.trim() || suggestedTitle;
-
-        try {
-            setCopyingDietTemplate(true);
-            const response = await fetch('/api/diet-templates/from-plan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    planId: activeDiet.id,
-                    title,
-                }),
-            });
-            const result = await response.json();
-
-            if (result.success) {
-                toast.success('Dieta copiada para a biblioteca com sucesso!');
-            } else {
-                toast.error(result.error || 'Erro ao copiar dieta para biblioteca');
-            }
-        } catch (err) {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setCopyingDietTemplate(false);
-        }
-    };
-
-    const fetchTemplates = async () => {
-        try {
-            const response = await fetch('/api/workout-templates');
-            const result = await response.json();
-            if (result.success) {
-                setTemplates(result.data);
-            }
-        } catch (err) {
-            console.error('Erro ao buscar modelos');
-        }
-    };
-
-    const fetchDietTemplates = async () => {
-        try {
-            const response = await fetch('/api/diet-templates');
-            const result = await response.json();
-            if (result.success) {
-                setDietTemplates(result.data);
-            }
-        } catch (err) {
-            console.error('Erro ao buscar modelos de dieta');
-        }
-    };
-
+    // ------------------------------------------------------------ prev / next (order of the CRM list)
+    const [navOrder, setNavOrder] = useState<string[] | null | undefined>(undefined);
+    const [navNames, setNavNames] = useState<Record<string, string>>({});
     useEffect(() => {
-        if (showLibraryModal) {
-            fetchTemplates();
-        }
-    }, [showLibraryModal]);
-
+        setNavOrder(readNavOrder());
+        setNavNames(readNavNames());
+    }, [id]);
+    const needsFallback = navOrder !== undefined && !(navOrder ?? []).includes(id);
+    // Only when the CRM order is unknown (opened from ⌘K, a notification or a bookmark).
+    const { data: fallbackList } = useApi<StudentListItem[]>(needsFallback ? STUDENTS_KEY : null);
+    const fallbackOrder = useMemo(
+        () =>
+            Array.isArray(fallbackList)
+                ? [...fallbackList]
+                      .sort((a, b) => (a.user?.name || '').localeCompare(b.user?.name || '', 'pt-BR'))
+                      .map((item) => ({ id: item.id, name: item.user?.name || 'Aluno' }))
+                : null,
+        [fallbackList]
+    );
     useEffect(() => {
-        if (showDietLibraryModal) {
-            fetchDietTemplates();
+        if (needsFallback && fallbackOrder && fallbackOrder.length > 0) {
+            saveNavOrder(fallbackOrder);
+            setNavOrder(fallbackOrder.map((item) => item.id));
+            setNavNames(Object.fromEntries(fallbackOrder.map((item) => [item.id, item.name])));
         }
-    }, [showDietLibraryModal]);
+    }, [needsFallback, fallbackOrder]);
 
-    if (loading) {
+    const order = navOrder && navOrder.includes(id) ? navOrder : null;
+    const index = order ? order.indexOf(id) : -1;
+    const prevId = order && index > 0 ? order[index - 1] : null;
+    const nextId = order && index >= 0 && index < order.length - 1 ? order[index + 1] : null;
+
+    const goToStudent = (targetId: string) => {
+        router.push(`/personal/students/${targetId}${tab !== 'overview' ? `?tab=${tab}` : ''}`);
+    };
+
+    useHotkey(
+        'j',
+        (event) => {
+            if (!nextId || isOtherDialogOpen()) return;
+            event.preventDefault();
+            goToStudent(nextId);
+        },
+        { preventDefault: false }
+    );
+    useHotkey(
+        'k',
+        (event) => {
+            if (!prevId || isOtherDialogOpen()) return;
+            event.preventDefault();
+            goToStudent(prevId);
+        },
+        { preventDefault: false }
+    );
+
+    // ------------------------------------------------------------ derived data
+    const derived = useMemo(() => {
+        if (!student) return null;
+        const lastSession = student.workoutSessions[0] ?? null;
+        const lastCheckin = student.checkins[0] ?? null;
+        const weightNow = lastCheckin?.weight ?? student.weight ?? null;
+        const firstWeight = student.firstCheckin?.weight ?? null;
+        return {
+            lastSession,
+            lastWorkoutDays: daysSince(lastSession?.completedAt),
+            lastCheckin,
+            lastCheckinDays: daysSince(lastCheckin?.date),
+            weightNow,
+            weightDelta: student.firstCheckin && lastCheckin && student.firstCheckin.id !== lastCheckin.id ? formatDelta(weightNow, firstWeight, ' kg') : null,
+            activeWorkoutCount: student.workoutPlans.filter((plan) => plan.active).length,
+            activeDietCount: student.dietPlans.filter((plan) => plan.active).length,
+            billing: getBillingInfo(student),
+        };
+    }, [student]);
+
+    // ------------------------------------------------------------ actions
+    const saveWorkoutAsTemplate = async () => {
+        const plan = student?.activeWorkoutPlan;
+        if (!plan) return;
+        const title = await prompt({
+            title: 'Salvar treino como modelo',
+            description: 'O modelo fica na biblioteca para atribuir a outros alunos.',
+            label: 'Nome do modelo',
+            defaultValue: `${plan.title} (modelo)`,
+            confirmText: 'Salvar modelo',
+        });
+        if (title === null) return;
+        try {
+            setSavingTemplate('workout');
+            await requestJson('/api/workout-templates/from-plan', { method: 'POST', body: { planId: plan.id, title } });
+            toast.success('Modelo salvo na biblioteca', title);
+        } catch (templateError) {
+            toast.error('Não foi possível salvar o modelo', errorMessage(templateError));
+        } finally {
+            setSavingTemplate(null);
+        }
+    };
+
+    const saveDietAsTemplate = async () => {
+        const plan = student?.activeDietPlan;
+        if (!plan) return;
+        const title = await prompt({
+            title: 'Salvar dieta como modelo',
+            description: 'O modelo fica na biblioteca para atribuir a outros alunos.',
+            label: 'Nome do modelo',
+            defaultValue: `${plan.title} (modelo)`,
+            confirmText: 'Salvar modelo',
+        });
+        if (title === null) return;
+        try {
+            setSavingTemplate('diet');
+            await requestJson('/api/diet-templates/from-plan', { method: 'POST', body: { planId: plan.id, title } });
+            toast.success('Modelo salvo na biblioteca', title);
+        } catch (templateError) {
+            toast.error('Não foi possível salvar o modelo', errorMessage(templateError));
+        } finally {
+            setSavingTemplate(null);
+        }
+    };
+
+    const deleteStudent = async () => {
+        if (!student) return;
+        const ok = await confirm({
+            title: `Excluir ${student.user.name}?`,
+            description:
+                'Remove o aluno com treinos, dietas, check-ins e fotos. Esta ação não pode ser desfeita. Para apenas interromper o acompanhamento, altere o status para "Inativo".',
+            confirmText: 'Excluir aluno',
+            variant: 'danger',
+        });
+        if (!ok) return;
+        try {
+            await requestJson(`/api/students/${student.id}`, { method: 'DELETE' });
+            removeStudentFromCaches(student.id);
+            toast.success('Aluno excluído', student.user.name);
+            router.push(backHref);
+        } catch (deleteError) {
+            toast.error('Não foi possível excluir', errorMessage(deleteError));
+        }
+    };
+
+    // ------------------------------------------------------------ states
+    if (isLoading) return <ProfileSkeleton />;
+
+    if (!student || !derived) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-8 h-8 animate-spin text-[#F88022]" />
-            </div>
-        );
-    }
-
-    if (error || !student) {
-        return (
-            <div className="space-y-6 animate-in">
-                <div className="flex items-center gap-4">
-                    <Link
-                        href="/personal/students"
-                        className="p-2 rounded-xl hover:bg-muted transition-colors"
-                    >
-                        <ArrowLeft className="w-6 h-6" />
-                    </Link>
-                    <h1 className="text-2xl font-bold text-foreground">Aluno não encontrado</h1>
-                </div>
-                <Card>
-                    <CardContent className="p-8 text-center">
-                        <p className="text-muted-foreground">{error || 'Não foi possível carregar os dados do aluno.'}</p>
-                        <Link href="/personal/students" className="mt-4 inline-block">
-                            <Button variant="outline">Voltar para Lista</Button>
+            <div className="space-y-4">
+                <Link href={backHref} className={smallButtonClass}>
+                    <ArrowLeft className="h-4 w-4" />
+                    Alunos
+                </Link>
+                <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-10 text-center" role="alert">
+                    <AlertTriangle className="mx-auto h-8 w-8 text-red-500" />
+                    <h1 className="mt-3 text-lg font-bold text-foreground">Não foi possível abrir a ficha</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">{error?.message ?? 'Aluno não encontrado.'}</p>
+                    <div className="mt-4 flex justify-center gap-2">
+                        <button type="button" onClick={() => mutate()} className={smallButtonClass}>
+                            <RefreshCw className={cn('h-3.5 w-3.5', isValidating && 'animate-spin')} />
+                            Tentar de novo
+                        </button>
+                        <Link href={backHref} className={primarySmallButtonClass}>
+                            Voltar para alunos
                         </Link>
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
             </div>
         );
     }
 
-    const latestCheckin = getLatestCheckin();
-    const activeWorkout = getActiveWorkout();
-    const activeDiet = getActiveDiet();
-    const dietEditorHref = activeDiet ? `/personal/diets/${activeDiet.id}` : `/personal/students/${params.id}/diet`;
+    const { lastSession, lastWorkoutDays, lastCheckin, lastCheckinDays, weightNow, weightDelta, billing } = derived;
+    const workout = student.activeWorkoutPlan;
+    const diet = student.activeDietPlan;
+    const workoutEnd = planEndInfo(workout?.endDate);
+    const age = ageFrom(student.birthDate);
+    const imc = student.height && weightNow ? weightNow / (student.height / 100) ** 2 : null;
+    const workoutHistory = student.workoutPlans.filter((plan) => plan.id !== workout?.id);
+    const dietHistory = student.dietPlans.filter((plan) => plan.id !== diet?.id);
+    const counts = student._count;
+    const prevName = prevId ? navNames[prevId] : null;
+    const nextName = nextId ? navNames[nextId] : null;
 
-    const currentIndex = allStudents.findIndex(s => s.id === params.id);
-    const prevStudent = currentIndex > 0 ? allStudents[currentIndex - 1] : null;
-    const nextStudent = currentIndex >= 0 && currentIndex < allStudents.length - 1 ? allStudents[currentIndex + 1] : null;
+    const workoutActions = (
+        <>
+            <Link href={`/personal/students/${student.id}/workout`} className={primarySmallButtonClass}>
+                <Pencil className="h-3.5 w-3.5" />
+                {workout ? 'Editar treino' : 'Criar treino'}
+            </Link>
+            <button type="button" onClick={() => setDialog('assignWorkout')} className={smallButtonClass}>
+                <Library className="h-3.5 w-3.5" />
+                Atribuir modelo
+            </button>
+            <button type="button" onClick={() => setDialog('cloneWorkout')} className={smallButtonClass}>
+                <Sparkles className="h-3.5 w-3.5 text-[#F88022]" />
+                Clonar de aluno
+            </button>
+        </>
+    );
+
+    const dietActions = (
+        <>
+            <Link href={`/personal/students/${student.id}/diet`} className={primarySmallButtonClass}>
+                <Pencil className="h-3.5 w-3.5" />
+                {diet ? 'Editar dieta' : 'Criar dieta'}
+            </Link>
+            <button type="button" onClick={() => setDialog('assignDiet')} className={smallButtonClass}>
+                <Library className="h-3.5 w-3.5" />
+                Atribuir modelo
+            </button>
+        </>
+    );
 
     return (
-        <>
-            <div className="space-y-6 animate-in">
-                {/* Student Switcher & Quick Navigation Bar */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-2.5 bg-card border border-border rounded-2xl shadow-xs">
-                    <Link
-                        href="/personal/students"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-xs font-semibold"
+        <div className="space-y-4 pb-12">
+            {/* Navigation bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <Link href={backHref} className={cn(smallButtonClass, 'border-transparent bg-transparent')}>
+                    <ArrowLeft className="h-4 w-4" />
+                    Alunos
+                </Link>
+                <div className="flex items-center gap-1.5">
+                    {order && index >= 0 && (
+                        <span className="hidden text-xs text-muted-foreground sm:inline">
+                            {index + 1} de {order.length}
+                        </span>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => prevId && goToStudent(prevId)}
+                        disabled={!prevId}
+                        className={cn(smallButtonClass, 'w-8 px-0')}
+                        title={prevId ? `Anterior: ${prevName ?? 'aluno'} (K)` : 'Sem aluno anterior'}
+                        aria-label="Aluno anterior"
                     >
-                        <ArrowLeft className="w-4 h-4" />
-                        <span>Voltar para Lista de Alunos</span>
-                    </Link>
+                        <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => nextId && goToStudent(nextId)}
+                        disabled={!nextId}
+                        className={cn(smallButtonClass, 'w-8 px-0')}
+                        title={nextId ? `Próximo: ${nextName ?? 'aluno'} (J)` : 'Sem próximo aluno'}
+                        aria-label="Próximo aluno"
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                    </button>
+                    <StudentSwitcher currentId={student.id} onPick={goToStudent} />
+                </div>
+            </div>
 
-                    {allStudents.length > 1 && (
-                        <div className="flex items-center gap-2 self-end sm:self-center">
-                            <span className="text-[11px] text-muted-foreground font-medium hidden md:inline">
-                                Alternar Aluno:
-                            </span>
+            {/* Header */}
+            <header className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card p-4">
+                <Avatar name={student.user.name} src={student.user.avatar || undefined} size="xl" />
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h1 className="truncate text-2xl font-bold text-foreground">{student.user.name}</h1>
+                        <StudentStatusBadge status={student.status} />
+                        <BillingBadge billing={billing} />
+                        {isValidating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Atualizando" />}
+                    </div>
+                    <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
+                        {student.goal ? <span className="text-foreground">{student.goal}</span> : 'Sem objetivo definido'}
+                        {' · '}aluno desde {formatDate(student.createdAt)}
+                    </p>
+                </div>
+                <p className="hidden items-center gap-1 text-xs text-muted-foreground xl:flex">
+                    <Kbd>K</Kbd>
+                    <Kbd>J</Kbd> anterior / próximo
+                </p>
+            </header>
 
-                            <Link
-                                href={prevStudent ? `/personal/students/${prevStudent.id}` : '#'}
-                                className={cn(
-                                    'p-1.5 rounded-xl border border-border text-xs flex items-center justify-center transition-colors',
-                                    prevStudent
-                                        ? 'hover:bg-muted text-foreground'
-                                        : 'opacity-30 cursor-not-allowed pointer-events-none'
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="min-w-0 space-y-4">
+                    {/* KPIs */}
+                    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                        <KpiCard
+                            label="Último treino"
+                            icon={<Dumbbell className="h-3.5 w-3.5 text-[#F88022]" />}
+                            value={lastSession ? relativeDaysLabel(lastWorkoutDays) : 'Nunca treinou'}
+                            detail={lastSession ? `${lastSession.dayName} · ${lastSession.percentage}% concluído` : 'Nenhum treino registrado no app'}
+                            tone={
+                                student.status !== 'ACTIVE'
+                                    ? 'muted'
+                                    : lastWorkoutDays === null || lastWorkoutDays >= INACTIVITY_ALERT_DAYS
+                                        ? 'danger'
+                                        : 'ok'
+                            }
+                        />
+                        <KpiCard
+                            label="Último check-in"
+                            icon={<Clock className="h-3.5 w-3.5 text-purple-500" />}
+                            value={lastCheckin ? `${formatShortDate(lastCheckin.date)} · ${relativeDaysLabel(lastCheckinDays).toLowerCase()}` : 'Sem check-in ainda'}
+                            detail={
+                                lastCheckin
+                                    ? `Adesão: treino ${lastCheckin.workoutAdherence}% · dieta ${lastCheckin.dietAdherence}%`
+                                    : 'Envie um lembrete de check-in'
+                            }
+                            tone={lastCheckin ? ((lastCheckinDays ?? 0) >= CHECKIN_EXPECTED_DAYS ? 'warn' : 'ok') : 'muted'}
+                        />
+                        <KpiCard
+                            label="Peso atual"
+                            icon={<Scale className="h-3.5 w-3.5 text-blue-500" />}
+                            value={formatNumber(weightNow, ' kg')}
+                            detail={
+                                weightDelta && student.firstCheckin
+                                    ? `${weightDelta} desde ${formatDate(student.firstCheckin.date)}`
+                                    : lastCheckin
+                                        ? 'Primeiro registro de peso'
+                                        : 'Peso do cadastro'
+                            }
+                        />
+                        <KpiCard
+                            label="Treino ativo"
+                            icon={<History className="h-3.5 w-3.5 text-emerald-500" />}
+                            value={workout ? workoutEnd?.label ?? 'Sem data de término' : 'Sem treino ativo'}
+                            detail={workout ? workout.title : 'Prescreva um treino'}
+                            tone={workout ? workoutEnd?.tone ?? 'muted' : 'danger'}
+                        />
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1" role="tablist" aria-label="Seções da ficha">
+                        {TABS.map((item) => {
+                            const Icon = item.icon;
+                            const badge =
+                                item.id === 'progress' && counts ? counts.checkins : item.id === 'workout' && derived.activeWorkoutCount > 1 ? derived.activeWorkoutCount : null;
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={tab === item.id}
+                                    onClick={() => setTab(item.id)}
+                                    className={cn(
+                                        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                                        tab === item.id ? 'bg-background font-semibold text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                    )}
+                                >
+                                    <Icon className={cn('h-4 w-4', tab === item.id && 'text-[#F88022]')} />
+                                    {item.label}
+                                    {badge ? <span className="rounded-full bg-background/70 px-1.5 text-xs font-semibold text-muted-foreground">{badge}</span> : null}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {tab === 'overview' && (
+                        <div className="grid gap-4 xl:grid-cols-2">
+                            <SectionCard
+                                title="Informações"
+                                icon={<User className="h-4 w-4 text-[#F88022]" />}
+                                action={
+                                    <button
+                                        type="button"
+                                        onClick={() => setDialog('info')}
+                                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[#F88022] hover:bg-[#F88022]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                                    >
+                                        <Pencil className="h-3 w-3" />
+                                        Editar
+                                    </button>
+                                }
+                            >
+                                <div className="divide-y divide-border/60">
+                                    <InfoRow label="Telefone">{student.user.phone || '—'}</InfoRow>
+                                    <InfoRow label="Nascimento">
+                                        {student.birthDate ? `${calendarDate(student.birthDate)?.toLocaleDateString('pt-BR')}${age !== null ? ` · ${age} anos` : ''}` : '—'}
+                                    </InfoRow>
+                                    <InfoRow label="Sexo">{student.gender ? GENDER_LABELS[student.gender] ?? student.gender : '—'}</InfoRow>
+                                    <InfoRow label="Altura">{formatNumber(student.height, ' cm')}</InfoRow>
+                                    <InfoRow label="Peso">{formatNumber(weightNow, ' kg')}</InfoRow>
+                                    <InfoRow label="IMC">{imc ? formatNumber(imc) : '—'}</InfoRow>
+                                    <InfoRow label="Objetivo">{student.goal || '—'}</InfoRow>
+                                </div>
+                            </SectionCard>
+
+                            <SectionCard title="Atividade recente" icon={<History className="h-4 w-4 text-emerald-500" />}>
+                                {student.workoutSessions.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">Nenhum treino registrado no app ainda.</p>
+                                ) : (
+                                    <ul className="divide-y divide-border/60">
+                                        {student.workoutSessions.slice(0, 6).map((session) => (
+                                            <li key={session.id} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                                                <span className="min-w-0">
+                                                    <span className="block truncate font-medium text-foreground">{session.dayName}</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {formatDate(session.completedAt)} · {formatDuration(session.durationSeconds)}
+                                                    </span>
+                                                </span>
+                                                <span
+                                                    className={cn(
+                                                        'shrink-0 text-xs font-semibold',
+                                                        session.percentage >= 90 ? toneText.ok : session.percentage >= 50 ? toneText.warn : toneText.danger
+                                                    )}
+                                                >
+                                                    {session.percentage}%
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
                                 )}
-                                title={prevStudent ? `Anterior: ${prevStudent.name}` : undefined}
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </Link>
+                            </SectionCard>
 
-                            <select
-                                value={params.id as string}
-                                onChange={(e) => router.push(`/personal/students/${e.target.value}`)}
-                                className="bg-background border border-border rounded-xl px-3 py-1.5 text-xs font-semibold text-foreground focus:outline-none max-w-[200px] truncate"
+                            <SectionCard
+                                title="Treino atual"
+                                icon={<Dumbbell className="h-4 w-4 text-[#F88022]" />}
+                                action={
+                                    <button type="button" onClick={() => setTab('workout')} className="text-xs font-semibold text-[#F88022] hover:underline">
+                                        Ver treino completo
+                                    </button>
+                                }
                             >
-                                {allStudents.map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <Link
-                                href={nextStudent ? `/personal/students/${nextStudent.id}` : '#'}
-                                className={cn(
-                                    'p-1.5 rounded-xl border border-border text-xs flex items-center justify-center transition-colors',
-                                    nextStudent
-                                        ? 'hover:bg-muted text-foreground'
-                                        : 'opacity-30 cursor-not-allowed pointer-events-none'
+                                {workout ? (
+                                    <div className="space-y-2">
+                                        <p className="font-semibold text-foreground">{workout.title}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {formatDate(workout.startDate)} – {formatDate(workout.endDate)}
+                                            {workoutEnd && <span className={cn('ml-1.5 font-semibold', toneText[workoutEnd.tone])}>{workoutEnd.label}</span>}
+                                        </p>
+                                        <ul className="space-y-1 text-sm">
+                                            {workout.workoutDays.map((day) => (
+                                                <li key={day.id} className="flex items-center justify-between gap-2">
+                                                    <span className="truncate text-foreground">{day.name}</span>
+                                                    <span className="shrink-0 text-xs text-muted-foreground">{day.items.length} exercícios</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">Nenhum treino ativo.</p>
                                 )}
-                                title={nextStudent ? `Próximo: ${nextStudent.name}` : undefined}
+                                <div className="mt-3 flex flex-wrap gap-2">{workoutActions}</div>
+                            </SectionCard>
+
+                            <SectionCard
+                                title="Dieta atual"
+                                icon={<Utensils className="h-4 w-4 text-emerald-500" />}
+                                action={
+                                    <button type="button" onClick={() => setTab('diet')} className="text-xs font-semibold text-[#F88022] hover:underline">
+                                        Ver dieta completa
+                                    </button>
+                                }
                             >
-                                <ChevronRight className="w-4 h-4" />
-                            </Link>
+                                {diet ? (
+                                    <div className="space-y-2">
+                                        <p className="font-semibold text-foreground">{diet.title}</p>
+                                        <div className="grid grid-cols-4 gap-2 text-center">
+                                            {[
+                                                { label: 'kcal', value: diet.calories },
+                                                { label: 'Prot.', value: diet.protein, suffix: 'g' },
+                                                { label: 'Carb.', value: diet.carbs, suffix: 'g' },
+                                                { label: 'Gord.', value: diet.fat, suffix: 'g' },
+                                            ].map((macro) => (
+                                                <div key={macro.label} className="rounded-lg bg-muted/60 py-1.5">
+                                                    <p className="text-sm font-bold text-foreground">
+                                                        {macro.value ?? '—'}
+                                                        {macro.value != null && macro.suffix}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">{macro.label}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">{diet.meals.length} refeições</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">Nenhuma dieta ativa.</p>
+                                )}
+                                <div className="mt-3 flex flex-wrap gap-2">{dietActions}</div>
+                            </SectionCard>
+                        </div>
+                    )}
+
+                    {tab === 'workout' && (
+                        <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
+                            {workout ? (
+                                <>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {workoutActions}
+                                        <button
+                                            type="button"
+                                            onClick={saveWorkoutAsTemplate}
+                                            disabled={savingTemplate !== null}
+                                            className={smallButtonClass}
+                                        >
+                                            {savingTemplate === 'workout' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+                                            Salvar como modelo
+                                        </button>
+                                    </div>
+                                    <WorkoutPlanView plan={workout} activeCount={derived.activeWorkoutCount} />
+                                </>
+                            ) : (
+                                <EmptyPlan kind="treino" action={workoutActions} />
+                            )}
+                            {workoutHistory.length > 0 && (
+                                <details className="rounded-xl border border-border">
+                                    <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-foreground">
+                                        Histórico de treinos ({workoutHistory.length})
+                                    </summary>
+                                    <ul className="divide-y divide-border/60 border-t border-border">
+                                        {workoutHistory.map((plan) => (
+                                            <li key={plan.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                                                <span className="min-w-0 truncate text-foreground">{plan.title}</span>
+                                                <span className="shrink-0 text-xs text-muted-foreground">
+                                                    {formatDate(plan.startDate)} – {formatDate(plan.endDate)}
+                                                    {plan.active ? ' · ativo' : ''}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </details>
+                            )}
+                        </section>
+                    )}
+
+                    {tab === 'diet' && (
+                        <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
+                            {diet ? (
+                                <>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {dietActions}
+                                        <button type="button" onClick={saveDietAsTemplate} disabled={savingTemplate !== null} className={smallButtonClass}>
+                                            {savingTemplate === 'diet' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+                                            Salvar como modelo
+                                        </button>
+                                    </div>
+                                    <DietPlanView plan={diet} activeCount={derived.activeDietCount} />
+                                </>
+                            ) : (
+                                <EmptyPlan kind="dieta" action={dietActions} />
+                            )}
+                            {dietHistory.length > 0 && (
+                                <details className="rounded-xl border border-border">
+                                    <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-foreground">
+                                        Histórico de dietas ({dietHistory.length})
+                                    </summary>
+                                    <ul className="divide-y divide-border/60 border-t border-border">
+                                        {dietHistory.map((plan) => (
+                                            <li key={plan.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                                                <span className="min-w-0 truncate text-foreground">
+                                                    {plan.title}
+                                                    {plan.calories ? <span className="text-muted-foreground"> · {plan.calories} kcal</span> : null}
+                                                </span>
+                                                <span className="shrink-0 text-xs text-muted-foreground">
+                                                    {formatDate(plan.startDate ?? plan.createdAt)} – {formatDate(plan.endDate)}
+                                                    {plan.active ? ' · ativa' : ''}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </details>
+                            )}
+                        </section>
+                    )}
+
+                    {tab === 'progress' && (
+                        <div className="space-y-4">
+                            {student.checkins.some((checkin) => checkin.waist != null || checkin.chest != null || checkin.bodyFatPercentage != null || checkin.hips != null || checkin.armRight != null || checkin.thighRight != null || checkin.abdomen != null) && (
+                                <SectionCard title="Medidas corporais" icon={<Ruler className="h-4 w-4 text-emerald-500" />}>
+                                    <MeasurementsSummary checkins={student.checkins} firstCheckin={student.firstCheckin} />
+                                </SectionCard>
+                            )}
+                            <SectionCard
+                                title="Check-ins"
+                                icon={<TrendingUp className="h-4 w-4 text-[#F88022]" />}
+                                action={
+                                    counts && counts.checkins > student.checkins.length ? (
+                                        <Link href={`/personal/students/${student.id}/report`} className="text-xs font-semibold text-[#F88022] hover:underline">
+                                            Últimos {student.checkins.length} de {counts.checkins} · ver relatório completo
+                                        </Link>
+                                    ) : undefined
+                                }
+                                bodyClassName="p-0 sm:p-4"
+                            >
+                                {student.checkins.length === 0 ? (
+                                    <div className="p-4 text-center sm:p-2">
+                                        <p className="font-semibold text-foreground">Sem check-in ainda</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">Envie um lembrete para o aluno registrar peso, medidas e fotos.</p>
+                                        <button type="button" onClick={() => setDialog('reminder')} className={cn(smallButtonClass, 'mt-3')}>
+                                            Enviar lembrete de check-in
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <CheckinsTable checkins={student.checkins} />
+                                )}
+                            </SectionCard>
+                            <SectionCard title="Fotos de evolução" icon={<Camera className="h-4 w-4 text-indigo-500" />}>
+                                <PhotoGallery photos={student.progressPhotos} total={counts?.progressPhotos ?? student.progressPhotos.length} />
+                            </SectionCard>
                         </div>
                     )}
                 </div>
 
-                {/* Header */}
-                <div className="flex items-start gap-4">
-                    <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Avatar name={student.user.name} size="lg" />
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h1 className="text-2xl font-bold text-foreground">{student.user.name}</h1>
-                                    <Badge variant={student.status === 'ACTIVE' ? 'success' : 'default'}>
-                                        {student.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
-                                    </Badge>
-                                </div>
-                                <p className="text-muted-foreground">{student.user.email}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex gap-2">
-                        <Link href={`/personal/students/${student.id}/report`}>
-                            <Button variant="outline" className="gap-1.5">
-                                <FileText className="w-4 h-4 text-[#F88022]" />
-                                Relatório PDF
-                            </Button>
-                        </Link>
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowResetPasswordModal(true)}
-                        >
-                            <Key className="w-5 h-5" />
-                            Redefinir Senha
-                        </Button>
-                        <Link href={`/personal/chat/${student.id}`}>
-                            <Button variant="outline">
-                                <MessageCircle className="w-5 h-5" />
-                                Chat
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <Card>
-                        <CardContent className="p-4 text-center">
-                            <div className="w-10 h-10 rounded-full bg-[#F88022]/10 flex items-center justify-center mx-auto mb-2">
-                                <Dumbbell className="w-5 h-5 text-[#F88022]" />
-                            </div>
-                            <p className="text-2xl font-bold text-foreground">
-                                {latestCheckin?.workoutAdherence || 0}%
-                            </p>
-                            <p className="text-xs text-muted-foreground">Adesão Treino</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-4 text-center">
-                            <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-2">
-                                <Utensils className="w-5 h-5 text-green-500" />
-                            </div>
-                            <p className="text-2xl font-bold text-foreground">
-                                {latestCheckin?.dietAdherence || 0}%
-                            </p>
-                            <p className="text-xs text-muted-foreground">Adesão Dieta</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-4 text-center">
-                            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-2">
-                                <Scale className="w-5 h-5 text-blue-500" />
-                            </div>
-                            <p className="text-2xl font-bold text-foreground">
-                                {latestCheckin?.weight || student.weight || '-'}kg
-                            </p>
-                            <p className="text-xs text-muted-foreground">Peso Atual</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-4 text-center">
-                            <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-2">
-                                <Clock className="w-5 h-5 text-purple-500" />
-                            </div>
-                            <p className="text-2xl font-bold text-foreground">
-                                {latestCheckin ? new Date(latestCheckin.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '-'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Último check-in</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Tabs Navigation */}
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap ${activeTab === tab.id
-                                ? 'bg-[#F88022] text-white'
-                                : 'bg-muted text-muted-foreground hover:text-foreground'
-                                }`}
-                        >
-                            <tab.icon className="w-4 h-4" />
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Tab Content */}
-                {activeTab === 'overview' && (
-                    <div className="grid lg:grid-cols-2 gap-6">
-                        {/* Info Card */}
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle>Informações</CardTitle>
-                                <Button variant="ghost" size="sm">
-                                    <Edit className="w-4 h-4" />
-                                </Button>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Telefone</span>
-                                    <span className="font-medium">{student.user.phone || '-'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Idade</span>
-                                    <span className="font-medium">{getAge() ? `${getAge()} anos` : '-'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Altura</span>
-                                    <span className="font-medium">{student.height ? `${student.height} cm` : '-'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Peso</span>
-                                    <span className="font-medium">{student.weight ? `${student.weight} kg` : '-'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">IMC</span>
-                                    <span className="font-medium">{calculateIMC() || '-'}</span>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Goal Card */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Target className="w-5 h-5 text-[#F88022]" />
-                                    Objetivo
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-foreground">{student.goal || 'Nenhum objetivo definido'}</p>
-                            </CardContent>
-                        </Card>
-
-                        {/* Current Workout */}
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle className="flex items-center gap-2">
-                                    <Dumbbell className="w-5 h-5 text-[#F88022]" />
-                                    Treino Atual
-                                </CardTitle>
-                                <Link href={`/personal/students/${params.id}/workout`}>
-                                    <Button variant="ghost" size="sm">
-                                        <Edit className="w-4 h-4" />
-                                    </Button>
-                                </Link>
-                            </CardHeader>
-                            <CardContent>
-                                {activeWorkout ? (
-                                    <>
-                                        <p className="font-medium text-foreground">{activeWorkout.title}</p>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            {new Date(activeWorkout.startDate).toLocaleDateString('pt-BR')} -{' '}
-                                            {new Date(activeWorkout.endDate).toLocaleDateString('pt-BR')}
-                                        </p>
-                                    </>
-                                ) : (
-                                    <p className="text-muted-foreground">Nenhum treino ativo</p>
-                                )}
-                            </CardContent>
-                            <CardFooter>
-                                <Link href={`/personal/students/${params.id}/workout`} className="w-full">
-                                    <Button variant="outline" className="w-full">
-                                        {activeWorkout ? (
-                                            <>
-                                                <Edit className="w-4 h-4" />
-                                                Editar Treino
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Plus className="w-4 h-4" />
-                                                Criar Treino
-                                            </>
-                                        )}
-                                    </Button>
-                                </Link>
-                            </CardFooter>
-                        </Card>
-
-                        {/* Current Diet */}
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle className="flex items-center gap-2">
-                                    <Utensils className="w-5 h-5 text-green-500" />
-                                    Dieta Atual
-                                </CardTitle>
-                                <Link href={dietEditorHref}>
-                                    <Button variant="ghost" size="sm">
-                                        <Edit className="w-4 h-4" />
-                                    </Button>
-                                </Link>
-                            </CardHeader>
-                            <CardContent>
-                                {activeDiet ? (
-                                    <>
-                                        <p className="font-medium text-foreground">{activeDiet.title}</p>
-                                        <div className="grid grid-cols-4 gap-2 mt-3">
-                                            <div className="text-center p-2 bg-muted rounded-lg">
-                                                <p className="text-lg font-bold text-foreground">{activeDiet.calories || 0}</p>
-                                                <p className="text-xs text-muted-foreground">kcal</p>
-                                            </div>
-                                            <div className="text-center p-2 bg-muted rounded-lg">
-                                                <p className="text-lg font-bold text-foreground">{activeDiet.protein || 0}g</p>
-                                                <p className="text-xs text-muted-foreground">Proteína</p>
-                                            </div>
-                                            <div className="text-center p-2 bg-muted rounded-lg">
-                                                <p className="text-lg font-bold text-foreground">{activeDiet.carbs || 0}g</p>
-                                                <p className="text-xs text-muted-foreground">Carbs</p>
-                                            </div>
-                                            <div className="text-center p-2 bg-muted rounded-lg">
-                                                <p className="text-lg font-bold text-foreground">{activeDiet.fat || 0}g</p>
-                                                <p className="text-xs text-muted-foreground">Gordura</p>
-                                            </div>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <p className="text-muted-foreground">Nenhuma dieta ativa</p>
-                                )}
-                            </CardContent>
-                            <CardFooter>
-                                <Link href={dietEditorHref} className="w-full">
-                                    <Button variant="outline" className="w-full">
-                                        {activeDiet ? (
-                                            <>
-                                                <Edit className="w-4 h-4" />
-                                                Editar Dieta
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Plus className="w-4 h-4" />
-                                                Criar Dieta
-                                            </>
-                                        )}
-                                    </Button>
-                                </Link>
-                            </CardFooter>
-                        </Card>
-                    </div>
-                )}
-
-                {activeTab === 'workout' && (
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Plano de Treino</CardTitle>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={handleCopyWorkoutToLibrary}
-                                    loading={copyingWorkoutTemplate}
-                                    disabled={!activeWorkout}
-                                >
-                                    <Copy className="w-4 h-4" />
-                                    Copiar para Biblioteca
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                        fetchPeerStudents();
-                                        setShowCloneStudentModal(true);
-                                    }}
-                                    className="gap-1.5"
-                                >
-                                    <Sparkles className="w-4 h-4 text-[#F88022]" />
-                                    Clonar de Aluno
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                        setCloneTitle('');
-                                        setCloneStartDate('');
-                                        setCloneEndDate('');
-                                        setSelectedTemplateId('');
-                                        setShowLibraryModal(true);
-                                    }}
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Atribuir da Biblioteca
-                                </Button>
-                                <Link href={`/personal/students/${params.id}/workout`}>
-                                    <Button>
-                                        <Edit className="w-4 h-4" />
-                                        Editar Treino
-                                    </Button>
-                                </Link>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {activeWorkout ? (
-                                <div className="space-y-4 py-2">
-                                    <div className="rounded-xl border border-border bg-muted/20 p-4">
-                                        <p className="text-lg font-medium text-foreground">{activeWorkout.title}</p>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            {formatPlanDate(activeWorkout.startDate)} - {formatPlanDate(activeWorkout.endDate)}
-                                        </p>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="rounded-xl bg-muted p-3">
-                                            <p className="text-xl font-bold text-foreground">{activeWorkout.workoutDays?.length || 0}</p>
-                                            <p className="text-xs text-muted-foreground">Dias de treino</p>
-                                        </div>
-                                        <div className="rounded-xl bg-muted p-3">
-                                            <p className="text-xl font-bold text-foreground">{getWorkoutExerciseCount(activeWorkout)}</p>
-                                            <p className="text-xs text-muted-foreground">Exercícios no plano</p>
-                                        </div>
-                                    </div>
-
-                                    {!!activeWorkout.workoutDays?.length && (
-                                        <div className="space-y-2">
-                                            {activeWorkout.workoutDays
-                                                .slice()
-                                                .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
-                                                .map((day) => (
-                                                    <div key={day.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                                                        <p className="text-sm font-medium text-foreground truncate">{day.name}</p>
-                                                        <Badge variant="default" className="ml-3 shrink-0">
-                                                            {day.items?.length || 0} exercícios
-                                                        </Badge>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    <Dumbbell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                    <p>Nenhum treino cadastrado para este aluno</p>
-                                    <Link href={`/personal/students/${params.id}/workout`}>
-                                        <Button className="mt-4">
-                                            <Plus className="w-4 h-4" />
-                                            Criar Treino
-                                        </Button>
-                                    </Link>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {activeTab === 'diet' && (
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Plano Alimentar</CardTitle>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={handleCopyDietToLibrary}
-                                    loading={copyingDietTemplate}
-                                    disabled={!activeDiet}
-                                >
-                                    <Copy className="w-4 h-4" />
-                                    Copiar para Biblioteca
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                        setCloneDietTitle('');
-                                        setCloneStartDate('');
-                                        setCloneEndDate('');
-                                        setSelectedDietTemplateId('');
-                                        setShowDietLibraryModal(true);
-                                    }}
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Atribuir da Biblioteca
-                                </Button>
-                                <Link href={dietEditorHref}>
-                                    <Button>
-                                        <Edit className="w-4 h-4" />
-                                        {activeDiet ? 'Editar Dieta' : 'Criar Dieta'}
-                                    </Button>
-                                </Link>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {activeDiet ? (
-                                <div className="space-y-4 py-2">
-                                    <div className="rounded-xl border border-border bg-muted/20 p-4">
-                                        <p className="text-lg font-medium text-foreground">{activeDiet.title}</p>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            {formatPlanDate(activeDiet.startDate)} - {formatPlanDate(activeDiet.endDate)}
-                                        </p>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                        <div className="rounded-xl bg-muted p-3">
-                                            <p className="text-lg font-bold text-foreground">{activeDiet.calories || 0}</p>
-                                            <p className="text-xs text-muted-foreground">kcal</p>
-                                        </div>
-                                        <div className="rounded-xl bg-muted p-3">
-                                            <p className="text-lg font-bold text-foreground">{activeDiet.protein || 0}g</p>
-                                            <p className="text-xs text-muted-foreground">Proteína</p>
-                                        </div>
-                                        <div className="rounded-xl bg-muted p-3">
-                                            <p className="text-lg font-bold text-foreground">{activeDiet.carbs || 0}g</p>
-                                            <p className="text-xs text-muted-foreground">Carboidratos</p>
-                                        </div>
-                                        <div className="rounded-xl bg-muted p-3">
-                                            <p className="text-lg font-bold text-foreground">{activeDiet.fat || 0}g</p>
-                                            <p className="text-xs text-muted-foreground">Gorduras</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="rounded-xl bg-muted p-3">
-                                            <p className="text-xl font-bold text-foreground">{activeDiet.meals?.length || 0}</p>
-                                            <p className="text-xs text-muted-foreground">Refeições</p>
-                                        </div>
-                                        <div className="rounded-xl bg-muted p-3">
-                                            <p className="text-xl font-bold text-foreground">{getDietFoodsCount(activeDiet)}</p>
-                                            <p className="text-xs text-muted-foreground">Alimentos no plano</p>
-                                        </div>
-                                    </div>
-
-                                    {!!activeDiet.meals?.length && (
-                                        <div className="space-y-2">
-                                            {activeDiet.meals
-                                                .slice()
-                                                .sort((a, b) => a.order - b.order)
-                                                .map((meal) => (
-                                                    <div key={meal.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                                                        <div>
-                                                            <p className="text-sm font-medium text-foreground">{meal.name}</p>
-                                                            <p className="text-xs text-muted-foreground">{meal.time}</p>
-                                                        </div>
-                                                        <Badge variant="default" className="ml-3 shrink-0">
-                                                            {getMealFoodsCount(meal.foods)} alimentos
-                                                        </Badge>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    <Utensils className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                    <p>Nenhuma dieta cadastrada para este aluno</p>
-                                    <Link href={dietEditorHref}>
-                                        <Button className="mt-4">
-                                            <Plus className="w-4 h-4" />
-                                            Criar Dieta
-                                        </Button>
-                                    </Link>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {activeTab === 'progress' && (
-                    <div className="space-y-6">
-                        {/* Fotos de Evolução */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base flex items-center justify-between">
-                                    <span className="flex items-center gap-2">
-                                        <Camera className="w-5 h-5 text-indigo-500" />
-                                        Fotos de Evolução do Aluno
-                                    </span>
-                                    <span className="text-xs text-muted-foreground font-normal">
-                                        {student.progressPhotos?.length || 0} fotos
-                                    </span>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {student.progressPhotos && student.progressPhotos.length > 0 ? (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                        {student.progressPhotos.map((photo) => (
-                                            <div
-                                                key={photo.id}
-                                                className="group relative aspect-[3/4] rounded-xl overflow-hidden bg-black/40 border border-border"
-                                            >
-                                                <img
-                                                    src={photo.url}
-                                                    alt={photo.angle}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 p-2.5 flex flex-col justify-between">
-                                                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-xs self-start">
-                                                        {photo.angle === 'FRONT' ? 'Frente' : photo.angle === 'SIDE' ? 'Lado' : photo.angle === 'BACK' ? 'Costas' : photo.angle}
-                                                    </span>
-                                                    <div className="text-white text-xs">
-                                                        <p className="font-semibold">
-                                                            {new Date(photo.createdAt).toLocaleDateString('pt-BR')}
-                                                        </p>
-                                                        {photo.weight && (
-                                                            <p className="text-[11px] text-white/80">{photo.weight}kg</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-6 text-muted-foreground text-sm">
-                                        O aluno ainda não registrou fotos de evolução.
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* Medidas Corporais Recentes */}
-                        {student.checkins && student.checkins.some(c => c.chest || c.waist || c.abdomen || c.hips || c.armRight || c.thighRight) && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-base flex items-center gap-2">
-                                        <TrendingUp className="w-5 h-5 text-emerald-500" />
-                                        Últimas Medidas Corporais
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    {(() => {
-                                        const latest = student.checkins.find(c => c.chest || c.waist || c.abdomen || c.hips || c.armRight || c.thighRight);
-                                        if (!latest) return null;
-                                        const metrics = [
-                                            { label: 'Tórax / Peitoral', value: latest.chest, unit: 'cm' },
-                                            { label: 'Cintura', value: latest.waist, unit: 'cm' },
-                                            { label: 'Abdômen', value: latest.abdomen, unit: 'cm' },
-                                            { label: 'Quadril', value: latest.hips, unit: 'cm' },
-                                            { label: 'Braço Direito', value: latest.armRight, unit: 'cm' },
-                                            { label: 'Braço Esquerdo', value: latest.armLeft, unit: 'cm' },
-                                            { label: 'Coxa Direita', value: latest.thighRight, unit: 'cm' },
-                                            { label: 'Coxa Esquerda', value: latest.thighLeft, unit: 'cm' },
-                                            { label: 'Panturrilha D.', value: latest.calfRight, unit: 'cm' },
-                                            { label: 'Panturrilha E.', value: latest.calfLeft, unit: 'cm' },
-                                            { label: '% Gordura (BF)', value: latest.bodyFatPercentage, unit: '%' },
-                                        ].filter(m => m.value !== null && m.value !== undefined);
-
-                                        return (
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                                                {metrics.map(m => (
-                                                    <div key={m.label} className="p-3 bg-muted rounded-xl border border-border">
-                                                        <p className="text-xs text-muted-foreground">{m.label}</p>
-                                                        <p className="text-base font-bold text-foreground mt-0.5">
-                                                            {m.value} {m.unit}
-                                                        </p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        );
-                                    })()}
-                                </CardContent>
-                            </Card>
-                        )}
-
-                        {/* Histórico de Check-ins */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base">Histórico Completo de Check-ins</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {student.checkins && student.checkins.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {student.checkins.map((checkin) => (
-                                            <div
-                                                key={checkin.id}
-                                                className="p-4 bg-muted rounded-xl space-y-2 border border-border"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-[#F88022]/10 flex items-center justify-center">
-                                                            <Calendar className="w-5 h-5 text-[#F88022]" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-semibold text-foreground text-sm">
-                                                                {new Date(checkin.date).toLocaleDateString('pt-BR', {
-                                                                    weekday: 'long',
-                                                                    day: '2-digit',
-                                                                    month: 'long',
-                                                                })}
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                Peso: <strong className="text-foreground">{checkin.weight || '-'}kg</strong> {checkin.sleepHours ? `| Sono: ${checkin.sleepHours}h/noite` : ''}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-xs">
-                                                        <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
-                                                            Treino {checkin.workoutAdherence}%
-                                                        </Badge>
-                                                        <Badge variant="outline" className="text-blue-500 border-blue-500/30">
-                                                            Dieta {checkin.dietAdherence}%
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-
-                                                {checkin.notes && (
-                                                    <p className="text-xs text-muted-foreground bg-background/50 p-2.5 rounded-lg border border-border italic">
-                                                        "{checkin.notes}"
-                                                    </p>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8 text-muted-foreground">
-                                        <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                        <p>Nenhum check-in registrado ainda</p>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
+                <aside
+                    ref={asideRef}
+                    className={cn('space-y-3', stickyAside && 'lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:pb-2')}
+                >
+                    <ContactCard student={student} />
+                    <ContractCard student={student} onEdit={() => setDialog('contract')} />
+                    <AnamnesisCard student={student} onEdit={() => setDialog('anamnesis')} />
+                    <StatusCard student={student} />
+                    <QuickActionsCard
+                        student={student}
+                        onRemind={() => setDialog('reminder')}
+                        onResetPassword={() => setDialog('password')}
+                        onDelete={deleteStudent}
+                    />
+                </aside>
             </div>
 
-            {/* Reset Password Modal */}
-            {showResetPasswordModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-card rounded-2xl p-6 w-full max-w-md shadow-xl border border-border">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold">Redefinir Senha</h3>
-                            <button
-                                onClick={() => {
-                                    setShowResetPasswordModal(false);
-                                    setNewPassword('');
-                                }}
-                                className="p-2 hover:bg-muted rounded-lg"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <p className="text-muted-foreground mb-4">
-                            Digite a nova senha para <strong>{student.user.name}</strong>
-                        </p>
-                        <Input
-                            type="password"
-                            label="Nova Senha"
-                            placeholder="Mínimo 6 caracteres"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                        />
-                        <div className="flex gap-3 mt-6">
-                            <Button
-                                variant="outline"
-                                className="flex-1"
-                                onClick={() => {
-                                    setShowResetPasswordModal(false);
-                                    setNewPassword('');
-                                }}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                className="flex-1 bg-[#F88022] hover:bg-[#F88022]/90 text-white"
-                                onClick={handleResetPassword}
-                                loading={resettingPassword}
-                            >
-                                Redefinir
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {/* Workout Library Modal */}
-            {showLibraryModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-                    <div className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in duration-200">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-foreground">Atribuir da Biblioteca de Treinos</h3>
-                            <button
-                                onClick={() => {
-                                    setShowLibraryModal(false);
-                                    setSelectedTemplateId('');
-                                }}
-                                className="p-2 hover:bg-muted rounded-lg"
-                            >
-                                <X className="w-5 h-5 text-muted-foreground" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium mb-1.5 block">Selecione um Modelo</label>
-                                <select
-                                    className="w-full h-10 px-3 rounded-xl border border-border bg-background"
-                                    value={selectedTemplateId}
-                                    onChange={(e) => {
-                                        setSelectedTemplateId(e.target.value);
-                                        const template = templates.find(t => t.id === e.target.value);
-                                        if (template) setCloneTitle(template.title);
-                                    }}
-                                >
-                                    <option value="">Selecione...</option>
-                                    {templates.map(t => (
-                                        <option key={t.id} value={t.id}>{t.title} ({t._count?.templateDays} dias)</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium mb-1.5 block text-foreground">Título para o Aluno</label>
-                                <Input
-                                    placeholder="Ex: Treino de Força - Fase 1"
-                                    value={cloneTitle}
-                                    onChange={(e) => setCloneTitle(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <Input
-                                    label="Data Início"
-                                    type="date"
-                                    value={cloneStartDate}
-                                    onChange={(e) => setCloneStartDate(e.target.value)}
-                                />
-                                <Input
-                                    label="Data Fim"
-                                    type="date"
-                                    value={cloneEndDate}
-                                    onChange={(e) => setCloneEndDate(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex gap-3 pt-4">
-                                <Button
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={() => setShowLibraryModal(false)}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    className="flex-1 bg-[#F88022] hover:bg-[#F88022]/90 text-white"
-                                    loading={cloning}
-                                    onClick={handleAssignFromLibrary}
-                                    disabled={!selectedTemplateId || !cloneTitle || !cloneStartDate || !cloneEndDate}
-                                >
-                                    Atribuir Plano
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Diet Library Modal */}
-            {showDietLibraryModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-                    <div className="bg-card rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in duration-200">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-foreground">Atribuir da Biblioteca de Dietas</h3>
-                            <button
-                                onClick={() => {
-                                    setShowDietLibraryModal(false);
-                                    setSelectedDietTemplateId('');
-                                }}
-                                className="p-2 hover:bg-muted rounded-lg"
-                            >
-                                <X className="w-5 h-5 text-muted-foreground" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium mb-1.5 block">Selecione um Modelo</label>
-                                <select
-                                    className="w-full h-10 px-3 rounded-xl border border-border bg-background"
-                                    value={selectedDietTemplateId}
-                                    onChange={(e) => {
-                                        setSelectedDietTemplateId(e.target.value);
-                                        const template = dietTemplates.find(t => t.id === e.target.value);
-                                        if (template) setCloneDietTitle(template.title);
-                                    }}
-                                >
-                                    <option value="">Selecione...</option>
-                                    {dietTemplates.map(t => (
-                                        <option key={t.id} value={t.id}>{t.title} ({t.calories} kcal)</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <Input
-                                    label="Data Início"
-                                    type="date"
-                                    value={cloneStartDate}
-                                    onChange={(e) => setCloneStartDate(e.target.value)}
-                                />
-                                <Input
-                                    label="Data Fim"
-                                    type="date"
-                                    value={cloneEndDate}
-                                    onChange={(e) => setCloneEndDate(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex gap-3 pt-4">
-                                <Button
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={() => setShowDietLibraryModal(false)}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    className="flex-1 bg-[#F88022] hover:bg-[#F88022]/90 text-white"
-                                    loading={cloning}
-                                    onClick={handleAssignDietFromLibrary}
-                                    disabled={!selectedDietTemplateId || !cloneStartDate || !cloneEndDate}
-                                >
-                                    Atribuir Dieta
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal: Clonar Ficha de Outro Aluno */}
-            {showCloneStudentModal && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-card border border-border rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in">
-                        <div className="flex items-center justify-between border-b border-border pb-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-lg bg-[#F88022]/15 text-[#F88022] flex items-center justify-center">
-                                    <Sparkles className="w-4 h-4" />
-                                </div>
-                                <div>
-                                    <h3 className="text-base font-bold text-foreground">Clonar Ficha de Outro Aluno</h3>
-                                    <p className="text-xs text-muted-foreground">Copiar rotina ativa de exercícios</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setShowCloneStudentModal(false)}
-                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4 text-xs">
-                            <p className="text-muted-foreground">
-                                Escolha de qual aluno você deseja copiar o plano de treino. Todos os dias, exercícios, séries, repetições e intervalos serão replicados para <strong>{student.user.name}</strong>.
-                            </p>
-
-                            {peerStudents.length === 0 ? (
-                                <div className="p-4 rounded-xl bg-muted/60 text-center text-muted-foreground">
-                                    Nenhum outro aluno possui ficha ativa para clonagem no momento.
-                                </div>
-                            ) : (
-                                <div>
-                                    <label className="font-semibold text-foreground block mb-1.5">
-                                        Selecionar Aluno Fonte
-                                    </label>
-                                    <select
-                                        value={selectedSourceStudentId}
-                                        onChange={(e) => setSelectedSourceStudentId(e.target.value)}
-                                        className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-foreground text-xs"
-                                    >
-                                        {peerStudents.map((s) => (
-                                            <option key={s.id} value={s.id}>
-                                                {s.user.name} — {s.workoutPlans?.[0]?.title} ({s.workoutPlans?.[0]?.workoutDays?.length || 0} dias)
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex gap-3 pt-3 border-t border-border">
-                            <Button
-                                variant="outline"
-                                className="flex-1"
-                                onClick={() => setShowCloneStudentModal(false)}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                className="flex-1 bg-[#F88022] hover:bg-[#F88022]/90 text-white font-semibold"
-                                loading={cloningFromStudent}
-                                onClick={handleCloneFromStudent}
-                                disabled={peerStudents.length === 0 || !selectedSourceStudentId}
-                            >
-                                Clonar Ficha Agora
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </>
+            <ContractDialog
+                open={dialog === 'contract'}
+                onOpenChange={(open) => setDialog(open ? 'contract' : null)}
+                student={student}
+                studentName={student.user.name}
+                onSubmit={async (patch) => {
+                    await updateStudent(student.id, patch);
+                    toast.success('Contrato atualizado', student.user.name);
+                }}
+            />
+            <PersonalInfoDialog open={dialog === 'info'} onOpenChange={(open) => setDialog(open ? 'info' : null)} student={student} />
+            <AnamnesisDialog open={dialog === 'anamnesis'} onOpenChange={(open) => setDialog(open ? 'anamnesis' : null)} student={student} />
+            <ResetPasswordDialog open={dialog === 'password'} onOpenChange={(open) => setDialog(open ? 'password' : null)} student={student} />
+            <ReminderDialog
+                open={dialog === 'reminder'}
+                onOpenChange={(open) => setDialog(open ? 'reminder' : null)}
+                students={[{ id: student.id, name: student.user.name }]}
+            />
+            <AssignWorkoutTemplateDialog
+                open={dialog === 'assignWorkout'}
+                onOpenChange={(open) => setDialog(open ? 'assignWorkout' : null)}
+                studentId={student.id}
+                studentName={student.user.name}
+            />
+            <CloneWorkoutDialog
+                open={dialog === 'cloneWorkout'}
+                onOpenChange={(open) => setDialog(open ? 'cloneWorkout' : null)}
+                studentId={student.id}
+                studentName={student.user.name}
+                hasActiveWorkout={Boolean(workout)}
+            />
+            <AssignDietTemplateDialog
+                open={dialog === 'assignDiet'}
+                onOpenChange={(open) => setDialog(open ? 'assignDiet' : null)}
+                studentId={student.id}
+                studentName={student.user.name}
+                currentCalories={diet?.calories ?? null}
+            />
+        </div>
     );
 }

@@ -17,24 +17,52 @@ export const registerSchema = z.object({
     path: ['confirmPassword'],
 });
 
+const ACTIVITY_LEVELS = ['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIVE'] as const;
+const longText = z.string().max(2000, 'Use no máximo 2000 caracteres');
+
+// Number fields come from inputs registered with setValueAs (empty → undefined), so NaN means "not a number".
 export const studentSchema = z.object({
-    name: z.string().min(2, 'Nome é obrigatório'),
-    email: z.string().email('E-mail inválido'),
+    name: z.string().trim().min(2, 'Informe o nome completo do aluno'),
+    email: z.string().trim().min(1, 'Informe o e-mail de acesso').email('E-mail inválido'),
     password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-    phone: z.string().optional(),
+    phone: z.string().trim().optional(),
     birthDate: z.string().optional(),
     gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
-    height: z.number().positive().optional(),
-    weight: z.number().positive().optional(),
-    goal: z.string().optional(),
+    height: z
+        .number({ invalid_type_error: 'Informe a altura em centímetros (ex.: 175)' })
+        .min(50, 'Informe a altura em centímetros (ex.: 175)')
+        .max(260, 'Informe a altura em centímetros (ex.: 175)')
+        .optional(),
+    weight: z
+        .number({ invalid_type_error: 'Informe o peso em quilos (ex.: 72,5)' })
+        .min(20, 'Informe o peso em quilos (ex.: 72,5)')
+        .max(400, 'Informe o peso em quilos (ex.: 72,5)')
+        .optional(),
+    goal: longText.optional(),
+    planType: z.enum(['MENSAL', 'TRIMESTRAL', 'SEMESTRAL', 'ANUAL', 'PERSONALIZADO']).optional(),
+    planValue: z
+        .number({ invalid_type_error: 'Informe o valor em reais (ex.: 150 ou 149,90)' })
+        .min(0, 'O valor não pode ser negativo')
+        .optional(),
+    planExpiresAt: z.string().optional(),
+    paymentStatus: z.enum(['PAID', 'PENDENTE', 'OVERDUE']).optional(),
+    anamnesis: z
+        .object({
+            activityLevel: z.enum(ACTIVITY_LEVELS).optional(),
+            injuries: longText.optional(),
+            restrictions: longText.optional(),
+            medications: longText.optional(),
+            notes: longText.optional(),
+        })
+        .optional(),
 });
 
 export const anamnesisSchema = z.object({
-    restrictions: z.string().optional(),
-    injuries: z.string().optional(),
-    medications: z.string().optional(),
-    activityLevel: z.enum(['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIVE']),
-    notes: z.string().optional(),
+    restrictions: longText.optional(),
+    injuries: longText.optional(),
+    medications: longText.optional(),
+    activityLevel: z.enum(ACTIVITY_LEVELS, { errorMap: () => ({ message: 'Selecione o nível de atividade' }) }),
+    notes: longText.optional(),
 });
 
 export const workoutPlanSchema = z.object({

@@ -1,1203 +1,1386 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import {
-    Search,
-    Plus,
+    AlertTriangle,
+    ArrowDown,
+    ArrowUp,
+    ArrowUpDown,
+    BellRing,
+    CheckCircle2,
     ChevronRight,
-    Dumbbell,
-    Utensils,
-    UserPlus,
-    Loader2,
-    Trash2,
     CreditCard,
     DollarSign,
-    Calendar,
-    AlertTriangle,
-    CheckCircle2,
-    MessageCircle,
-    FileText,
-    TrendingUp,
-    Clock,
-    X,
-    Edit3,
-    Sparkles,
-    LayoutGrid,
-    Table as TableIcon,
-    ArrowUpDown,
-    ArrowUp,
-    ArrowDown,
     Download,
-    Filter
+    Dumbbell,
+    FilterX,
+    LayoutGrid,
+    Loader2,
+    PauseCircle,
+    Phone,
+    PlayCircle,
+    RefreshCw,
+    Search,
+    Table as TableIcon,
+    UserPlus,
+    Users,
+    Utensils,
+    X,
 } from 'lucide-react';
-import { Card, CardContent, Badge, Avatar, Button, Input, useToast } from '@/components/ui';
+import { Avatar, useDialogs, useToast } from '@/components/ui';
+import { usePageMeta } from '@/components/personal/page-meta';
+import {
+    BILLING_FILTER_OPTIONS,
+    CRM_TABS,
+    type CrmRow,
+    type CrmTab,
+    SORT_KEYS,
+    type SortKey,
+    billingWhatsappUrl,
+    buildRow,
+    exportRowsCsv,
+    sortRows,
+    tabPredicates,
+} from '@/components/personal/students/crm';
+import {
+    PLAN_OPTIONS,
+    STATUS_OPTIONS,
+    STUDENTS_KEY,
+    bulkUpdateStudents,
+    errorMessage,
+    formatBRL,
+    formatDate,
+    formatShortDate,
+    isInteractiveTarget,
+    isOtherDialogOpen,
+    planEndInfo,
+    planLabel,
+    planMonths,
+    relativeDaysLabel,
+    saveCrmQuery,
+    saveNavOrder,
+    toneText,
+    whatsappUrl,
+} from '@/components/personal/students/lib';
+import { ReminderDialog } from '@/components/personal/students/reminder-dialog';
+import { StudentDrawer } from '@/components/personal/students/student-drawer';
+import type { StudentListItem } from '@/components/personal/students/types';
+import { BillingBadge, Kbd, StudentStatusBadge, selectClass, smallButtonClass } from '@/components/personal/students/ui';
+import { useSyncedUrlParams } from '@/components/personal/students/use-instant-url-value';
+import { useApi } from '@/hooks/use-api';
+import { useHotkey } from '@/hooks/use-hotkey';
+import { useLocalStorageState } from '@/hooks/use-local-storage';
+import { CHECKIN_EXPECTED_DAYS, INACTIVITY_ALERT_DAYS } from '@/lib/student-status';
+import { cn, matchesSearch } from '@/lib/utils';
 
-interface StudentData {
-    id: string;
-    userId: string;
-    personalId: string;
-    status: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
-    goal?: string | null;
-    planType?: string | null;
-    planValue?: number | null;
-    planExpiresAt?: string | null;
-    paymentStatus?: 'PAID' | 'PENDENTE' | 'OVERDUE' | string | null;
-    user?: {
-        id: string;
-        name: string;
-        email: string;
-        phone?: string | null;
-        avatar?: string | null;
-    };
-    workoutPlans?: Array<{
-        id: string;
-        title: string;
-        workoutDays?: Array<{ id: string; name: string }>;
-    }>;
-    dietPlans?: Array<{
-        id: string;
-        title: string;
-    }>;
-    checkins?: Array<{
-        id: string;
-        date: string;
-        workoutAdherence: number;
-        dietAdherence: number;
-    }>;
-    workoutSessions?: Array<{
-        completedAt: string;
-        dayName: string;
-    }>;
+const PAGE_SIZE = 100;
+
+const URL_DEFAULTS = {
+    q: '',
+    tab: 'all',
+    plan: 'all',
+    payment: 'all',
+    status: 'all',
+    sort: 'name',
+    dir: 'asc',
+    view: '',
+    student: '',
+};
+
+/** First click on a column uses the most useful direction (e.g. longest without training first). */
+const DEFAULT_SORT_DIR: Record<SortKey, 'asc' | 'desc'> = {
+    name: 'asc',
+    status: 'asc',
+    workout: 'asc',
+    lastWorkout: 'desc',
+    lastCheckin: 'desc',
+    plan: 'desc',
+    expires: 'asc',
+};
+
+const EMPTY_MESSAGES: Record<CrmTab, { title: string; description: string }> = {
+    all: { title: 'Nenhum aluno encontrado', description: 'Ajuste a busca ou os filtros.' },
+    'on-track': {
+        title: 'Ninguém treinando no ritmo neste filtro',
+        description: `Aqui aparecem alunos ativos que treinaram nos últimos ${INACTIVITY_ALERT_DAYS} dias.`,
+    },
+    risk: {
+        title: 'Nenhum aluno em risco',
+        description: `Todos os alunos ativos treinaram nos últimos ${INACTIVITY_ALERT_DAYS} dias.`,
+    },
+    billing: {
+        title: 'Nenhuma cobrança pendente',
+        description: 'Nenhum contrato vencido, vencendo em 7 dias ou com pagamento pendente.',
+    },
+    inactive: {
+        title: 'Nenhum aluno pausado ou inativo',
+        description: 'Altere o status de um aluno pelo painel lateral ou pela ficha.',
+    },
+};
+
+function SortableHeader({
+    label,
+    column,
+    sortKey,
+    sortDir,
+    onSort,
+    className,
+}: {
+    label: string;
+    column: SortKey;
+    sortKey: SortKey;
+    sortDir: 'asc' | 'desc';
+    onSort: (key: SortKey) => void;
+    className?: string;
+}) {
+    const active = sortKey === column;
+    return (
+        <th
+            scope="col"
+            aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+            className={cn('px-3 py-2.5 text-left font-semibold', className)}
+        >
+            <button
+                type="button"
+                onClick={() => onSort(column)}
+                className={cn(
+                    'inline-flex items-center gap-1 rounded-md px-1 -mx-1 uppercase tracking-wider transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                    active && 'text-foreground'
+                )}
+            >
+                {label}
+                {active ? (
+                    sortDir === 'asc' ? (
+                        <ArrowUp className="h-3 w-3 text-[#F88022]" />
+                    ) : (
+                        <ArrowDown className="h-3 w-3 text-[#F88022]" />
+                    )
+                ) : (
+                    <ArrowUpDown className="h-3 w-3 opacity-40" />
+                )}
+            </button>
+        </th>
+    );
 }
 
-type FunnelTab = 'ALL' | 'ACTIVE_GOOD' | 'CHURN_RISK' | 'PAYMENT_ALERT' | 'INACTIVE';
-type SortField = 'name' | 'planValue' | 'expiresAt' | 'inactivity';
-type SortDirection = 'asc' | 'desc';
+function MetricCard({
+    label,
+    value,
+    detail,
+    icon,
+    tone = 'default',
+    onClick,
+    active,
+}: {
+    label: string;
+    value: React.ReactNode;
+    detail: React.ReactNode;
+    icon: React.ReactNode;
+    tone?: 'default' | 'danger' | 'warn' | 'ok';
+    onClick?: () => void;
+    active?: boolean;
+}) {
+    const Wrapper = onClick ? 'button' : 'div';
+    return (
+        <Wrapper
+            {...(onClick ? { type: 'button' as const, onClick } : {})}
+            className={cn(
+                'rounded-2xl border bg-card p-4 text-left transition-colors',
+                onClick && 'hover:border-[#F88022]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                active ? 'border-[#F88022]/60' : 'border-border'
+            )}
+        >
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+                <span
+                    className={cn(
+                        'flex h-8 w-8 items-center justify-center rounded-lg',
+                        tone === 'danger' && 'bg-red-500/10 text-red-500',
+                        tone === 'warn' && 'bg-amber-500/10 text-amber-500',
+                        tone === 'ok' && 'bg-emerald-500/10 text-emerald-500',
+                        tone === 'default' && 'bg-blue-500/10 text-blue-500'
+                    )}
+                >
+                    {icon}
+                </span>
+            </div>
+            <p
+                className={cn(
+                    'mt-1 text-2xl font-black',
+                    tone === 'danger' ? 'text-red-500' : tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'
+                )}
+            >
+                {value}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
+        </Wrapper>
+    );
+}
+
+function TableSkeleton() {
+    return (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card" aria-busy="true" aria-label="Carregando alunos">
+            <div className="h-10 border-b border-border bg-muted/50" />
+            {Array.from({ length: 8 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-4 border-b border-border/60 px-4 py-3 last:border-0">
+                    <div className="h-4 w-4 rounded bg-muted" />
+                    <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+                    <div className="flex-1 space-y-1.5">
+                        <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+                        <div className="h-3 w-56 animate-pulse rounded bg-muted/70" />
+                    </div>
+                    <div className="hidden h-3 w-24 animate-pulse rounded bg-muted md:block" />
+                    <div className="hidden h-3 w-24 animate-pulse rounded bg-muted lg:block" />
+                    <div className="hidden h-3 w-20 animate-pulse rounded bg-muted lg:block" />
+                </div>
+            ))}
+        </div>
+    );
+}
 
 export default function StudentsPage() {
+    const router = useRouter();
     const { toast } = useToast();
-    const [students, setStudents] = useState<StudentData[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [search, setSearch] = useState('');
-    const [activeTab, setActiveTab] = useState<FunnelTab>('ALL');
+    const { confirm } = useDialogs();
+    usePageMeta({ title: 'Alunos', breadcrumbs: [{ label: 'Alunos (CRM)' }] });
 
-    // Phase 2: Dual View, Sorting and Filter States
-    const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
-    const [sortField, setSortField] = useState<SortField>('name');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-    const [planFilter, setPlanFilter] = useState<string>('ALL');
-    const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
+    const { data, error, isLoading, isValidating, mutate } = useApi<StudentListItem[]>(STUDENTS_KEY);
+    // All list state lives in the URL (?q, tab, plan, payment, status, sort, dir, view, student), mirrored locally for instant feedback.
+    const [params, setParams] = useSyncedUrlParams(URL_DEFAULTS);
+    const [storedView, setStoredView] = useLocalStorageState<'table' | 'cards'>('personal:crm-view', 'table');
+    const view: 'table' | 'cards' = params.view === 'cards' || params.view === 'table' ? params.view : storedView;
 
-    // Modals
-    const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-    const [deleting, setDeleting] = useState(false);
-    const [editingContractStudent, setEditingContractStudent] = useState<StudentData | null>(null);
-    const [savingContract, setSavingContract] = useState(false);
-    const [contractForm, setContractForm] = useState({
-        planType: 'MENSAL',
-        planValue: '150',
-        planExpiresAt: '',
-        paymentStatus: 'PAID',
-    });
+    const search = params.q;
+    const setSearch = useCallback((q: string) => setParams({ q }), [setParams]);
+    const drawerId = params.student;
+    const setDrawerId = useCallback((student: string) => setParams({ student }), [setParams]);
 
-    useEffect(() => {
-        fetchStudents();
-    }, []);
+    const tab = (CRM_TABS.some((item) => item.id === params.tab) ? params.tab : 'all') as CrmTab;
+    const sortKey = (SORT_KEYS.includes(params.sort as SortKey) ? params.sort : 'name') as SortKey;
+    const sortDir: 'asc' | 'desc' = params.dir === 'desc' ? 'desc' : 'asc';
 
-    const fetchStudents = async () => {
-        try {
-            setLoading(true);
-            setError('');
-            const response = await fetch('/api/students');
-            const result = await response.json();
+    const searchRef = useRef<HTMLInputElement>(null);
+    const [highlightId, setHighlightId] = useState<string | null>(null);
+    const [selected, setSelected] = useState<Set<string>>(() => new Set());
+    const lastToggledRef = useRef<string | null>(null);
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+    const [reminderTargets, setReminderTargets] = useState<Array<{ id: string; name: string }> | null>(null);
+    const [bulkBusy, setBulkBusy] = useState(false);
 
-            if (result.success) {
-                setStudents(result.data || []);
-            } else {
-                setError(result.error || 'Erro ao carregar alunos');
-            }
-        } catch (err) {
-            setError('Erro ao conectar com o servidor');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleDelete = async (studentId: string) => {
-        try {
-            setDeleting(true);
-            const response = await fetch(`/api/students/${studentId}`, {
-                method: 'DELETE',
-            });
-            const result = await response.json();
-
-            if (result.success) {
-                setStudents(students.filter((s) => s.id !== studentId));
-                setDeleteConfirm(null);
-                toast.success('Aluno removido com sucesso!');
-            } else {
-                toast.error(result.error || 'Erro ao excluir aluno');
-            }
-        } catch (err) {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setDeleting(false);
-        }
-    };
-
-    const handleOpenContractModal = (student: StudentData) => {
-        setEditingContractStudent(student);
-        const expiresIso = student.planExpiresAt ? student.planExpiresAt.slice(0, 10) : '';
-        setContractForm({
-            planType: student.planType || 'MENSAL',
-            planValue: String(student.planValue ?? 150),
-            planExpiresAt: expiresIso,
-            paymentStatus: student.paymentStatus || 'PAID',
-        });
-    };
-
-    const handleSaveContract = async () => {
-        if (!editingContractStudent) return;
-        try {
-            setSavingContract(true);
-            const res = await fetch(`/api/students/${editingContractStudent.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    planType: contractForm.planType,
-                    planValue: parseFloat(contractForm.planValue) || 0,
-                    planExpiresAt: contractForm.planExpiresAt
-                        ? new Date(contractForm.planExpiresAt).toISOString()
-                        : null,
-                    paymentStatus: contractForm.paymentStatus,
-                }),
-            });
-            const data = await res.json();
-            if (data.success) {
-                setStudents((prev) =>
-                    prev.map((s) => (s.id === editingContractStudent.id ? { ...s, ...data.data } : s))
-                );
-                toast.success(
-                    'Plano atualizado com sucesso!',
-                    `${editingContractStudent.user?.name || 'Aluno'} atualizado.`
-                );
-                setEditingContractStudent(null);
-            } else {
-                toast.error(data.error || 'Erro ao salvar dados do contrato');
-            }
-        } catch {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setSavingContract(false);
-        }
-    };
-
-    // Helper functions for CRM categorization
-    const now = new Date();
-
-    const getInactivityDays = (student: StudentData) => {
-        const lastSession = student.workoutSessions?.[0]?.completedAt;
-        if (!lastSession) return null;
-        return Math.floor((now.getTime() - new Date(lastSession).getTime()) / (24 * 60 * 60 * 1000));
-    };
-
-    const isExpiringSoon = (student: StudentData) => {
-        if (!student.planExpiresAt) return false;
-        const expDate = new Date(student.planExpiresAt);
-        const diffDays = Math.ceil((expDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-        return diffDays >= 0 && diffDays <= 7;
-    };
-
-    const isOverdue = (student: StudentData) => {
-        if (student.paymentStatus === 'OVERDUE') return true;
-        if (!student.planExpiresAt) return false;
-        return new Date(student.planExpiresAt) < now && student.paymentStatus !== 'PAID';
-    };
-
-    // CRM Metrics
-    const metrics = useMemo(() => {
-        const activeStudents = students.filter((s) => s.status === 'ACTIVE');
-        const mrr = activeStudents.reduce((sum, s) => sum + (s.planValue || 150), 0);
-        const atRiskCount = activeStudents.filter((s) => {
-            const inact = getInactivityDays(s);
-            return inact === null || inact >= 3;
-        }).length;
-        const billingAlertCount = activeStudents.filter(
-            (s) => isOverdue(s) || isExpiringSoon(s) || s.paymentStatus === 'PENDENTE'
-        ).length;
-
-        return {
-            total: students.length,
-            activeCount: activeStudents.length,
-            mrr,
-            atRiskCount,
-            billingAlertCount,
-        };
+    const students = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+    const rows = useMemo(() => {
+        const now = new Date();
+        return students.map((student) => buildRow(student, now));
     }, [students]);
 
-    // Sorting toggle handler
-    const toggleSort = (field: SortField) => {
-        if (sortField === field) {
-            setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-        } else {
-            setSortField(field);
-            setSortDirection('asc');
+    const baseRows = useMemo(
+        () =>
+            rows.filter(
+                (row) =>
+                    matchesSearch(search, row.name, row.email, row.phone, row.phoneDigits) &&
+                    (params.plan === 'all' ||
+                        (params.plan === 'none'
+                            ? row.student.planValue === null || row.student.planValue === undefined
+                            : (row.student.planType || 'MENSAL') === params.plan)) &&
+                    (params.payment === 'all' ||
+                        (params.payment === 'OVERDUE'
+                            ? row.status !== 'INACTIVE' && row.billing.status === 'OVERDUE'
+                            : row.billing.status === params.payment)) &&
+                    (params.status === 'all' || row.status === params.status)
+            ),
+        [rows, search, params.plan, params.payment, params.status]
+    );
+
+    const tabCounts = useMemo(() => {
+        const counts = {} as Record<CrmTab, number>;
+        CRM_TABS.forEach((item) => {
+            counts[item.id] = baseRows.filter(tabPredicates[item.id]).length;
+        });
+        return counts;
+    }, [baseRows]);
+
+    const filtered = useMemo(
+        () => sortRows(baseRows.filter(tabPredicates[tab]), sortKey, sortDir),
+        [baseRows, tab, sortKey, sortDir]
+    );
+    const filteredKey = useMemo(() => filtered.map((row) => row.id).join(','), [filtered]);
+
+    const metrics = useMemo(() => {
+        const active = rows.filter((row) => row.status === 'ACTIVE');
+        const priced = active.filter((row) => row.monthly !== null);
+        const billing = rows.filter((row) => row.billingAlert);
+        return {
+            total: rows.length,
+            active: active.length,
+            paused: rows.filter((row) => row.status === 'PAUSED').length,
+            inactive: rows.filter((row) => row.status === 'INACTIVE').length,
+            mrr: priced.reduce((sum, row) => sum + (row.monthly ?? 0), 0),
+            unpriced: active.length - priced.length,
+            risk: rows.filter((row) => row.atRisk).length,
+            neverTrained: rows.filter((row) => row.atRisk && row.lastWorkoutDays === null).length,
+            billing: billing.length,
+            overdue: billing.filter((row) => row.billing.status === 'OVERDUE').length,
+            expiring: billing.filter((row) => row.billing.status === 'EXPIRING').length,
+            pending: billing.filter((row) => row.billing.status === 'PENDING').length,
+        };
+    }, [rows]);
+
+    // Prev/next in the profile follows exactly this list.
+    useEffect(() => {
+        if (!data) return;
+        saveNavOrder(filtered.map((row) => ({ id: row.id, name: row.name })));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filteredKey, data]);
+
+    const paramsKey = JSON.stringify(params);
+    useEffect(() => {
+        const query = new URLSearchParams();
+        (Object.keys(URL_DEFAULTS) as Array<keyof typeof URL_DEFAULTS>).forEach((key) => {
+            const value = params[key];
+            if (key !== 'student' && value && value !== URL_DEFAULTS[key]) query.set(key, value);
+        });
+        saveCrmQuery(query.toString());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [paramsKey]);
+
+    // Bulk actions only ever apply to students visible in the current filter.
+    useEffect(() => {
+        setSelected((current) => {
+            if (current.size === 0) return current;
+            const visible = new Set(filtered.map((row) => row.id));
+            const next = new Set(Array.from(current).filter((id) => visible.has(id)));
+            return next.size === current.size ? current : next;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filteredKey]);
+
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE);
+    }, [search, tab, params.plan, params.payment, params.status, sortKey, sortDir]);
+
+    const drawerRow = drawerId ? rows.find((row) => row.id === drawerId) ?? null : null;
+    const drawerIndex = drawerRow ? filtered.findIndex((row) => row.id === drawerRow.id) : -1;
+    const highlightIndex = highlightId ? filtered.findIndex((row) => row.id === highlightId) : -1;
+
+    // Only close the drawer after a fresh fetch has completed after mounting, preventing
+    // auto-closing when opened with a stale cache (e.g. following a link from the dashboard).
+    const [hasFetchedAfterMount, setHasFetchedAfterMount] = useState(false);
+    const wasValidatingRef = useRef(false);
+
+    useEffect(() => {
+        if (isValidating) {
+            wasValidatingRef.current = true;
+        } else if (wasValidatingRef.current) {
+            setHasFetchedAfterMount(true);
+        }
+    }, [isValidating]);
+
+    // A link to a student that no longer exists (deleted, other account) just closes the drawer.
+    useEffect(() => {
+        if (!hasFetchedAfterMount) return;
+        if (data && !isValidating && !error && drawerId && !rows.some((row) => row.id === drawerId)) {
+            setDrawerId('');
+        }
+    }, [hasFetchedAfterMount, data, isValidating, error, drawerId, rows, setDrawerId]);
+
+    const scrollRowIntoView = (id: string) => {
+        window.requestAnimationFrame(() => {
+            document.querySelector(`[data-row-id="${id}"]`)?.scrollIntoView({ block: 'nearest' });
+        });
+    };
+
+    // Drawer opened from a link (?student=ID, e.g. from the dashboard): mark and reveal the row too.
+    const drawerRowId = drawerRow?.id ?? null;
+    useEffect(() => {
+        if (!drawerRowId) return;
+        setHighlightId(drawerRowId);
+        scrollRowIntoView(drawerRowId);
+    }, [drawerRowId]);
+
+    const openDrawer = (id: string) => {
+        setHighlightId(id);
+        setDrawerId(id);
+    };
+
+    const openProfileInNewTab = (id: string) => window.open(`/personal/students/${id}`, '_blank', 'noopener');
+
+    const move = (delta: 1 | -1) => {
+        if (filtered.length === 0) return;
+        const currentId = drawerRow?.id ?? highlightId;
+        const index = currentId ? filtered.findIndex((row) => row.id === currentId) : -1;
+        const nextIndex =
+            index === -1 ? (delta > 0 ? 0 : filtered.length - 1) : Math.min(filtered.length - 1, Math.max(0, index + delta));
+        const next = filtered[nextIndex];
+        if (!next || next.id === currentId) return;
+        setHighlightId(next.id);
+        if (drawerRow) setDrawerId(next.id);
+        if (nextIndex >= visibleCount) setVisibleCount((count) => count + PAGE_SIZE);
+        scrollRowIntoView(next.id);
+    };
+
+    const toggleSelected = (id: string, range: boolean) => {
+        setSelected((current) => {
+            const next = new Set(current);
+            const willSelect = !current.has(id);
+            const anchor = lastToggledRef.current;
+            if (range && anchor && anchor !== id) {
+                const from = filtered.findIndex((row) => row.id === anchor);
+                const to = filtered.findIndex((row) => row.id === id);
+                if (from !== -1 && to !== -1) {
+                    filtered.slice(Math.min(from, to), Math.max(from, to) + 1).forEach((row) => {
+                        if (willSelect) next.add(row.id);
+                        else next.delete(row.id);
+                    });
+                    return next;
+                }
+            }
+            if (willSelect) next.add(id);
+            else next.delete(id);
+            return next;
+        });
+        lastToggledRef.current = id;
+    };
+
+    const allSelected = filtered.length > 0 && filtered.every((row) => selected.has(row.id));
+    const someSelected = selected.size > 0 && !allSelected;
+    const toggleAll = () => {
+        setSelected(allSelected ? new Set() : new Set(filtered.map((row) => row.id)));
+    };
+    const selectedRows = useMemo(() => filtered.filter((row) => selected.has(row.id)), [filtered, selected]);
+
+    // ---------------------------------------------------------------- keyboard
+    useHotkey(
+        '/',
+        (event) => {
+            if (isOtherDialogOpen()) return;
+            event.preventDefault();
+            searchRef.current?.focus();
+            searchRef.current?.select();
+        },
+        { preventDefault: false, allowInModal: true }
+    );
+    useHotkey(
+        ['arrowdown', 'j'],
+        (event) => {
+            if (isOtherDialogOpen()) return;
+            event.preventDefault();
+            move(1);
+        },
+        { preventDefault: false, allowInModal: true }
+    );
+    useHotkey(
+        ['arrowup', 'k'],
+        (event) => {
+            if (isOtherDialogOpen()) return;
+            event.preventDefault();
+            move(-1);
+        },
+        { preventDefault: false, allowInModal: true }
+    );
+    useHotkey(
+        'enter',
+        (event) => {
+            if (drawerRow || isOtherDialogOpen() || isInteractiveTarget(event.target)) return;
+            const row = highlightIndex >= 0 ? filtered[highlightIndex] : null;
+            if (!row) return;
+            event.preventDefault();
+            if (event.shiftKey) router.push(`/personal/students/${row.id}`);
+            else openDrawer(row.id);
+        },
+        { preventDefault: false }
+    );
+    useHotkey(
+        'x',
+        (event) => {
+            if (isOtherDialogOpen() || highlightIndex < 0) return;
+            event.preventDefault();
+            toggleSelected(filtered[highlightIndex].id, event.shiftKey);
+        },
+        { preventDefault: false, allowInModal: true }
+    );
+    useHotkey(
+        'escape',
+        () => {
+            if (drawerRow || isOtherDialogOpen() || selected.size === 0) return;
+            setSelected(new Set());
+        },
+        { preventDefault: false }
+    );
+
+    // ---------------------------------------------------------------- actions
+    const setSort = (key: SortKey) => {
+        if (key === sortKey) setParams({ dir: sortDir === 'asc' ? 'desc' : 'asc' });
+        else setParams({ sort: key, dir: DEFAULT_SORT_DIR[key] });
+    };
+
+    const setView = (next: 'table' | 'cards') => {
+        setStoredView(next);
+        setParams({ view: next === 'table' ? '' : next });
+    };
+
+    const filtersActive = Boolean(search) || params.plan !== 'all' || params.payment !== 'all' || params.status !== 'all';
+    const clearFilters = () => {
+        setSearch('');
+        setParams({ q: '', plan: 'all', payment: 'all', status: 'all' });
+    };
+
+    const describeSelection = (list: CrmRow[]) => {
+        const names = list.slice(0, 3).map((row) => row.name).join(', ');
+        return list.length > 3 ? `${names} e mais ${list.length - 3}` : names;
+    };
+
+    const runBulk = async (
+        action: 'MARK_PAID' | 'RENEW' | 'SET_STATUS',
+        options: { title: string; description: string; confirmText: string; success: string; status?: string }
+    ) => {
+        const targets = selectedRows;
+        if (targets.length === 0) return;
+        const ok = await confirm({
+            title: options.title,
+            description: `${options.description} Alunos: ${describeSelection(targets)}.`,
+            confirmText: options.confirmText,
+        });
+        if (!ok) return;
+        try {
+            setBulkBusy(true);
+            const result = await bulkUpdateStudents(
+                targets.map((row) => row.id),
+                action,
+                options.status
+            );
+            toast.success(options.success, `${result.count} ${result.count === 1 ? 'aluno atualizado' : 'alunos atualizados'}`);
+            if (action === 'MARK_PAID') {
+                const stillExpired = targets.filter((row) => row.billing.daysToExpire !== null && row.billing.daysToExpire < 0).length;
+                if (stillExpired > 0) {
+                    toast.info(
+                        `${stillExpired} ${stillExpired === 1 ? 'plano continua vencido' : 'planos continuam vencidos'}`,
+                        'Use "Renovar +1 período" para avançar o vencimento.'
+                    );
+                }
+            }
+        } catch (bulkError) {
+            toast.error('Não foi possível atualizar os alunos', errorMessage(bulkError));
+        } finally {
+            setBulkBusy(false);
         }
     };
 
-    // Filtering & Sorting
-    const sortedStudents = useMemo(() => {
-        const filtered = students.filter((student) => {
-            const matchesSearch =
-                student.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
-                student.user?.email?.toLowerCase().includes(search.toLowerCase()) ||
-                student.user?.phone?.includes(search);
-
-            if (!matchesSearch) return false;
-
-            // Plan filter
-            if (planFilter !== 'ALL' && (student.planType || 'MENSAL') !== planFilter) {
-                return false;
-            }
-
-            // Payment filter
-            if (paymentFilter !== 'ALL' && (student.paymentStatus || 'PAID') !== paymentFilter) {
-                return false;
-            }
-
-            // Funnel tab filter
-            if (activeTab === 'ALL') return true;
-            if (activeTab === 'ACTIVE_GOOD') {
-                const inact = getInactivityDays(student);
-                return student.status === 'ACTIVE' && inact !== null && inact < 3;
-            }
-            if (activeTab === 'CHURN_RISK') {
-                const inact = getInactivityDays(student);
-                return student.status === 'ACTIVE' && (inact === null || inact >= 3);
-            }
-            if (activeTab === 'PAYMENT_ALERT') {
-                return isOverdue(student) || isExpiringSoon(student) || student.paymentStatus === 'PENDENTE';
-            }
-            if (activeTab === 'INACTIVE') {
-                return student.status === 'INACTIVE' || student.status === 'PAUSED';
-            }
-            return true;
-        });
-
-        // Apply sorting
-        return [...filtered].sort((a, b) => {
-            let comp = 0;
-            if (sortField === 'name') {
-                const nameA = a.user?.name || '';
-                const nameB = b.user?.name || '';
-                comp = nameA.localeCompare(nameB);
-            } else if (sortField === 'planValue') {
-                const valA = a.planValue ?? 150;
-                const valB = b.planValue ?? 150;
-                comp = valA - valB;
-            } else if (sortField === 'expiresAt') {
-                const timeA = a.planExpiresAt ? new Date(a.planExpiresAt).getTime() : 0;
-                const timeB = b.planExpiresAt ? new Date(b.planExpiresAt).getTime() : 0;
-                comp = timeA - timeB;
-            } else if (sortField === 'inactivity') {
-                const inactA = getInactivityDays(a) ?? 999;
-                const inactB = getInactivityDays(b) ?? 999;
-                comp = inactA - inactB;
-            }
-            return sortDirection === 'asc' ? comp : -comp;
-        });
-    }, [students, search, activeTab, planFilter, paymentFilter, sortField, sortDirection]);
-
-    const getWhatsAppCobrançaUrl = (student: StudentData) => {
-        const cleanPhone = (student.user?.phone || '').replace(/\D/g, '');
-        if (!cleanPhone) return null;
-        const firstName = student.user?.name?.split(' ')[0] || 'Aluno';
-        let msg = '';
-        if (isOverdue(student)) {
-            msg = `Fala ${firstName}, tudo bem? Passando para te lembrar que a renovação da sua consultoria fitness venceu. Me avise para eu gerar sua chave PIX de renovação e manter seu plano ativo! 💪`;
-        } else if (isExpiringSoon(student)) {
-            msg = `Fala ${firstName}, tudo bem? Sua consultoria vence nos próximos dias. Vamos garantir a renovação para continuarmos no foco da sua evolução? 👊`;
-        } else {
-            msg = `Fala ${firstName}, tudo bem? Passando para saber como foram os treinos essa semana e como está o seu ritmo! Tamo junto! 🔥`;
-        }
-        const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-        return `https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`;
-    };
-
-    const handleExportCSV = () => {
-        if (sortedStudents.length === 0) {
-            toast.warning('Nenhum aluno para exportar no filtro atual');
+    const exportCsv = (list: CrmRow[]) => {
+        if (list.length === 0) {
+            toast.warning('Nenhum aluno para exportar neste filtro');
             return;
         }
-
-        const headers = [
-            'Nome',
-            'Email',
-            'Telefone',
-            'Status Aluno',
-            'Plano',
-            'Valor (R$)',
-            'Status Pagamento',
-            'Vencimento',
-            'Dias Inativo',
-        ];
-
-        const rows = sortedStudents.map((s) => [
-            `"${s.user?.name || ''}"`,
-            `"${s.user?.email || ''}"`,
-            `"${s.user?.phone || ''}"`,
-            `"${s.status}"`,
-            `"${s.planType || 'MENSAL'}"`,
-            s.planValue ?? 150,
-            `"${s.paymentStatus || 'PAID'}"`,
-            `"${s.planExpiresAt ? s.planExpiresAt.slice(0, 10) : ''}"`,
-            getInactivityDays(s) ?? 'Sem registro',
-        ]);
-
-        const csvContent =
-            'data:text/csv;charset=utf-8,\uFEFF' +
-            [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement('a');
-        link.setAttribute('href', encodedUri);
-        link.setAttribute(
-            'download',
-            `adrian_fit_alunos_${new Date().toISOString().slice(0, 10)}.csv`
-        );
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast.success('Relatório CSV exportado com sucesso!');
+        exportRowsCsv(list, `alunos_${new Date().toISOString().slice(0, 10)}.csv`);
+        toast.success('CSV exportado', `${list.length} ${list.length === 1 ? 'aluno' : 'alunos'}`);
     };
 
-    if (loading) {
+    const handleRowClick = (event: React.MouseEvent, row: CrmRow) => {
+        if (isInteractiveTarget(event.target)) return;
+        if (event.metaKey || event.ctrlKey) {
+            openProfileInNewTab(row.id);
+            return;
+        }
+        if (event.shiftKey) {
+            toggleSelected(row.id, true);
+            return;
+        }
+        openDrawer(row.id);
+    };
+
+    const handleRowAuxClick = (event: React.MouseEvent, row: CrmRow) => {
+        if (event.button !== 1 || isInteractiveTarget(event.target)) return;
+        event.preventDefault();
+        openProfileInNewTab(row.id);
+    };
+
+    /** Plain click on the name opens the drawer; ⌘/Ctrl/Shift/middle click keep the browser's "open in new tab". */
+    const handleNameClick = (event: React.MouseEvent<HTMLAnchorElement>, row: CrmRow) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        openDrawer(row.id);
+    };
+
+    const closeDrawerAfterDelete = (id: string) => {
+        const index = filtered.findIndex((row) => row.id === id);
+        const next = index === -1 ? null : filtered[index + 1] ?? filtered[index - 1] ?? null;
+        setSelected((current) => {
+            if (!current.has(id)) return current;
+            const copy = new Set(current);
+            copy.delete(id);
+            return copy;
+        });
+        if (next) openDrawer(next.id);
+        else setDrawerId('');
+    };
+
+    const visibleRows = filtered.slice(0, Math.max(visibleCount, highlightIndex + 1, drawerIndex + 1));
+    const hasMore = visibleRows.length < filtered.length;
+
+    const lastWorkoutTone = (row: CrmRow) => {
+        if (row.status !== 'ACTIVE') return toneText.muted;
+        if (row.lastWorkoutDays === null || row.lastWorkoutDays >= INACTIVITY_ALERT_DAYS) return toneText.danger;
+        return toneText.ok;
+    };
+
+    // ---------------------------------------------------------------- render helpers
+    const renderWorkout = (row: CrmRow) => {
+        if (!row.workout) {
+            return (
+                <Link
+                    href={`/personal/students/${row.id}/workout`}
+                    className="text-xs font-semibold text-[#F88022] hover:underline focus:outline-none focus-visible:underline"
+                >
+                    + Prescrever treino
+                </Link>
+            );
+        }
+        const end = planEndInfo(row.workout.endDate);
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-8 h-8 animate-spin text-[#F88022]" />
+            <div className="min-w-0">
+                <p className="truncate font-medium text-foreground" title={row.workout.title}>
+                    {row.workout.title}
+                </p>
+                {end && <p className={cn('text-xs', toneText[end.tone])}>{end.label}</p>}
             </div>
         );
-    }
+    };
 
-    return (
-        <div className="space-y-6 animate-in pb-12 max-w-7xl mx-auto">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl lg:text-3xl font-extrabold text-foreground tracking-tight">
-                        CRM de Alunos & Gestão
-                    </h1>
-                    <p className="text-muted-foreground mt-0.5 text-xs sm:text-sm">
-                        Visão de alta performance: contratos, faturamento recorrente (MRR), retenção e prescrição
-                    </p>
-                </div>
-                <div className="flex items-center gap-2.5">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleExportCSV}
-                        className="text-xs h-9 px-3 gap-1.5 rounded-xl border-border"
-                        title="Exportar para CSV/Excel"
+    const renderDiet = (row: CrmRow) => {
+        if (!row.diet) {
+            return (
+                <Link
+                    href={`/personal/students/${row.id}/diet`}
+                    className="text-xs font-semibold text-[#F88022] hover:underline focus:outline-none focus-visible:underline"
+                >
+                    + Criar dieta
+                </Link>
+            );
+        }
+        const end = planEndInfo(row.diet.endDate);
+        return (
+            <div className="min-w-0">
+                <p className="truncate font-medium text-foreground" title={row.diet.title}>
+                    {row.diet.title}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                    {row.diet.calories ? `${row.diet.calories} kcal` : 'Sem meta'}
+                    {end && end.tone !== 'ok' && <span className={toneText[end.tone]}> · {end.label}</span>}
+                </p>
+            </div>
+        );
+    };
+
+    const renderCheckin = (row: CrmRow) => {
+        if (!row.lastCheckin) return <span className="text-xs text-muted-foreground">Sem check-in</span>;
+        const late = (row.lastCheckinDays ?? 0) >= CHECKIN_EXPECTED_DAYS;
+        return (
+            <div>
+                <p className={cn('font-medium', late ? toneText.warn : 'text-foreground')}>
+                    {formatShortDate(row.lastCheckin.date)}
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                        ({relativeDaysLabel(row.lastCheckinDays).toLowerCase()})
+                    </span>
+                </p>
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-0.5" title="Adesão ao treino">
+                        <Dumbbell className="h-3 w-3 text-[#F88022]" />
+                        {row.lastCheckin.workoutAdherence}%
+                    </span>
+                    <span className="inline-flex items-center gap-0.5" title="Adesão à dieta">
+                        <Utensils className="h-3 w-3 text-emerald-500" />
+                        {row.lastCheckin.dietAdherence}%
+                    </span>
+                </p>
+            </div>
+        );
+    };
+
+    const renderPlan = (row: CrmRow) => (
+        <div>
+            <p className="font-semibold text-foreground">{row.monthly !== null ? `${formatBRL(row.monthly)}/mês` : '—'}</p>
+            <p className="text-xs text-muted-foreground">
+                {planLabel(row.student.planType)}
+                {planMonths(row.student.planType) > 1 && row.student.planValue != null && ` · ${formatBRL(row.student.planValue)}`}
+            </p>
+        </div>
+    );
+
+    const renderRowActions = (row: CrmRow) => {
+        const whatsapp = row.billingAlert ? billingWhatsappUrl(row) : whatsappUrl(row.phone);
+        return (
+            <div className="flex items-center justify-end gap-1">
+                {whatsapp && (
+                    <a
+                        href={whatsapp}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-lg p-1.5 text-emerald-600 transition-colors hover:bg-emerald-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                        title={row.billingAlert ? 'Cobrar no WhatsApp' : 'Abrir WhatsApp'}
+                        aria-label={row.billingAlert ? `Cobrar ${row.name} no WhatsApp` : `WhatsApp de ${row.name}`}
                     >
-                        <Download className="w-4 h-4 text-muted-foreground" />
-                        <span className="hidden sm:inline">Exportar CSV</span>
-                    </Button>
+                        <Phone className="h-4 w-4" />
+                    </a>
+                )}
+                <Link
+                    href={`/personal/students/${row.id}`}
+                    className="rounded-lg bg-[#F88022]/10 p-1.5 text-[#F88022] transition-colors hover:bg-[#F88022]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                    title="Abrir ficha completa"
+                    aria-label={`Abrir ficha de ${row.name}`}
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </Link>
+            </div>
+        );
+    };
+
+    const renderEmpty = () => {
+        if (rows.length === 0) {
+            return (
+                <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F88022]/10 text-[#F88022]">
+                        <Users className="h-6 w-6" />
+                    </div>
+                    <h3 className="mt-3 text-base font-bold text-foreground">Você ainda não tem alunos</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Cadastre o primeiro aluno para prescrever treino, dieta e acompanhar a evolução.</p>
                     <Link
                         href="/personal/students/new"
-                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#F88022] text-white rounded-xl text-xs font-semibold hover:bg-[#F88022]/90 transition-colors shadow-xs"
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90"
                     >
-                        <UserPlus className="w-4 h-4" />
-                        Cadastrar Aluno
+                        <UserPlus className="h-4 w-4" />
+                        Cadastrar aluno
+                    </Link>
+                </div>
+            );
+        }
+        const message = filtersActive ? EMPTY_MESSAGES.all : EMPTY_MESSAGES[tab];
+        return (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    {tab === 'billing' && !filtersActive ? <CheckCircle2 className="h-5 w-5 text-emerald-500" /> : <Search className="h-5 w-5" />}
+                </div>
+                <h3 className="mt-3 text-base font-bold text-foreground">{message.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{message.description}</p>
+                {filtersActive && (
+                    <button type="button" onClick={clearFilters} className={cn(smallButtonClass, 'mt-4')}>
+                        <FilterX className="h-3.5 w-3.5" />
+                        Limpar busca e filtros
+                    </button>
+                )}
+            </div>
+        );
+    };
+
+    // ---------------------------------------------------------------- render
+    return (
+        <div className="space-y-5 pb-16">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-foreground">
+                        Alunos
+                        {isValidating && data && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Atualizando" />}
+                    </h1>
+                    <p className="text-sm text-muted-foreground">Contratos, cobrança, retenção e prescrição em um só lugar.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => exportCsv(filtered)} className={cn(smallButtonClass, 'h-9')} disabled={!data}>
+                        <Download className="h-4 w-4 text-muted-foreground" />
+                        Exportar CSV
+                    </button>
+                    <Link
+                        href="/personal/students/new"
+                        className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#F88022] px-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#F88022]/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    >
+                        <UserPlus className="h-4 w-4" />
+                        Cadastrar aluno
                     </Link>
                 </div>
             </div>
 
-            {/* CRM Financial & Retention KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border-border">
-                    <CardContent className="p-4 sm:p-5">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                                Faturamento Mensal (MRR)
-                            </span>
-                            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                                <DollarSign className="w-4 h-4" />
-                            </div>
-                        </div>
-                        <p className="text-2xl font-black text-foreground">
-                            R$ {metrics.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3" />
-                            {metrics.activeCount} alunos ativos
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-border">
-                    <CardContent className="p-4 sm:p-5">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                                Base de Alunos
-                            </span>
-                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
-                                <UserPlus className="w-4 h-4" />
-                            </div>
-                        </div>
-                        <p className="text-2xl font-black text-foreground">{metrics.total}</p>
-                        <p className="text-[11px] text-muted-foreground mt-1">
-                            {metrics.activeCount} ativos • {metrics.total - metrics.activeCount} pausados
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-border">
-                    <CardContent className="p-4 sm:p-5">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                                Risco de Churn
-                            </span>
-                            <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                    metrics.atRiskCount > 0
-                                        ? 'bg-red-500/10 text-red-500'
-                                        : 'bg-emerald-500/10 text-emerald-500'
-                                }`}
-                            >
-                                <AlertTriangle className="w-4 h-4" />
-                            </div>
-                        </div>
-                        <p
-                            className={`text-2xl font-black ${
-                                metrics.atRiskCount > 0 ? 'text-red-500' : 'text-foreground'
-                            }`}
-                        >
-                            {metrics.atRiskCount}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-1">
-                            {metrics.atRiskCount === 0
-                                ? 'Nenhum aluno em alerta'
-                                : 'Sem treinar há 3+ dias'}
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-border">
-                    <CardContent className="p-4 sm:p-5">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                                Alertas de Cobrança
-                            </span>
-                            <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                    metrics.billingAlertCount > 0
-                                        ? 'bg-amber-500/10 text-amber-500'
-                                        : 'bg-muted text-muted-foreground'
-                                }`}
-                            >
-                                <CreditCard className="w-4 h-4" />
-                            </div>
-                        </div>
-                        <p className="text-2xl font-black text-foreground">{metrics.billingAlertCount}</p>
-                        <p className="text-[11px] text-muted-foreground mt-1">
-                            Vencendo na semana ou atrasados
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* CRM Funnel Tabs */}
-            <div className="flex gap-1.5 p-1 bg-muted rounded-2xl overflow-x-auto text-xs font-medium">
-                <button
-                    onClick={() => setActiveTab('ALL')}
-                    className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap ${
-                        activeTab === 'ALL'
-                            ? 'bg-background text-foreground shadow-xs font-semibold'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    Todos ({students.length})
-                </button>
-                <button
-                    onClick={() => setActiveTab('ACTIVE_GOOD')}
-                    className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                        activeTab === 'ACTIVE_GOOD'
-                            ? 'bg-background text-foreground shadow-xs font-semibold'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    Treinando no Ritmo
-                </button>
-                <button
-                    onClick={() => setActiveTab('CHURN_RISK')}
-                    className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                        activeTab === 'CHURN_RISK'
-                            ? 'bg-background text-foreground shadow-xs font-semibold'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                    Em Risco ({metrics.atRiskCount})
-                </button>
-                <button
-                    onClick={() => setActiveTab('PAYMENT_ALERT')}
-                    className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                        activeTab === 'PAYMENT_ALERT'
-                            ? 'bg-background text-foreground shadow-xs font-semibold'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    <CreditCard className="w-3.5 h-3.5 text-amber-500" />
-                    Renovação / Cobrança ({metrics.billingAlertCount})
-                </button>
-                <button
-                    onClick={() => setActiveTab('INACTIVE')}
-                    className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap ${
-                        activeTab === 'INACTIVE'
-                            ? 'bg-background text-foreground shadow-xs font-semibold'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    Pausados / Inativos
-                </button>
-            </div>
-
-            {/* Filter Bar & View Toggle */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border">
-                {/* Search */}
-                <div className="relative flex-1 min-w-[240px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar por nome, email ou telefone..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 text-xs h-9 rounded-xl bg-background"
+            {data && (
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                    <MetricCard
+                        label="Receita mensal (MRR)"
+                        value={formatBRL(metrics.mrr)}
+                        detail={
+                            metrics.unpriced > 0
+                                ? `${metrics.active} ativos · ${metrics.unpriced} sem valor definido`
+                                : `${metrics.active} alunos ativos · planos em valor mensal`
+                        }
+                        icon={<DollarSign className="h-4 w-4" />}
+                        tone="ok"
+                    />
+                    <MetricCard
+                        label="Base de alunos"
+                        value={metrics.total}
+                        detail={`${metrics.active} ativos · ${metrics.paused} pausados · ${metrics.inactive} inativos`}
+                        icon={<Users className="h-4 w-4" />}
+                    />
+                    <MetricCard
+                        label="Em risco"
+                        value={metrics.risk}
+                        detail={
+                            metrics.risk === 0
+                                ? 'Todos treinaram recentemente'
+                                : `Sem treinar há ${INACTIVITY_ALERT_DAYS}+ dias${metrics.neverTrained ? ` · ${metrics.neverTrained} nunca treinaram` : ''}`
+                        }
+                        icon={<AlertTriangle className="h-4 w-4" />}
+                        tone={metrics.risk > 0 ? 'danger' : 'ok'}
+                        onClick={() => setParams({ tab: 'risk' })}
+                        active={tab === 'risk'}
+                    />
+                    <MetricCard
+                        label="Cobrança"
+                        value={metrics.billing}
+                        detail={
+                            metrics.billing === 0
+                                ? 'Nenhum contrato pendente'
+                                : `${metrics.overdue} vencidos · ${metrics.expiring} vencendo · ${metrics.pending} pendentes`
+                        }
+                        icon={<CreditCard className="h-4 w-4" />}
+                        tone={metrics.overdue > 0 ? 'danger' : metrics.billing > 0 ? 'warn' : 'ok'}
+                        onClick={() => setParams({ tab: 'billing' })}
+                        active={tab === 'billing'}
                     />
                 </div>
+            )}
 
-                <div className="flex items-center gap-2 flex-wrap">
-                    {/* Filter: Plan */}
-                    <div className="flex items-center gap-1.5">
-                        <select
-                            value={planFilter}
-                            onChange={(e) => setPlanFilter(e.target.value)}
-                            className="bg-background border border-border text-foreground text-xs rounded-xl px-2.5 py-1.5 focus:outline-none"
-                        >
-                            <option value="ALL">Todos os Planos</option>
-                            <option value="MENSAL">Mensal</option>
-                            <option value="TRIMESTRAL">Trimestral</option>
-                            <option value="SEMESTRAL">Semestral</option>
-                            <option value="ANUAL">Anual</option>
-                        </select>
-                    </div>
+            <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1" role="tablist" aria-label="Segmentos de alunos">
+                {CRM_TABS.map((item) => (
+                    <button
+                        key={item.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === item.id}
+                        onClick={() => setParams({ tab: item.id })}
+                        className={cn(
+                            'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                            tab === item.id ? 'bg-background font-semibold text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                        )}
+                    >
+                        {item.id === 'on-track' && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />}
+                        {item.id === 'risk' && <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden />}
+                        {item.id === 'billing' && <CreditCard className="h-3.5 w-3.5 text-amber-500" aria-hidden />}
+                        {item.label}
+                        {data && (
+                            <span
+                                className={cn(
+                                    'rounded-full px-1.5 text-xs font-semibold',
+                                    tab === item.id ? 'bg-[#F88022]/15 text-[#F88022]' : 'bg-background/60 text-muted-foreground'
+                                )}
+                            >
+                                {tabCounts[item.id]}
+                            </span>
+                        )}
+                    </button>
+                ))}
+            </div>
 
-                    {/* Filter: Payment */}
-                    <div className="flex items-center gap-1.5">
-                        <select
-                            value={paymentFilter}
-                            onChange={(e) => setPaymentFilter(e.target.value)}
-                            className="bg-background border border-border text-foreground text-xs rounded-xl px-2.5 py-1.5 focus:outline-none"
-                        >
-                            <option value="ALL">Todos os Status</option>
-                            <option value="PAID">Em dia (Pago)</option>
-                            <option value="PENDENTE">Pendente</option>
-                            <option value="OVERDUE">Atrasado</option>
-                        </select>
-                    </div>
-
-                    {/* View Switcher: Cards vs Table */}
-                    <div className="flex items-center bg-muted p-0.5 rounded-xl border border-border">
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-2.5 lg:flex-row lg:items-center">
+                <div className="relative min-w-[220px] flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                        ref={searchRef}
+                        type="search"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Escape') {
+                                event.preventDefault();
+                                if (search) setSearch('');
+                                else event.currentTarget.blur();
+                            } else if (event.key === 'ArrowDown' || event.key === 'Enter') {
+                                if (filtered.length === 0) return;
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                                setHighlightId(filtered[0].id);
+                                scrollRowIntoView(filtered[0].id);
+                                if (event.key === 'Enter' && filtered.length === 1) openDrawer(filtered[0].id);
+                            }
+                        }}
+                        placeholder="Buscar por nome, e-mail ou telefone"
+                        aria-label="Buscar aluno"
+                        className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/30"
+                    />
+                    <Kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">/</Kbd>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <select
+                        value={params.plan}
+                        onChange={(event) => setParams({ plan: event.target.value })}
+                        className={cn(selectClass, 'w-auto')}
+                        aria-label="Filtrar por plano"
+                    >
+                        <option value="all">Todos os planos</option>
+                        {PLAN_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                        <option value="none">Sem valor definido</option>
+                    </select>
+                    <select
+                        value={params.payment}
+                        onChange={(event) => setParams({ payment: event.target.value })}
+                        className={cn(selectClass, 'w-auto')}
+                        aria-label="Filtrar por situação da cobrança"
+                    >
+                        {BILLING_FILTER_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                    <select
+                        value={params.status}
+                        onChange={(event) => setParams({ status: event.target.value })}
+                        className={cn(selectClass, 'w-auto')}
+                        aria-label="Filtrar por status do aluno"
+                    >
+                        <option value="all">Todos os status</option>
+                        {STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                    {filtersActive && (
+                        <button type="button" onClick={clearFilters} className={cn(smallButtonClass, 'h-9')}>
+                            <FilterX className="h-3.5 w-3.5" />
+                            Limpar
+                        </button>
+                    )}
+                    <div className="flex items-center rounded-lg border border-border bg-muted p-0.5" role="group" aria-label="Modo de visualização">
                         <button
                             type="button"
-                            onClick={() => setViewMode('table')}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                                viewMode === 'table'
-                                    ? 'bg-card text-[#F88022] shadow-xs'
-                                    : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                            title="Visualização em Tabela SaaS"
+                            onClick={() => setView('table')}
+                            aria-pressed={view === 'table'}
+                            className={cn(
+                                'rounded-md p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                                view === 'table' ? 'bg-card text-[#F88022] shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                            )}
+                            title="Tabela"
+                            aria-label="Visualizar em tabela"
                         >
-                            <TableIcon className="w-4 h-4" />
+                            <TableIcon className="h-4 w-4" />
                         </button>
                         <button
                             type="button"
-                            onClick={() => setViewMode('cards')}
-                            className={`p-1.5 rounded-lg transition-colors ${
-                                viewMode === 'cards'
-                                    ? 'bg-card text-[#F88022] shadow-xs'
-                                    : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                            title="Visualização em Cards"
+                            onClick={() => setView('cards')}
+                            aria-pressed={view === 'cards'}
+                            className={cn(
+                                'rounded-md p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                                view === 'cards' ? 'bg-card text-[#F88022] shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                            )}
+                            title="Cards"
+                            aria-label="Visualizar em cards"
                         >
-                            <LayoutGrid className="w-4 h-4" />
+                            <LayoutGrid className="h-4 w-4" />
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Students List: Dual View */}
-            {sortedStudents.length === 0 ? (
-                <Card>
-                    <CardContent className="p-12 text-center space-y-3">
-                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
-                            <Search className="w-6 h-6" />
-                        </div>
-                        <h3 className="text-base font-bold text-foreground">Nenhum aluno encontrado</h3>
-                        <p className="text-xs text-muted-foreground">
-                            Tente ajustar seus termos de busca ou selecione outra aba do funil.
-                        </p>
-                    </CardContent>
-                </Card>
-            ) : viewMode === 'table' ? (
-                /* SaaS Compact Data Table */
-                <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xs">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                            <thead className="bg-muted/50 border-b border-border text-muted-foreground font-bold uppercase tracking-wider text-[10px]">
-                                <tr>
-                                    <th
-                                        className="py-3 px-4 cursor-pointer select-none hover:text-foreground transition-colors"
-                                        onClick={() => toggleSort('name')}
-                                    >
-                                        <div className="flex items-center gap-1.5">
-                                            <span>Aluno</span>
-                                            {sortField === 'name' ? (
-                                                sortDirection === 'asc' ? (
-                                                    <ArrowUp className="w-3 h-3 text-[#F88022]" />
-                                                ) : (
-                                                    <ArrowDown className="w-3 h-3 text-[#F88022]" />
-                                                )
-                                            ) : (
-                                                <ArrowUpDown className="w-3 h-3 opacity-40" />
-                                            )}
-                                        </div>
+            {error && data && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+                    <span>Não foi possível atualizar a lista agora. Os dados exibidos podem estar desatualizados.</span>
+                    <button type="button" onClick={() => mutate()} className={cn(smallButtonClass, 'shrink-0')}>
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Tentar de novo
+                    </button>
+                </div>
+            )}
+
+            {isLoading ? (
+                <TableSkeleton />
+            ) : error && !data ? (
+                <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-10 text-center" role="alert">
+                    <AlertTriangle className="mx-auto h-8 w-8 text-red-500" />
+                    <h3 className="mt-3 text-base font-bold text-foreground">Não foi possível carregar os alunos</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{error.message}</p>
+                    <button type="button" onClick={() => mutate()} className={cn(smallButtonClass, 'mt-4 h-9')}>
+                        <RefreshCw className={cn('h-4 w-4', isValidating && 'animate-spin')} />
+                        Tentar de novo
+                    </button>
+                </div>
+            ) : filtered.length === 0 ? (
+                renderEmpty()
+            ) : view === 'table' ? (
+                <div data-crm-keep-drawer="" className="overflow-hidden rounded-2xl border border-border bg-card">
+                    <div className="max-h-[calc(100dvh-9rem)] overflow-auto">
+                        <table className="w-full min-w-[960px] text-sm">
+                            <thead className="sticky top-0 z-10 bg-muted text-xs text-muted-foreground">
+                                <tr className="border-b border-border">
+                                    <th scope="col" className="w-10 px-3 py-2.5">
+                                        <input
+                                            type="checkbox"
+                                            checked={allSelected}
+                                            ref={(element) => {
+                                                if (element) element.indeterminate = someSelected;
+                                            }}
+                                            onChange={toggleAll}
+                                            className="h-4 w-4 cursor-pointer rounded accent-[#F88022]"
+                                            aria-label={allSelected ? 'Desmarcar todos' : `Selecionar os ${filtered.length} alunos do filtro`}
+                                            title={allSelected ? 'Desmarcar todos' : `Selecionar os ${filtered.length} alunos do filtro`}
+                                        />
                                     </th>
-                                    <th
-                                        className="py-3 px-4 cursor-pointer select-none hover:text-foreground transition-colors"
-                                        onClick={() => toggleSort('planValue')}
-                                    >
-                                        <div className="flex items-center gap-1.5">
-                                            <span>Plano & Valor</span>
-                                            {sortField === 'planValue' ? (
-                                                sortDirection === 'asc' ? (
-                                                    <ArrowUp className="w-3 h-3 text-[#F88022]" />
-                                                ) : (
-                                                    <ArrowDown className="w-3 h-3 text-[#F88022]" />
-                                                )
-                                            ) : (
-                                                <ArrowUpDown className="w-3 h-3 opacity-40" />
-                                            )}
-                                        </div>
+                                    <SortableHeader label="Aluno" column="name" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                    <SortableHeader label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                    <SortableHeader label="Treino ativo" column="workout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                    <th scope="col" className="hidden px-3 py-2.5 text-left font-semibold uppercase tracking-wider 2xl:table-cell">
+                                        Dieta ativa
                                     </th>
-                                    <th className="py-3 px-4">
-                                        <span>Status Pagamento</span>
-                                    </th>
-                                    <th
-                                        className="py-3 px-4 cursor-pointer select-none hover:text-foreground transition-colors"
-                                        onClick={() => toggleSort('expiresAt')}
-                                    >
-                                        <div className="flex items-center gap-1.5">
-                                            <span>Vencimento</span>
-                                            {sortField === 'expiresAt' ? (
-                                                sortDirection === 'asc' ? (
-                                                    <ArrowUp className="w-3 h-3 text-[#F88022]" />
-                                                ) : (
-                                                    <ArrowDown className="w-3 h-3 text-[#F88022]" />
-                                                )
-                                            ) : (
-                                                <ArrowUpDown className="w-3 h-3 opacity-40" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="py-3 px-4 cursor-pointer select-none hover:text-foreground transition-colors"
-                                        onClick={() => toggleSort('inactivity')}
-                                    >
-                                        <div className="flex items-center gap-1.5">
-                                            <span>Último Treino</span>
-                                            {sortField === 'inactivity' ? (
-                                                sortDirection === 'asc' ? (
-                                                    <ArrowUp className="w-3 h-3 text-[#F88022]" />
-                                                ) : (
-                                                    <ArrowDown className="w-3 h-3 text-[#F88022]" />
-                                                )
-                                            ) : (
-                                                <ArrowUpDown className="w-3 h-3 opacity-40" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="py-3 px-4">
-                                        <span>Adesão Recente</span>
-                                    </th>
-                                    <th className="py-3 px-4 text-right">
-                                        <span>Ações Rápidas</span>
+                                    <SortableHeader label="Último treino" column="lastWorkout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                    <SortableHeader label="Último check-in" column="lastCheckin" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                    <SortableHeader label="Plano" column="plan" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                    <SortableHeader label="Vencimento" column="expires" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                    <th scope="col" className="w-20 px-3 py-2.5">
+                                        <span className="sr-only">Ações</span>
                                     </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border/60">
-                                {sortedStudents.map((student) => {
-                                    const inactDays = getInactivityDays(student);
-                                    const isAtRisk =
-                                        student.status === 'ACTIVE' && (inactDays === null || inactDays >= 3);
-                                    const overdue = isOverdue(student);
-                                    const expiring = isExpiringSoon(student);
-                                    const whatsAppUrl = getWhatsAppCobrançaUrl(student);
-                                    const latestCheckin = student.checkins?.[0];
-
+                                {visibleRows.map((row) => {
+                                    const isSelected = selected.has(row.id);
+                                    const isHighlighted = row.id === highlightId;
+                                    const isOpen = row.id === drawerRow?.id;
                                     return (
                                         <tr
-                                            key={student.id}
-                                            className="hover:bg-muted/40 transition-colors group"
+                                            key={row.id}
+                                            data-row-id={row.id}
+                                            onClick={(event) => handleRowClick(event, row)}
+                                            onAuxClick={(event) => handleRowAuxClick(event, row)}
+                                            aria-selected={isSelected}
+                                            className={cn(
+                                                'group cursor-pointer transition-colors',
+                                                isOpen ? 'bg-[#F88022]/10' : isSelected ? 'bg-[#F88022]/5' : isHighlighted ? 'bg-muted/60' : 'hover:bg-muted/50'
+                                            )}
                                         >
-                                            {/* Aluno Column */}
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <Avatar name={student.user?.name || ''} size="sm" />
+                                            <td
+                                                className={cn(
+                                                    'relative px-3 py-2',
+                                                    (isHighlighted || isOpen) && 'before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-[#F88022]'
+                                                )}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => undefined}
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        toggleSelected(row.id, event.shiftKey);
+                                                    }}
+                                                    className="h-4 w-4 cursor-pointer rounded accent-[#F88022]"
+                                                    aria-label={`Selecionar ${row.name}`}
+                                                />
+                                            </td>
+                                            <td className="max-w-[260px] px-3 py-2">
+                                                <div className="flex min-w-0 items-center gap-2.5">
+                                                    <Avatar name={row.name} src={row.student.user?.avatar || undefined} size="sm" />
                                                     <div className="min-w-0">
                                                         <Link
-                                                            href={`/personal/students/${student.id}`}
-                                                            className="font-bold text-foreground hover:text-[#F88022] transition-colors truncate block text-xs"
+                                                            href={`/personal/students/${row.id}`}
+                                                            onClick={(event) => handleNameClick(event, row)}
+                                                            className="block truncate font-semibold text-foreground hover:text-[#F88022] focus:outline-none focus-visible:underline"
                                                         >
-                                                            {student.user?.name}
+                                                            {row.name}
                                                         </Link>
-                                                        <p className="text-[11px] text-muted-foreground truncate">
-                                                            {student.user?.email}
+                                                        <p className="truncate text-xs text-muted-foreground" title={row.email}>
+                                                            {row.phone || row.email}
                                                         </p>
                                                     </div>
                                                 </div>
                                             </td>
-
-                                            {/* Plano & Valor Column */}
-                                            <td className="py-3 px-4 whitespace-nowrap">
-                                                <div className="flex flex-col gap-0.5">
-                                                    <span className="font-bold text-foreground">
-                                                        R$ {(student.planValue || 150).toFixed(2)}
-                                                    </span>
-                                                    <span className="text-[10px] text-muted-foreground font-semibold uppercase">
-                                                        {student.planType || 'MENSAL'}
-                                                    </span>
-                                                </div>
+                                            <td className="whitespace-nowrap px-3 py-2">
+                                                <StudentStatusBadge status={row.status} />
                                             </td>
-
-                                            {/* Status Pagamento Column */}
-                                            <td className="py-3 px-4 whitespace-nowrap">
-                                                {overdue ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-500 border border-red-500/30">
-                                                        Atrasado
-                                                    </span>
-                                                ) : student.paymentStatus === 'PENDENTE' ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                                                        Pendente
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                                                        Em Dia
-                                                    </span>
+                                            <td className="max-w-[200px] px-3 py-2">{renderWorkout(row)}</td>
+                                            <td className="hidden max-w-[180px] px-3 py-2 2xl:table-cell">{renderDiet(row)}</td>
+                                            <td className="whitespace-nowrap px-3 py-2">
+                                                <p className={cn('font-semibold', lastWorkoutTone(row))}>
+                                                    {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
+                                                </p>
+                                                {row.lastWorkoutName && (
+                                                    <p className="max-w-[140px] truncate text-xs text-muted-foreground" title={row.lastWorkoutName}>
+                                                        {row.lastWorkoutName}
+                                                    </p>
                                                 )}
                                             </td>
-
-                                            {/* Vencimento Column */}
-                                            <td className="py-3 px-4 whitespace-nowrap">
-                                                {student.planExpiresAt ? (
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium text-foreground">
-                                                            {new Date(student.planExpiresAt).toLocaleDateString(
-                                                                'pt-BR'
-                                                            )}
-                                                        </span>
-                                                        {expiring && (
-                                                            <span className="text-[10px] text-amber-500 font-semibold">
-                                                                Vence em breve
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-muted-foreground text-[11px]">
-                                                        Indeterminado
-                                                    </span>
+                                            <td className="whitespace-nowrap px-3 py-2">{renderCheckin(row)}</td>
+                                            <td className="whitespace-nowrap px-3 py-2">{renderPlan(row)}</td>
+                                            <td className="whitespace-nowrap px-3 py-2">
+                                                <p className="text-sm font-medium text-foreground">{formatDate(row.student.planExpiresAt)}</p>
+                                                {row.status === 'INACTIVE' && row.billing.status === 'OVERDUE' ? null : (
+                                                    <BillingBadge billing={row.billing} className="mt-0.5" />
                                                 )}
                                             </td>
-
-                                            {/* Último Treino Column */}
-                                            <td className="py-3 px-4 whitespace-nowrap">
-                                                {inactDays === null ? (
-                                                    <span className="text-muted-foreground text-[11px]">
-                                                        Sem registro
-                                                    </span>
-                                                ) : inactDays === 0 ? (
-                                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                                        Hoje
-                                                    </span>
-                                                ) : inactDays === 1 ? (
-                                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                                        Ontem
-                                                    </span>
-                                                ) : (
-                                                    <span
-                                                        className={`font-semibold ${
-                                                            isAtRisk ? 'text-red-500' : 'text-foreground'
-                                                        }`}
-                                                    >
-                                                        Há {inactDays} dias
-                                                    </span>
-                                                )}
-                                            </td>
-
-                                            {/* Adesão Column */}
-                                            <td className="py-3 px-4 whitespace-nowrap">
-                                                {latestCheckin ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="inline-flex items-center gap-1 text-[11px] text-[#F88022] font-semibold">
-                                                            <Dumbbell className="w-3 h-3" />
-                                                            {latestCheckin.workoutAdherence}%
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">
-                                                            <Utensils className="w-3 h-3" />
-                                                            {latestCheckin.dietAdherence}%
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-muted-foreground text-[11px]">-</span>
-                                                )}
-                                            </td>
-
-                                            {/* Ações Column */}
-                                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    {whatsAppUrl && (
-                                                        <a
-                                                            href={whatsAppUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-500/15 transition-colors"
-                                                            title="WhatsApp"
-                                                        >
-                                                            <MessageCircle className="w-4 h-4" />
-                                                        </a>
-                                                    )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleOpenContractModal(student)}
-                                                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                                        title="Editar Contrato"
-                                                    >
-                                                        <CreditCard className="w-4 h-4" />
-                                                    </button>
-                                                    <Link
-                                                        href={`/personal/students/${student.id}`}
-                                                        className="p-1.5 rounded-lg bg-[#F88022]/10 hover:bg-[#F88022]/20 text-[#F88022] transition-colors"
-                                                        title="Abrir Ficha 360°"
-                                                    >
-                                                        <ChevronRight className="w-4 h-4" />
-                                                    </Link>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDeleteConfirm(student.id)}
-                                                        className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
-                                                        title="Excluir Aluno"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
+                                            <td className="px-3 py-2">{renderRowActions(row)}</td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
+                        {hasMore && (
+                            <div className="flex items-center justify-center gap-3 border-t border-border p-3 text-sm text-muted-foreground">
+                                Mostrando {visibleRows.length} de {filtered.length}
+                                <button type="button" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)} className={smallButtonClass}>
+                                    Mostrar mais
+                                </button>
+                                <button type="button" onClick={() => setVisibleCount(filtered.length)} className={smallButtonClass}>
+                                    Mostrar todos
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
-                /* Cards Grid View */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {sortedStudents.map((student) => {
-                        const inactDays = getInactivityDays(student);
-                        const isAtRisk =
-                            student.status === 'ACTIVE' && (inactDays === null || inactDays >= 3);
-                        const overdue = isOverdue(student);
-                        const expiring = isExpiringSoon(student);
-                        const whatsAppUrl = getWhatsAppCobrançaUrl(student);
-
-                        return (
-                            <Card
-                                key={student.id}
-                                className="relative overflow-hidden border-border hover:border-[#F88022]/40 transition-all flex flex-col justify-between"
-                            >
-                                <CardContent className="p-5 space-y-4">
-                                    {/* Card Top: Avatar, Name, Status Badge */}
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <Avatar name={student.user?.name || ''} size="md" />
-                                            <div className="min-w-0">
-                                                <Link
-                                                    href={`/personal/students/${student.id}`}
-                                                    className="font-bold text-foreground hover:text-[#F88022] transition-colors truncate block text-sm"
-                                                >
-                                                    {student.user?.name}
-                                                </Link>
-                                                <p className="text-xs text-muted-foreground truncate">
-                                                    {student.user?.email}
-                                                </p>
+                <div data-crm-keep-drawer="" className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                        {visibleRows.map((row) => {
+                            const isSelected = selected.has(row.id);
+                            return (
+                                <article
+                                    key={row.id}
+                                    data-row-id={row.id}
+                                    onClick={(event) => handleRowClick(event, row)}
+                                    onAuxClick={(event) => handleRowAuxClick(event, row)}
+                                    className={cn(
+                                        'cursor-pointer space-y-3 rounded-2xl border bg-card p-4 transition-colors',
+                                        row.id === drawerRow?.id ? 'border-[#F88022]' : isSelected ? 'border-[#F88022]/50' : 'border-border hover:border-[#F88022]/40',
+                                        row.id === highlightId && 'ring-2 ring-[#F88022]/50'
+                                    )}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => undefined}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                toggleSelected(row.id, event.shiftKey);
+                                            }}
+                                            className="mt-1 h-4 w-4 cursor-pointer rounded accent-[#F88022]"
+                                            aria-label={`Selecionar ${row.name}`}
+                                        />
+                                        <Avatar name={row.name} src={row.student.user?.avatar || undefined} size="md" />
+                                        <div className="min-w-0 flex-1">
+                                            <Link
+                                                href={`/personal/students/${row.id}`}
+                                                onClick={(event) => handleNameClick(event, row)}
+                                                className="block truncate font-bold text-foreground hover:text-[#F88022] focus:outline-none focus-visible:underline"
+                                            >
+                                                {row.name}
+                                            </Link>
+                                            <p className="truncate text-xs text-muted-foreground">{row.email}</p>
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                <StudentStatusBadge status={row.status} />
+                                                {row.status === 'INACTIVE' && row.billing.status === 'OVERDUE' ? null : (
+                                                    <BillingBadge billing={row.billing} />
+                                                )}
                                             </div>
                                         </div>
-
-                                        <div className="flex flex-col items-end gap-1">
-                                            <Badge
-                                                variant={
-                                                    student.status === 'ACTIVE'
-                                                        ? 'success'
-                                                        : student.status === 'PAUSED'
-                                                        ? 'warning'
-                                                        : 'default'
-                                                }
-                                            >
-                                                {student.status === 'ACTIVE'
-                                                    ? 'Ativo'
-                                                    : student.status === 'PAUSED'
-                                                    ? 'Pausado'
-                                                    : 'Inativo'}
-                                            </Badge>
-                                            <span className="text-[11px] font-bold text-foreground">
-                                                R$ {(student.planValue || 150).toFixed(2)}
-                                                <span className="text-[10px] text-muted-foreground font-normal">
-                                                    /{student.planType === 'ANUAL' ? 'ano' : 'mês'}
-                                                </span>
-                                            </span>
-                                        </div>
                                     </div>
-
-                                    {/* CRM Contract & Rhythm Status Pill */}
-                                    <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60 space-y-2 text-xs">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
-                                                <Calendar className="w-3 h-3 text-[#F88022]" />
-                                                Plano {student.planType || 'MENSAL'}
-                                            </span>
-                                            {overdue ? (
-                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-500 border border-red-500/30">
-                                                    Atrasado
-                                                </span>
-                                            ) : student.paymentStatus === 'PENDENTE' ? (
-                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                                                    Pendente
-                                                </span>
-                                            ) : (
-                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                                                    Em dia
-                                                </span>
-                                            )}
+                                    <dl className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-muted/40 p-3 text-sm">
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Treino ativo</dt>
+                                            <dd>{renderWorkout(row)}</dd>
                                         </div>
-
-                                        <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[11px]">
-                                            <span className="text-muted-foreground flex items-center gap-1.5">
-                                                <Clock className="w-3 h-3" />
-                                                Último Treino:
-                                            </span>
-                                            <span
-                                                className={`font-semibold ${
-                                                    isAtRisk
-                                                        ? 'text-red-500'
-                                                        : inactDays === 0
-                                                        ? 'text-emerald-500'
-                                                        : 'text-foreground'
-                                                }`}
-                                            >
-                                                {inactDays === null
-                                                    ? 'Nenhum'
-                                                    : inactDays === 0
-                                                    ? 'Hoje'
-                                                    : inactDays === 1
-                                                    ? 'Ontem'
-                                                    : `Há ${inactDays} dias`}
-                                            </span>
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Dieta ativa</dt>
+                                            <dd>{renderDiet(row)}</dd>
                                         </div>
-                                    </div>
-
-                                    {/* Action Bar */}
-                                    <div className="flex items-center gap-2 pt-1 border-t border-border/50">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleOpenContractModal(student)}
-                                            className="px-2.5 py-1.5 rounded-xl border border-border text-foreground hover:bg-muted text-xs font-medium transition-colors flex items-center gap-1.5"
-                                        >
-                                            <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
-                                            Plano
-                                        </button>
-
-                                        {whatsAppUrl && (
-                                            <a
-                                                href={whatsAppUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 transition-colors text-xs font-semibold flex items-center gap-1.5 border border-emerald-500/30"
-                                            >
-                                                <MessageCircle className="w-3.5 h-3.5" />
-                                                Cobrar
-                                            </a>
-                                        )}
-
-                                        <Link
-                                            href={`/personal/students/${student.id}`}
-                                            className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-[#F88022]/10 hover:bg-[#F88022]/20 text-[#F88022] transition-colors text-xs font-semibold text-center ml-auto"
-                                        >
-                                            Ver Ficha
-                                            <ChevronRight className="w-3.5 h-3.5" />
-                                        </Link>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Modal: Editar Contrato & Mensalidade CRM */}
-            {editingContractStudent && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-card border border-border rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in">
-                        <div className="flex items-center justify-between border-b border-border pb-3">
-                            <div>
-                                <h3 className="text-base font-bold text-foreground">Gerenciar Plano do Aluno</h3>
-                                <p className="text-xs text-muted-foreground">
-                                    {editingContractStudent.user?.name}
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setEditingContractStudent(null)}
-                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
-                            >
-                                <X className="w-5 h-5" />
+                                        <div>
+                                            <dt className="text-xs text-muted-foreground">Último treino</dt>
+                                            <dd className={cn('font-semibold', lastWorkoutTone(row))}>
+                                                {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
+                                            </dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-xs text-muted-foreground">Último check-in</dt>
+                                            <dd>{renderCheckin(row)}</dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-xs text-muted-foreground">Plano</dt>
+                                            <dd>{renderPlan(row)}</dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-xs text-muted-foreground">Vencimento</dt>
+                                            <dd className="font-medium text-foreground">{formatDate(row.student.planExpiresAt)}</dd>
+                                        </div>
+                                    </dl>
+                                    {renderRowActions(row)}
+                                </article>
+                            );
+                        })}
+                    </div>
+                    {hasMore && (
+                        <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                            Mostrando {visibleRows.length} de {filtered.length}
+                            <button type="button" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)} className={smallButtonClass}>
+                                Mostrar mais
                             </button>
                         </div>
-
-                        <div className="space-y-4 text-xs">
-                            <div>
-                                <label className="font-semibold text-foreground block mb-1">
-                                    Periodicidade do Plano
-                                </label>
-                                <select
-                                    value={contractForm.planType}
-                                    onChange={(e) =>
-                                        setContractForm({ ...contractForm, planType: e.target.value })
-                                    }
-                                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-foreground"
-                                >
-                                    <option value="MENSAL">Mensal</option>
-                                    <option value="TRIMESTRAL">Trimestral</option>
-                                    <option value="SEMESTRAL">Semestral</option>
-                                    <option value="ANUAL">Anual</option>
-                                    <option value="PERSONALIZADO">Personalizado</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="font-semibold text-foreground block mb-1">
-                                    Valor do Plano (R$)
-                                </label>
-                                <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={contractForm.planValue}
-                                    onChange={(e) =>
-                                        setContractForm({ ...contractForm, planValue: e.target.value })
-                                    }
-                                    placeholder="ex: 150.00"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="font-semibold text-foreground block mb-1">
-                                    Data de Vencimento / Renovação
-                                </label>
-                                <Input
-                                    type="date"
-                                    value={contractForm.planExpiresAt}
-                                    onChange={(e) =>
-                                        setContractForm({ ...contractForm, planExpiresAt: e.target.value })
-                                    }
-                                />
-                            </div>
-
-                            <div>
-                                <label className="font-semibold text-foreground block mb-1">
-                                    Status do Pagamento
-                                </label>
-                                <select
-                                    value={contractForm.paymentStatus}
-                                    onChange={(e) =>
-                                        setContractForm({ ...contractForm, paymentStatus: e.target.value })
-                                    }
-                                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-foreground"
-                                >
-                                    <option value="PAID">Em dia (Pago)</option>
-                                    <option value="PENDENTE">Pendente</option>
-                                    <option value="OVERDUE">Atrasado</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                            <Button variant="outline" onClick={() => setEditingContractStudent(null)}>
-                                Cancelar
-                            </Button>
-                            <Button
-                                className="bg-[#F88022] hover:bg-[#F88022]/90 text-white font-semibold"
-                                onClick={handleSaveContract}
-                                disabled={savingContract}
-                            >
-                                {savingContract ? (
-                                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                                ) : null}
-                                Salvar Contrato
-                            </Button>
-                        </div>
-                    </div>
+                    )}
                 </div>
             )}
 
-            {/* Modal: Confirm Delete */}
-            {deleteConfirm && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-card border border-border rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-xl">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-red-500/15 text-red-500 flex items-center justify-center shrink-0">
-                                <AlertTriangle className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-bold text-foreground">Excluir Aluno</h3>
-                                <p className="text-xs text-muted-foreground">
-                                    Esta ação não pode ser desfeita e removerá o histórico.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setDeleteConfirm(null)}
-                                disabled={deleting}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                size="sm"
-                                className="bg-red-500 hover:bg-red-600 text-white"
-                                onClick={() => handleDelete(deleteConfirm)}
-                                disabled={deleting}
-                            >
-                                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
-                                Excluir
-                            </Button>
-                        </div>
-                    </div>
-                </div>
+            {data && filtered.length > 0 && (
+                <p className="hidden flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground lg:flex">
+                    <span className="inline-flex items-center gap-1">
+                        <Kbd>↑</Kbd>
+                        <Kbd>↓</Kbd> navegar
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                        <Kbd>Enter</Kbd> abrir painel
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                        <Kbd>Shift</Kbd>+<Kbd>Enter</Kbd> abrir ficha
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                        <Kbd>X</Kbd> selecionar
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                        <Kbd>/</Kbd> buscar
+                    </span>
+                    <span>⌘/Ctrl + clique abre a ficha em nova aba</span>
+                </p>
             )}
+
+            <StudentDrawer
+                row={drawerRow}
+                open={Boolean(drawerRow)}
+                onOpenChange={(open) => {
+                    if (!open) setDrawerId('');
+                }}
+                position={drawerIndex >= 0 ? { index: drawerIndex, total: filtered.length } : null}
+                onPrev={drawerIndex > 0 ? () => move(-1) : null}
+                onNext={drawerIndex >= 0 && drawerIndex < filtered.length - 1 ? () => move(1) : null}
+                onRemind={(row) => setReminderTargets([{ id: row.id, name: row.name }])}
+                onDeleted={closeDrawerAfterDelete}
+            />
+
+            <ReminderDialog
+                open={reminderTargets !== null}
+                onOpenChange={(open) => {
+                    if (!open) setReminderTargets(null);
+                }}
+                students={reminderTargets ?? []}
+            />
+
+            {selectedRows.length > 0 &&
+                typeof document !== 'undefined' &&
+                createPortal(
+                    <div
+                        data-crm-keep-drawer=""
+                        className={cn(
+                            'pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 lg:bottom-6',
+                            drawerRow && 'sm:pr-[460px]'
+                        )}
+                    >
+                        <div
+                            role="toolbar"
+                            aria-label="Ações em lote"
+                            className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-border bg-card px-3 py-2 shadow-2xl"
+                        >
+                            <span className="mr-1 text-sm font-semibold text-foreground">
+                                {selectedRows.length} {selectedRows.length === 1 ? 'selecionado' : 'selecionados'}
+                            </span>
+                            <button
+                                type="button"
+                                className={smallButtonClass}
+                                disabled={bulkBusy}
+                                onClick={() =>
+                                    runBulk('MARK_PAID', {
+                                        title: `Marcar ${selectedRows.length === 1 ? 'pagamento' : `${selectedRows.length} pagamentos`} como pago?`,
+                                        description: 'O status de pagamento passa para "Pago".',
+                                        confirmText: 'Marcar pago',
+                                        success: 'Pagamentos registrados',
+                                    })
+                                }
+                            >
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                Marcar pago
+                            </button>
+                            <button
+                                type="button"
+                                className={smallButtonClass}
+                                disabled={bulkBusy}
+                                onClick={() =>
+                                    runBulk('RENEW', {
+                                        title: `Renovar ${selectedRows.length === 1 ? '1 plano' : `${selectedRows.length} planos`} por mais um período?`,
+                                        description:
+                                            'Cada vencimento avança um período do próprio plano (mensal +1 mês, trimestral +3, semestral +6, anual +12), contado do vencimento atual ou de hoje se já venceu. O pagamento fica como pago.',
+                                        confirmText: 'Renovar',
+                                        success: 'Planos renovados',
+                                    })
+                                }
+                            >
+                                <RefreshCw className="h-3.5 w-3.5 text-[#F88022]" />
+                                Renovar +1 período
+                            </button>
+                            <button
+                                type="button"
+                                className={smallButtonClass}
+                                disabled={bulkBusy}
+                                onClick={() =>
+                                    runBulk('SET_STATUS', {
+                                        title: `Pausar ${selectedRows.length === 1 ? '1 aluno' : `${selectedRows.length} alunos`}?`,
+                                        description: 'Alunos pausados saem da receita mensal e do alerta de risco até serem reativados.',
+                                        confirmText: 'Pausar',
+                                        success: 'Alunos pausados',
+                                        status: 'PAUSED',
+                                    })
+                                }
+                            >
+                                <PauseCircle className="h-3.5 w-3.5 text-amber-500" />
+                                Pausar
+                            </button>
+                            <button
+                                type="button"
+                                className={smallButtonClass}
+                                disabled={bulkBusy}
+                                onClick={() =>
+                                    runBulk('SET_STATUS', {
+                                        title: `Reativar ${selectedRows.length === 1 ? '1 aluno' : `${selectedRows.length} alunos`}?`,
+                                        description: 'Os alunos voltam para o status "Ativo".',
+                                        confirmText: 'Reativar',
+                                        success: 'Alunos reativados',
+                                        status: 'ACTIVE',
+                                    })
+                                }
+                            >
+                                <PlayCircle className="h-3.5 w-3.5 text-emerald-500" />
+                                Reativar
+                            </button>
+                            <button
+                                type="button"
+                                className={smallButtonClass}
+                                disabled={bulkBusy}
+                                onClick={() => setReminderTargets(selectedRows.map((row) => ({ id: row.id, name: row.name })))}
+                            >
+                                <BellRing className="h-3.5 w-3.5 text-[#F88022]" />
+                                Enviar lembrete
+                            </button>
+                            <button type="button" className={smallButtonClass} onClick={() => exportCsv(selectedRows)}>
+                                <Download className="h-3.5 w-3.5" />
+                                CSV
+                            </button>
+                            {bulkBusy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                            <button
+                                type="button"
+                                onClick={() => setSelected(new Set())}
+                                className="ml-1 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                                title="Limpar seleção (Esc)"
+                                aria-label="Limpar seleção"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>,
+                    document.body
+                )}
         </div>
     );
 }
