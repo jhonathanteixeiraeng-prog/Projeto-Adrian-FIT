@@ -21,6 +21,10 @@ export interface NormalizedDietFood {
     fat: number;
     notes?: string;
     substitutionNote?: string;
+    /** Unidade em que o personal digitou a quantidade no editor web (g, ml, un, x). Apenas exibição. */
+    displayUnit?: string;
+    /** Origem do alimento (custom, ai, rules...). Apenas exibição. */
+    source?: string;
     totalCalories: number;
     totalProtein: number;
     totalCarbs: number;
@@ -179,6 +183,8 @@ export function normalizeDietFood(raw: any): NormalizedDietFood {
         : food.substitutionText
             ? String(food.substitutionText)
             : undefined;
+    const displayUnit = optionalShortText(food.displayUnit, 20);
+    const source = optionalShortText(food.source, 30);
 
     const portionInfo = parsePortion(portionText);
     const quantity = parseQuantity(food.quantity, portionInfo);
@@ -234,10 +240,61 @@ export function normalizeDietFood(raw: any): NormalizedDietFood {
         fat,
         notes,
         substitutionNote,
+        displayUnit,
+        source,
         totalCalories,
         totalProtein,
         totalCarbs,
         totalFat,
+    };
+}
+
+function optionalShortText(value: unknown, maxLength: number): string | undefined {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed ? trimmed.slice(0, maxLength) : undefined;
+}
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+/**
+ * normalizeDietFood lê quantidades numéricas acima de 20 em porções de massa/volume
+ * como gramas (dados legados). Antes de gravar uma quantidade assim, reescrevemos o
+ * alimento sobre uma base de 100 g/ml (ou 1000 g/ml) para que o valor continue
+ * sendo interpretado como multiplicador por todos os leitores (web, iOS, aluno).
+ */
+export function withUnambiguousQuantity<T extends {
+    portion: string;
+    quantity: number;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+}>(food: T): T {
+    if (!(food.quantity > 20)) return food;
+    const info = parsePortion(food.portion);
+    const normalizedUnit = info.baseUnit.toLowerCase();
+    const unit =
+        normalizedUnit === 'ml'
+            ? 'ml'
+            : normalizedUnit === 'mg'
+            ? 'mg'
+            : /^(g|gramas?)$/.test(normalizedUnit)
+            ? 'g'
+            : null;
+    if (!info.isMassReference || !unit || info.baseValue <= 0) return food;
+
+    const totalAmount = food.quantity * info.baseValue;
+    const base = totalAmount / 100 <= 20 ? 100 : 1000;
+    const factor = base / info.baseValue;
+    return {
+        ...food,
+        portion: `${base}${unit}`,
+        quantity: round2(totalAmount / base),
+        calories: round2(food.calories * factor),
+        protein: round2(food.protein * factor),
+        carbs: round2(food.carbs * factor),
+        fat: round2(food.fat * factor),
     };
 }
 

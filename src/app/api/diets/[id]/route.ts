@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
-import { normalizeDietMeal } from '@/lib/diet-normalizer';
+import {
+    dietMealInputSchema,
+    getDietPlanForPersonal,
+    parseDateInput,
+    prepareMeals,
+    toPositiveInt,
+    updateDietPlan,
+} from '@/lib/diet-plans';
+import { notifyStudentAboutPlan } from '@/lib/plan-notifications';
+import { z } from 'zod';
 
 // GET /api/diets/[id] - Get a specific diet plan
 export async function GET(
@@ -19,27 +28,7 @@ export async function GET(
             );
         }
 
-        const dietPlan = await prisma.dietPlan.findFirst({
-            where: {
-                id: params.id,
-                student: {
-                    personalId: session.user.personalId,
-                },
-            },
-            include: {
-                student: {
-                    include: {
-                        user: {
-                            select: { name: true, email: true },
-                        },
-                        anamnesis: true,
-                    },
-                },
-                meals: {
-                    orderBy: { order: 'asc' },
-                },
-            },
-        });
+        const dietPlan = await getDietPlanForPersonal(params.id, session.user.personalId);
 
         if (!dietPlan) {
             return NextResponse.json(
@@ -48,11 +37,7 @@ export async function GET(
             );
         }
 
-        const normalizedPlan = {
-            ...dietPlan,
-            meals: dietPlan.meals.map((meal: any) => normalizeDietMeal(meal)),
-        };
-        return NextResponse.json({ success: true, data: normalizedPlan });
+        return NextResponse.json({ success: true, data: dietPlan });
     } catch (error) {
         console.error('Error fetching diet plan:', error);
         return NextResponse.json(
@@ -62,7 +47,26 @@ export async function GET(
     }
 }
 
-// PUT /api/diets/[id] - Update a diet plan
+const updateSchema = z.object({
+    title: z.string().max(300).optional(),
+    calories: z.union([z.number(), z.string()]).optional().nullable(),
+    protein: z.union([z.number(), z.string()]).optional().nullable(),
+    carbs: z.union([z.number(), z.string()]).optional().nullable(),
+    fat: z.union([z.number(), z.string()]).optional().nullable(),
+    active: z.boolean().optional(),
+    notifyStudent: z.boolean().optional(),
+    startDate: z.string().optional().nullable(),
+    endDate: z.string().optional().nullable(),
+    meals: z.array(dietMealInputSchema).optional(),
+});
+
+/** undefined = campo não enviado (não altera); null = limpar. */
+function optionalInt(value: unknown): number | null | undefined {
+    if (value === undefined) return undefined;
+    return toPositiveInt(value);
+}
+
+// PUT /api/diets/[id] - Update a diet plan (campos ausentes não são alterados)
 export async function PUT(
     request: NextRequest,
     { params }: { params: { id: string } }
@@ -77,8 +81,21 @@ export async function PUT(
             );
         }
 
-        const data = await request.json();
-        const { title, calories, protein, carbs, fat, active, meals } = data;
+        const parsed = updateSchema.safeParse(await request.json());
+        if (!parsed.success) {
+            return NextResponse.json(
+                { success: false, error: parsed.error.issues[0]?.message || 'Dados inválidos' },
+                { status: 400 }
+            );
+        }
+        const data = parsed.data;
+
+        if (data.title !== undefined && !data.title.trim()) {
+            return NextResponse.json(
+                { success: false, error: 'Título é obrigatório' },
+                { status: 400 }
+            );
+        }
 
         // Verify diet belongs to a student of this personal
         const existingPlan = await prisma.dietPlan.findFirst({
@@ -97,57 +114,39 @@ export async function PUT(
             );
         }
 
-        // Prepare meals for creation
-        const preparedMeals = meals.map((meal: any, index: number) => {
-            const normalizedFoods = (meal.foods || []).map((food: any) => normalizeDietMeal({ foods: [food] }).foods[0]);
-            return {
-                name: meal.name,
-                time: meal.time,
-                notes: meal.notes,
-                order: index,
-                foods: JSON.stringify(normalizedFoods), // Serialize foods to JSON string
-            };
+        const startDate = data.startDate === undefined ? undefined : parseDateInput(data.startDate);
+        const endDate = data.endDate === undefined ? undefined : parseDateInput(data.endDate);
+        const effectiveStart = startDate === undefined ? existingPlan.startDate : startDate;
+        const effectiveEnd = endDate === undefined ? existingPlan.endDate : endDate;
+        if (effectiveStart && effectiveEnd && effectiveEnd < effectiveStart) {
+            return NextResponse.json(
+                { success: false, error: 'A data de término deve ser posterior à data de início' },
+                { status: 400 }
+            );
+        }
+
+        const prepared = data.meals ? prepareMeals(data.meals) : null;
+
+        const updatedPlan = await updateDietPlan(params.id, existingPlan.studentId, {
+            title: data.title?.trim(),
+            calories: optionalInt(data.calories),
+            protein: optionalInt(data.protein),
+            carbs: optionalInt(data.carbs),
+            fat: optionalInt(data.fat),
+            active: data.active,
+            startDate,
+            endDate,
+            meals: prepared?.meals,
         });
 
-        // Update transaction
-        const updatedPlan = await prisma.$transaction(async (tx) => {
-            // Activating an edited plan makes it the student's current diet.
-            // Keep this exclusive so the app never has to choose between plans.
-            if (active === true) {
-                await tx.dietPlan.updateMany({
-                    where: {
-                        studentId: existingPlan.studentId,
-                        active: true,
-                        id: { not: params.id },
-                    },
-                    data: { active: false },
-                });
-            }
-
-            // Delete existing meals
-            await tx.dietMeal.deleteMany({
-                where: { dietPlanId: params.id },
+        const transitionedToActive = !existingPlan.active && data.active === true;
+        if (transitionedToActive && data.notifyStudent) {
+            await notifyStudentAboutPlan({
+                studentId: existingPlan.studentId,
+                kind: 'diet',
+                title: data.title?.trim() || existingPlan.title,
             });
-
-            // Update plan and create new meals
-            return await tx.dietPlan.update({
-                where: { id: params.id },
-                data: {
-                    title,
-                    calories: typeof calories === 'string' ? parseFloat(calories) : calories,
-                    protein: typeof protein === 'string' ? parseFloat(protein) : protein,
-                    carbs: typeof carbs === 'string' ? parseFloat(carbs) : carbs,
-                    fat: typeof fat === 'string' ? parseFloat(fat) : fat,
-                    active,
-                    meals: {
-                        create: preparedMeals,
-                    },
-                },
-                include: {
-                    meals: true,
-                },
-            });
-        });
+        }
 
         return NextResponse.json({ success: true, data: updatedPlan });
     } catch (error) {

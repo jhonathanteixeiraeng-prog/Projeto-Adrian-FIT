@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
-import { normalizeDietFood } from '@/lib/diet-normalizer';
+import {
+    createDietPlanForStudent,
+    defaultPlanDates,
+    getStudentDietEditorView,
+    normalizeFoodForStorage,
+    parseDateInput,
+    toPositiveInt,
+} from '@/lib/diet-plans';
 
 type NutritionInfo = {
     name: string;
@@ -150,6 +157,18 @@ export async function GET(
             );
         }
 
+        // ?view=editor: dados enxutos para o editor de dieta (perfil nutricional, histórico de planos
+        // e, com ?planId= ou ?active=1, o plano completo normalizado). Sem o parâmetro, formato original.
+        if (request.nextUrl.searchParams.get('view') === 'editor') {
+            return NextResponse.json({
+                success: true,
+                data: await getStudentDietEditorView(studentId, session.user.personalId, {
+                    planId: request.nextUrl.searchParams.get('planId'),
+                    active: request.nextUrl.searchParams.get('active') === '1',
+                }),
+            });
+        }
+
         const dietPlans = await prisma.dietPlan.findMany({
             where: { studentId },
             include: {
@@ -205,18 +224,22 @@ export async function POST(
         const body = await request.json();
         const { title, calories, protein, carbs, fat, meals } = body;
 
-        if (!title) {
+        if (!title || typeof title !== 'string' || !title.trim()) {
             return NextResponse.json(
                 { success: false, error: 'Título é obrigatório' },
                 { status: 400 }
             );
         }
 
-        // Deactivate current active plans
-        await prisma.dietPlan.updateMany({
-            where: { studentId, active: true },
-            data: { active: false },
-        });
+        const defaults = defaultPlanDates();
+        const startDate = parseDateInput(body.startDate) ?? defaults.startDate;
+        const endDate = parseDateInput(body.endDate) ?? defaults.endDate;
+        if (endDate < startDate) {
+            return NextResponse.json(
+                { success: false, error: 'A data de término deve ser posterior à data de início' },
+                { status: 400 }
+            );
+        }
 
         // Prepare meals - foods is stored as JSON string in schema
         // Enrich each manually entered food with nutrition from local DB or internet.
@@ -255,16 +278,20 @@ export async function POST(
                             }
 
                             const rawFood = {
+                                foodId: food.foodId,
                                 name: food.name,
                                 quantity: food.quantity || '',
                                 notes: food.notes || '',
+                                substitutionNote: food.substitutionNote || food.substitutionText || '',
+                                displayUnit: food.displayUnit,
+                                source: food.source,
                                 portion: providedPortion ?? nutrition?.portion ?? null,
                                 calories: providedCalories ?? nutrition?.calories ?? null,
                                 protein: providedProtein ?? nutrition?.protein ?? null,
                                 carbs: providedCarbs ?? nutrition?.carbs ?? null,
                                 fat: providedFat ?? nutrition?.fat ?? null,
                             };
-                            return normalizeDietFood(rawFood);
+                            return normalizeFoodForStorage(rawFood);
                         })
                 );
 
@@ -278,24 +305,20 @@ export async function POST(
             })
         );
 
-        // Create new diet plan
-        const dietPlan = await prisma.dietPlan.create({
-            data: {
-                title,
-                calories: calories ? parseInt(calories) : null,
-                protein: protein ? parseInt(protein) : null,
-                carbs: carbs ? parseInt(carbs) : null,
-                fat: fat ? parseInt(fat) : null,
-                active: true,
-                studentId,
-                personalId: session.user.personalId,
-                meals: {
-                    create: preparedMeals,
-                },
-            },
-            include: {
-                meals: true,
-            },
+        // Desativa os planos ativos e cria o novo na mesma transação.
+        const dietPlan = await createDietPlanForStudent({
+            personalId: session.user.personalId,
+            studentId,
+            title: title.trim(),
+            startDate,
+            endDate,
+            active: body.active !== false,
+            notifyStudent: body.notifyStudent === true,
+            calories: toPositiveInt(calories),
+            protein: toPositiveInt(protein),
+            carbs: toPositiveInt(carbs),
+            fat: toPositiveInt(fat),
+            meals: preparedMeals,
         });
 
         return NextResponse.json({

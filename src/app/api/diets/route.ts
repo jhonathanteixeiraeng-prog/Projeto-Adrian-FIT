@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/diets - List all diet plans for personal's students
+// GET /api/diets - List all diet plans for personal's students (leve: sem os alimentos)
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
         }
 
         const personalId = session.user.personalId;
+        const studentId = request.nextUrl.searchParams.get('studentId');
 
         // Get all diet plans for students of this personal
         const dietPlans = await prisma.dietPlan.findMany({
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
                 student: {
                     personalId,
                 },
+                ...(studentId ? { studentId } : {}),
             },
             include: {
                 student: {
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest) {
                             select: {
                                 name: true,
                                 email: true,
+                                avatar: true,
                             },
                         },
                     },
@@ -44,7 +47,8 @@ export async function GET(request: NextRequest) {
             orderBy: { createdAt: 'desc' },
         });
 
-        return NextResponse.json({ success: true, data: dietPlans });
+        const data = dietPlans.map((plan) => ({ ...plan, mealCount: plan.meals.length }));
+        return NextResponse.json({ success: true, data });
     } catch (error) {
         console.error('Error fetching diet plans:', error);
         return NextResponse.json(

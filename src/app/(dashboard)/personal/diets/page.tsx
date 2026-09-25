@@ -1,48 +1,41 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
-    Plus,
-    Search,
-    Utensils,
-    Calendar,
-    MoreVertical,
-    Edit,
-    Trash2,
-    Flame,
-    Loader2,
-    Users,
     BookOpen,
+    CheckCircle2,
+    Copy,
     Eye,
+    FilePlus2,
+    Flame,
+    MoreVertical,
+    Pencil,
+    Plus,
+    Power,
+    RefreshCw,
+    Search,
+    Trash2,
     UserPlus,
-    Clock,
-    CheckCircle2
+    UserRound,
+    Utensils,
+    BookmarkPlus,
 } from 'lucide-react';
-import {
-    Card,
-    CardContent,
-    Button,
-    Badge,
-    Input,
-    Select,
-    Avatar,
-    useToast,
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle
-} from '@/components/ui';
+import { Avatar, useDialogs, useToast } from '@/components/ui';
+import { usePageMeta } from '@/components/personal/page-meta';
+import { AssignTemplateDialog, type AssignableTemplate } from '@/components/personal/diet-editor/assign-template-dialog';
+import { DropdownMenu, type MenuEntry } from '@/components/personal/diet-editor/menu';
+import { dateInputFromDate, dateInputFromIso, formatDateBR } from '@/components/personal/diet-editor/model';
+import { TemplatePreviewDialog, type TemplatePreview } from '@/components/personal/diet-editor/template-preview-dialog';
+import { formatKcal } from '@/components/personal/diet-editor/units';
+import { invalidateApi, useApi } from '@/hooks/use-api';
+import { useHotkey } from '@/hooks/use-hotkey';
+import { useUrlStateGroup } from '@/hooks/use-url-state';
+import { cn, matchesSearch } from '@/lib/utils';
+import { getStoredNotifyStudent } from '@/lib/notifications';
 
-interface DietPlan {
+interface PlanRow {
     id: string;
     title: string;
     calories: number | null;
@@ -50,924 +43,637 @@ interface DietPlan {
     carbs: number | null;
     fat: number | null;
     active: boolean;
+    startDate: string | null;
+    endDate: string | null;
     createdAt: string;
+    studentId: string;
     student: {
         id: string;
-        user: {
-            name: string;
-            email: string;
-            avatar?: string;
-        };
+        user: { name: string; email?: string | null; avatar?: string | null };
     };
     meals: Array<{ id: string }>;
+    mealCount?: number;
 }
 
-interface TemplateFoodItem {
-    name: string;
-    portion?: string;
-    quantity: number;
-    calories?: number;
-    protein?: number;
-    carbs?: number;
-    fat?: number;
-    notes?: string;
+type TemplateRow = TemplatePreview & { createdAt: string; updatedAt?: string };
+
+type StatusFilter = 'active' | 'inactive' | 'all';
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+    { value: 'active', label: 'Ativos' },
+    { value: 'inactive', label: 'Inativos' },
+    { value: 'all', label: 'Todos' },
+];
+
+async function sendJson(url: string, method: 'POST' | 'PUT' | 'DELETE', body?: unknown) {
+    const response = await fetch(url, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || data?.success === false) throw new Error((data && (data.error || data.message)) || `Erro ${response.status}`);
+    return data;
 }
 
-interface TemplateMeal {
-    id: string;
-    name: string;
-    time: string;
-    items?: TemplateFoodItem[];
+function daysUntil(dateIso: string | null) {
+    const input = dateInputFromIso(dateIso);
+    if (!input) return null;
+    const today = new Date(`${dateInputFromDate(new Date())}T00:00:00`);
+    const end = new Date(`${input}T00:00:00`);
+    return Math.round((end.getTime() - today.getTime()) / 86_400_000);
 }
 
-interface DietTemplate {
-    id: string;
-    title: string;
-    calories: number | null;
-    protein: number | null;
-    carbs: number | null;
-    fat: number | null;
-    createdAt: string;
-    meals: TemplateMeal[];
+function StatCard({ label, value, icon: Icon, tone }: { label: string; value: React.ReactNode; icon: React.ComponentType<{ className?: string }>; tone: string }) {
+    return (
+        <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
+            <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums text-foreground">{value}</p>
+            </div>
+            <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', tone)}>
+                <Icon className="h-4 w-4" />
+            </div>
+        </div>
+    );
 }
 
-interface StudentOption {
-    id: string;
-    user: {
-        name: string;
-        email: string;
-    };
+function RowsSkeleton() {
+    return (
+        <div className="divide-y divide-border rounded-2xl border border-border bg-card" aria-busy="true" aria-label="Carregando">
+            {Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3 px-4 py-3.5">
+                    <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
+                    <div className="flex-1 space-y-2">
+                        <div className="h-3.5 w-48 animate-pulse rounded bg-muted" />
+                        <div className="h-3 w-72 animate-pulse rounded bg-muted" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 }
+
+function EmptyState({ icon: Icon, title, description, action }: { icon: React.ComponentType<{ className?: string }>; title: string; description: string; action?: React.ReactNode }) {
+    return (
+        <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-12 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F88022]/10 text-[#F88022]">
+                <Icon className="h-6 w-6" />
+            </div>
+            <h3 className="text-base font-semibold text-foreground">{title}</h3>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{description}</p>
+            {action && <div className="mt-4 flex justify-center gap-2">{action}</div>}
+        </div>
+    );
+}
+
+function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+    return (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+            <span>{message}</span>
+            <button type="button" onClick={onRetry} className="inline-flex items-center gap-1.5 font-semibold hover:underline">
+                <RefreshCw className="h-4 w-4" />
+                Tentar novamente
+            </button>
+        </div>
+    );
+}
+
+const menuButtonClass = 'rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground';
+const rowLinkClass =
+    'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#F88022] focus-visible:ring-offset-2 focus-visible:ring-offset-card';
 
 export default function DietsPage() {
+    const router = useRouter();
     const { toast } = useToast();
+    const { confirm, prompt } = useDialogs();
+    const [filters, setFilters] = useUrlStateGroup({ tab: 'plans', status: 'active', q: '' });
+    const tab = filters.tab === 'templates' ? 'templates' : 'plans';
+    const status: StatusFilter = (['active', 'inactive', 'all'] as const).includes(filters.status as StatusFilter)
+        ? (filters.status as StatusFilter)
+        : 'active';
 
-    const [activeTab, setActiveTab] = useState<'students' | 'templates'>('students');
-    const [dietPlans, setDietPlans] = useState<DietPlan[]>([]);
-    const [templates, setTemplates] = useState<DietTemplate[]>([]);
-    const [students, setStudents] = useState<StudentOption[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
+    const [search, setSearch] = useState(filters.q);
+    const lastPushedQuery = useRef(filters.q);
+    const searchRef = useRef<HTMLInputElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+    const [assignTemplate, setAssignTemplate] = useState<AssignableTemplate | null>(null);
+    const [previewTemplate, setPreviewTemplate] = useState<TemplateRow | null>(null);
 
-    // Menus & Delete
-    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-    const [dietToDelete, setDietToDelete] = useState<string | null>(null);
-    const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
+    const plansApi = useApi<PlanRow[]>('/api/diets');
+    const templatesApi = useApi<TemplateRow[]>('/api/diet-templates');
 
-    // Preview Template Modal
-    const [previewTemplate, setPreviewTemplate] = useState<DietTemplate | null>(null);
+    usePageMeta({ title: 'Planos de dieta', breadcrumbs: [{ label: 'Planos de dieta' }] });
 
-    // Assign Template Modal
-    const [assignTemplate, setAssignTemplate] = useState<DietTemplate | null>(null);
-    const [assignStudentId, setAssignStudentId] = useState('');
-    const [assignTargetCalories, setAssignTargetCalories] = useState<number>(2000);
-    const [assignStartDate, setAssignStartDate] = useState('');
-    const [assignEndDate, setAssignEndDate] = useState('');
-    const [assigning, setAssigning] = useState(false);
+    // Busca digitada fica na URL (com atraso, para não navegar a cada tecla).
+    useEffect(() => {
+        if (search === lastPushedQuery.current) return;
+        const timer = window.setTimeout(() => {
+            lastPushedQuery.current = search;
+            setFilters({ q: search });
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [search, setFilters]);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && window.location.hash === '#templates') {
-            setActiveTab('templates');
+        if (filters.q !== lastPushedQuery.current) {
+            lastPushedQuery.current = filters.q;
+            setSearch(filters.q);
         }
-    }, []);
+    }, [filters.q]);
 
+    // Links antigos usavam /personal/diets#templates.
     useEffect(() => {
-        fetchData();
-    }, [activeTab]);
+        if (window.location.hash === '#templates') setFilters({ tab: 'templates' });
+    }, [setFilters]);
 
-    useEffect(() => {
-        fetchStudents();
-    }, []);
+    const plans = useMemo(() => plansApi.data ?? [], [plansApi.data]);
+    const templates = useMemo(() => templatesApi.data ?? [], [templatesApi.data]);
 
-    const fetchStudents = async () => {
-        try {
-            const res = await fetch('/api/students');
-            const data = await res.json();
-            if (data.success && Array.isArray(data.data)) {
-                setStudents(data.data.map((s: any) => ({
-                    id: s.id,
-                    user: {
-                        name: s.user?.name || 'Aluno',
-                        email: s.user?.email || '',
-                    },
-                })));
-            }
-        } catch {
-            // Silently handle
-        }
-    };
+    const counts = useMemo(() => {
+        const active = plans.filter((plan) => plan.active);
+        const activeWithCalories = active.filter((plan) => (plan.calories ?? 0) > 0);
+        return {
+            all: plans.length,
+            active: active.length,
+            inactive: plans.length - active.length,
+            averageCalories: activeWithCalories.length
+                ? Math.round(activeWithCalories.reduce((total, plan) => total + (plan.calories ?? 0), 0) / activeWithCalories.length)
+                : 0,
+            expiring: active.filter((plan) => {
+                const days = daysUntil(plan.endDate);
+                return days !== null && days <= 7;
+            }).length,
+        };
+    }, [plans]);
 
-    const fetchData = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            if (activeTab === 'students') {
-                const response = await fetch('/api/diet-plans');
-                const result = await response.json();
-                if (result.success !== false) {
-                    setDietPlans(Array.isArray(result) ? result : result.data || []);
-                } else {
-                    setError(result.error || 'Erro ao carregar dietas');
-                }
-            } else {
-                const response = await fetch('/api/diet-templates');
-                const result = await response.json();
-                if (result.success) {
-                    setTemplates(result.data || []);
-                } else {
-                    setError(result.error || 'Erro ao carregar modelos');
-                }
-            }
-        } catch {
-            setError('Erro ao conectar com o servidor');
-        } finally {
-            setLoading(false);
-        }
-    };
+    const visiblePlans = useMemo(
+        () =>
+            plans.filter(
+                (plan) =>
+                    (status === 'all' || (status === 'active' ? plan.active : !plan.active)) &&
+                    matchesSearch(search, plan.title, plan.student?.user?.name, plan.student?.user?.email)
+            ),
+        [plans, status, search]
+    );
+    const visibleTemplates = useMemo(() => templates.filter((template) => matchesSearch(search, template.title)), [templates, search]);
 
-    const confirmDeleteDiet = async () => {
-        if (!dietToDelete) return;
-        try {
-            const response = await fetch(`/api/diets/${dietToDelete}`, { method: 'DELETE' });
-            if (response.ok) {
-                setDietPlans(dietPlans.filter(d => d.id !== dietToDelete));
-                toast.success('Dieta excluída!', 'O plano alimentar foi removido.');
-                setOpenMenuId(null);
-            } else {
-                const errorData = await response.json().catch(() => null);
-                toast.error(errorData?.error || 'Erro ao excluir dieta');
-            }
-        } catch {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setDietToDelete(null);
-        }
-    };
+    // ------------------------------------------------------------------ teclado
 
-    const confirmDeleteTemplate = async () => {
-        if (!templateToDelete) return;
-        try {
-            const response = await fetch(`/api/diet-templates/${templateToDelete}`, { method: 'DELETE' });
-            if (response.ok) {
-                setTemplates(templates.filter(t => t.id !== templateToDelete));
-                toast.success('Modelo excluído!', 'O modelo foi removido da sua biblioteca.');
-                setOpenMenuId(null);
-            } else {
-                toast.error('Erro ao excluir modelo');
-            }
-        } catch {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setTemplateToDelete(null);
-        }
-    };
-
-    const openAssignModal = (template: DietTemplate) => {
-        setAssignTemplate(template);
-        setAssignTargetCalories(template.calories || 2000);
-
-        const today = new Date();
-        const nextMonth = new Date();
-        nextMonth.setDate(today.getDate() + 30);
-
-        setAssignStartDate(today.toISOString().split('T')[0]);
-        setAssignEndDate(nextMonth.toISOString().split('T')[0]);
-        if (students.length > 0) {
-            setAssignStudentId(students[0].id);
-        }
-    };
-
-    const handleAssignTemplate = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!assignTemplate || !assignStudentId) {
-            toast.warning('Selecione um aluno para continuar');
-            return;
-        }
-
-        try {
-            setAssigning(true);
-            const response = await fetch('/api/diet-plans/from-template', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    templateId: assignTemplate.id,
-                    studentId: assignStudentId,
-                    startDate: assignStartDate,
-                    endDate: assignEndDate,
-                    targetCalories: Number(assignTargetCalories) || 2000,
-                }),
-            });
-
-            const result = await response.json();
-            if (response.ok && result.success !== false) {
-                toast.success(
-                    'Dieta atribuída com sucesso!',
-                    `O plano alimentar foi prescrito para o aluno.`
-                );
-                setAssignTemplate(null);
-                fetchData();
-            } else {
-                toast.error(result.error || 'Erro ao atribuir dieta ao aluno');
-            }
-        } catch {
-            toast.error('Erro ao conectar com o servidor');
-        } finally {
-            setAssigning(false);
-        }
-    };
-
-    const filteredPlans = dietPlans.filter(plan => {
-        const matchesSearch =
-            plan.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            plan.student?.user?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter =
-            filterActive === 'all' ||
-            (filterActive === 'active' && plan.active) ||
-            (filterActive === 'inactive' && !plan.active);
-        return matchesSearch && matchesFilter;
+    useHotkey('/', () => {
+        searchRef.current?.focus();
+        searchRef.current?.select();
     });
 
-    const filteredTemplates = templates.filter(template =>
-        template.title.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const activePlansCount = dietPlans.filter(p => p.active).length;
-    const avgCalories = dietPlans.length > 0
-        ? Math.round(dietPlans.reduce((acc, p) => acc + (p.calories || 0), 0) / dietPlans.length)
-        : 0;
-
-    const formatDate = (dateStr: string) => {
-        if (!dateStr) return '';
-        return new Date(dateStr).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'short',
-        });
+    const focusRow = (delta: number) => {
+        const links = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[data-row-link]') ?? []);
+        if (links.length === 0) return;
+        const index = links.indexOf(document.activeElement as HTMLElement);
+        if (index === 0 && delta < 0) {
+            searchRef.current?.focus();
+            return;
+        }
+        const next = index < 0 ? (delta > 0 ? 0 : links.length - 1) : Math.min(Math.max(index + delta, 0), links.length - 1);
+        links[next]?.focus();
     };
 
-    if (loading && dietPlans.length === 0 && templates.length === 0) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-8 h-8 animate-spin text-[#F88022]" />
-            </div>
-        );
-    }
+    useHotkey('arrowdown', () => focusRow(1));
+    useHotkey('arrowup', () => focusRow(-1));
+
+    const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            focusRow(1);
+        } else if (event.key === 'Enter') {
+            const first = listRef.current?.querySelector<HTMLAnchorElement>('[data-row-link]');
+            if (first) {
+                event.preventDefault();
+                router.push(first.getAttribute('href') || '/personal/diets');
+            }
+        } else if (event.key === 'Escape' && search) {
+            event.preventDefault();
+            setSearch('');
+        }
+    };
+
+    // ------------------------------------------------------------------ ações de planos
+
+    const togglePlanActive = async (plan: PlanRow) => {
+        const next = !plan.active;
+        let shouldNotify = false;
+        if (next) {
+            shouldNotify = getStoredNotifyStudent();
+            const studentName = plan.student?.user?.name ?? 'o aluno';
+            const ok = await confirm({
+                title: `Ativar “${plan.title}”?`,
+                description: `Ela passa a ser a dieta que ${studentName} vê no app. A dieta ativa atual do aluno será desativada (continua no histórico). ${shouldNotify ? 'O aluno será avisado no app.' : 'O aluno não será avisado.'}`,
+                confirmText: 'Ativar dieta',
+            });
+            if (!ok) return;
+        }
+        try {
+            await sendJson(`/api/diets/${plan.id}`, 'PUT', { active: next, notifyStudent: next ? shouldNotify : false });
+            plansApi.mutate(
+                (list) =>
+                    list?.map((item) =>
+                        item.id === plan.id ? { ...item, active: next } : next && item.studentId === plan.studentId ? { ...item, active: false } : item
+                    ),
+                { revalidate: false }
+            );
+            invalidateApi('/api/students');
+            toast.success(
+                next ? 'Plano ativado' : 'Plano desativado',
+                next ? `${plan.student?.user?.name ?? 'O aluno'} passa a ver esta dieta no app.` : 'Não aparece mais no app do aluno.'
+            );
+        } catch (error) {
+            toast.error('Não foi possível alterar o status', error instanceof Error ? error.message : undefined);
+        }
+    };
+
+    const savePlanAsTemplate = async (plan: PlanRow) => {
+        const name = await prompt({
+            title: 'Salvar como modelo',
+            description: 'Copia as refeições salvas deste plano para a biblioteca de modelos.',
+            label: 'Nome do modelo',
+            defaultValue: `${plan.title} - Modelo`,
+            confirmText: 'Criar modelo',
+        });
+        if (!name) return;
+        try {
+            await sendJson('/api/diet-templates/from-plan', 'POST', { planId: plan.id, title: name });
+            templatesApi.mutate(undefined, { force: true });
+            toast.success('Modelo criado', `“${name}” está na biblioteca de modelos.`);
+        } catch (error) {
+            toast.error('Não foi possível criar o modelo', error instanceof Error ? error.message : undefined);
+        }
+    };
+
+    const deletePlan = async (plan: PlanRow) => {
+        const ok = await confirm({
+            title: `Excluir “${plan.title}”?`,
+            description: `${plan.student?.user?.name ?? 'O aluno'} deixa de ver esta dieta no app. Esta ação não pode ser desfeita.`,
+            confirmText: 'Excluir plano',
+            variant: 'danger',
+        });
+        if (!ok) return;
+        try {
+            await sendJson(`/api/diets/${plan.id}`, 'DELETE');
+            plansApi.mutate((list) => list?.filter((item) => item.id !== plan.id), { revalidate: false });
+            invalidateApi('/api/students');
+            toast.success('Plano excluído');
+        } catch (error) {
+            toast.error('Não foi possível excluir', error instanceof Error ? error.message : undefined);
+        }
+    };
+
+    // ------------------------------------------------------------------ ações de modelos
+
+    const duplicateTemplate = async (template: TemplateRow) => {
+        try {
+            await sendJson('/api/diet-templates', 'POST', {
+                title: `${template.title} (cópia)`,
+                calories: template.calories,
+                protein: template.protein,
+                carbs: template.carbs,
+                fat: template.fat,
+                meals: template.meals.map((meal) => ({ name: meal.name, time: meal.time, notes: meal.notes, items: meal.items ?? [] })),
+            });
+            templatesApi.mutate(undefined, { force: true });
+            toast.success('Modelo duplicado', `“${template.title} (cópia)” foi criado.`);
+        } catch (error) {
+            toast.error('Não foi possível duplicar', error instanceof Error ? error.message : undefined);
+        }
+    };
+
+    const deleteTemplate = async (template: TemplateRow) => {
+        const ok = await confirm({
+            title: `Excluir o modelo “${template.title}”?`,
+            description: 'Planos já criados a partir dele não são afetados.',
+            confirmText: 'Excluir modelo',
+            variant: 'danger',
+        });
+        if (!ok) return;
+        try {
+            await sendJson(`/api/diet-templates/${template.id}`, 'DELETE');
+            templatesApi.mutate((list) => list?.filter((item) => item.id !== template.id), { revalidate: false });
+            toast.success('Modelo excluído');
+        } catch (error) {
+            toast.error('Não foi possível excluir', error instanceof Error ? error.message : undefined);
+        }
+    };
+
+    // ------------------------------------------------------------------ render
+
+    const planMenu = (plan: PlanRow): MenuEntry[] => [
+        { key: 'edit', label: 'Editar', icon: Pencil, href: `/personal/diets/${plan.id}` },
+        { key: 'duplicate', label: 'Duplicar para aluno…', icon: Copy, href: `/personal/diets/new?fromPlanId=${plan.id}` },
+        { key: 'template', label: 'Salvar como modelo…', icon: BookmarkPlus, onSelect: () => void savePlanAsTemplate(plan) },
+        { key: 'toggle', label: plan.active ? 'Desativar' : 'Ativar', icon: Power, onSelect: () => void togglePlanActive(plan) },
+        { key: 'profile', label: 'Ficha do aluno', icon: UserRound, href: `/personal/students/${plan.student?.id}?tab=diet` },
+        { type: 'separator', key: 'sep' },
+        { key: 'delete', label: 'Excluir', icon: Trash2, danger: true, onSelect: () => void deletePlan(plan) },
+    ];
+
+    const templateMenu = (template: TemplateRow): MenuEntry[] => [
+        { key: 'preview', label: 'Visualizar', icon: Eye, onSelect: () => setPreviewTemplate(template) },
+        { key: 'edit', label: 'Editar modelo', icon: Pencil, href: `/personal/diets/templates/${template.id}` },
+        { key: 'use', label: 'Usar modelo (novo plano)', icon: FilePlus2, href: `/personal/diets/new?templateId=${template.id}` },
+        { key: 'assign', label: 'Atribuir a aluno…', icon: UserPlus, onSelect: () => setAssignTemplate(template) },
+        { key: 'duplicate', label: 'Duplicar', icon: Copy, onSelect: () => void duplicateTemplate(template) },
+        { type: 'separator', key: 'sep' },
+        { key: 'delete', label: 'Excluir', icon: Trash2, danger: true, onSelect: () => void deleteTemplate(template) },
+    ];
+
+    const tabButton = (value: 'plans' | 'templates', label: string, count: number | undefined, Icon: React.ComponentType<{ className?: string }>) => (
+        <button
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            onClick={() => setFilters({ tab: value })}
+            className={cn(
+                'relative flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors',
+                tab === value ? 'text-[#F88022]' : 'text-muted-foreground hover:text-foreground'
+            )}
+        >
+            <Icon className="h-4 w-4" />
+            {label}
+            <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold tabular-nums', tab === value ? 'bg-[#F88022]/15 text-[#F88022]' : 'bg-muted text-muted-foreground')}>
+                {count ?? '–'}
+            </span>
+            {tab === value && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#F88022]" aria-hidden />}
+        </button>
+    );
 
     return (
-        <div className="space-y-6 animate-in">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground tracking-tight">Central de Nutrição</h1>
-                    <p className="text-sm text-muted-foreground">Gerencie planos alimentares, metas nutricionais e templates reutilizáveis</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Planos de dieta</h1>
+                    <p className="text-sm text-muted-foreground">Prescrições dos alunos e biblioteca de modelos reutilizáveis.</p>
                 </div>
-                <Link href="/personal/diets/new">
-                    <Button className="bg-[#F88022] hover:bg-[#F88022]/90 text-white shadow-sm shadow-[#F88022]/20">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Nova Dieta
-                    </Button>
-                </Link>
-            </div>
-
-            {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm">
-                    {error}
+                <div className="flex flex-wrap gap-2">
+                    <Link
+                        href="/personal/diets/templates/new"
+                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-muted"
+                    >
+                        <BookOpen className="h-4 w-4" />
+                        Novo modelo
+                    </Link>
+                    <Link
+                        href="/personal/diets/new"
+                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#F88022] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#F88022]/90"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Nova dieta
+                    </Link>
                 </div>
-            )}
-
-            {/* SaaS Stat Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="border border-border/70 shadow-sm bg-card/60 backdrop-blur-sm">
-                    <CardContent className="p-4 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total de Dietas</p>
-                            <p className="text-2xl font-bold text-foreground mt-1">{dietPlans.length}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-[#F88022]/10 flex items-center justify-center">
-                            <Utensils className="w-5 h-5 text-[#F88022]" />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border border-border/70 shadow-sm bg-card/60 backdrop-blur-sm">
-                    <CardContent className="p-4 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Dietas Ativas</p>
-                            <p className="text-2xl font-bold text-emerald-500 mt-1">{activePlansCount}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border border-border/70 shadow-sm bg-card/60 backdrop-blur-sm">
-                    <CardContent className="p-4 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Média Diária</p>
-                            <p className="text-2xl font-bold text-orange-500 mt-1">{avgCalories} <span className="text-xs font-normal text-muted-foreground">kcal</span></p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-                            <Flame className="w-5 h-5 text-orange-500" />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border border-border/70 shadow-sm bg-card/60 backdrop-blur-sm">
-                    <CardContent className="p-4 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Biblioteca</p>
-                            <p className="text-2xl font-bold text-[#F88022] mt-1">{templates.length}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                            <BookOpen className="w-5 h-5 text-blue-500" />
-                        </div>
-                    </CardContent>
-                </Card>
             </div>
 
-            {/* Modern Tab Bar */}
-            <div className="flex items-center gap-1 border-b border-border">
-                <button
-                    onClick={() => setActiveTab('students')}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-all relative ${
-                        activeTab === 'students'
-                            ? 'text-[#F88022]'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    <Utensils className="w-4 h-4" />
-                    <span>Dietas dos Alunos</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        activeTab === 'students'
-                            ? 'bg-[#F88022]/15 text-[#F88022]'
-                            : 'bg-muted text-muted-foreground'
-                    }`}>
-                        {dietPlans.length}
-                    </span>
-                    {activeTab === 'students' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#F88022] shadow-[0_0_8px_rgba(248,128,34,0.5)]" />
-                    )}
-                </button>
-
-                <button
-                    onClick={() => setActiveTab('templates')}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-all relative ${
-                        activeTab === 'templates'
-                            ? 'text-[#F88022]'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                    <BookOpen className="w-4 h-4" />
-                    <span>Biblioteca de Modelos</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        activeTab === 'templates'
-                            ? 'bg-[#F88022]/15 text-[#F88022]'
-                            : 'bg-muted text-muted-foreground'
-                    }`}>
-                        {templates.length}
-                    </span>
-                    {activeTab === 'templates' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#F88022] shadow-[0_0_8px_rgba(248,128,34,0.5)]" />
-                    )}
-                </button>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <StatCard label="Dietas ativas" value={plansApi.isLoading ? '–' : counts.active} icon={CheckCircle2} tone="bg-emerald-500/10 text-emerald-500" />
+                <StatCard
+                    label="Vencem em 7 dias"
+                    value={plansApi.isLoading ? '–' : counts.expiring}
+                    icon={RefreshCw}
+                    tone={counts.expiring > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-muted text-muted-foreground'}
+                />
+                <StatCard
+                    label="Média das ativas"
+                    value={plansApi.isLoading ? '–' : counts.averageCalories ? `${formatKcal(counts.averageCalories)} kcal` : '–'}
+                    icon={Flame}
+                    tone="bg-orange-500/10 text-orange-500"
+                />
+                <StatCard label="Modelos" value={templatesApi.isLoading ? '–' : templates.length} icon={BookOpen} tone="bg-[#F88022]/10 text-[#F88022]" />
             </div>
 
-            {/* Search & Filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div role="tablist" aria-label="Seções" className="flex items-center gap-1 border-b border-border">
+                {tabButton('plans', 'Dietas dos alunos', plansApi.isLoading ? undefined : counts.all, Utensils)}
+                {tabButton('templates', 'Biblioteca de modelos', templatesApi.isLoading ? undefined : templates.length, BookOpen)}
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div className="relative flex-1">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        placeholder={
-                            activeTab === 'students'
-                                ? "Buscar por aluno ou título da dieta..."
-                                : "Buscar modelos na biblioteca..."
-                        }
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 h-10 bg-card/60 text-sm"
+                    <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                        ref={searchRef}
+                        type="search"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        onKeyDown={onSearchKeyDown}
+                        placeholder={tab === 'plans' ? 'Buscar por aluno ou título da dieta…' : 'Buscar modelos…'}
+                        aria-label="Buscar"
+                        className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25"
                     />
+                    <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-border bg-muted px-1.5 text-xs font-semibold text-muted-foreground">
+                        /
+                    </kbd>
                 </div>
-                {activeTab === 'students' && (
-                    <div className="flex gap-1.5 p-1 bg-muted/60 rounded-xl border border-border">
-                        <button
-                            onClick={() => setFilterActive('all')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                filterActive === 'all'
-                                    ? 'bg-card text-foreground shadow-sm font-semibold'
-                                    : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                        >
-                            Todos ({dietPlans.length})
-                        </button>
-                        <button
-                            onClick={() => setFilterActive('active')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                filterActive === 'active'
-                                    ? 'bg-card text-emerald-500 shadow-sm font-semibold'
-                                    : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                        >
-                            Ativos ({activePlansCount})
-                        </button>
-                        <button
-                            onClick={() => setFilterActive('inactive')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                filterActive === 'inactive'
-                                    ? 'bg-card text-muted-foreground shadow-sm font-semibold'
-                                    : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                        >
-                            Inativos ({dietPlans.length - activePlansCount})
-                        </button>
+                {tab === 'plans' && (
+                    <div role="radiogroup" aria-label="Status" className="flex gap-1 rounded-xl border border-border bg-muted/60 p-1">
+                        {STATUS_OPTIONS.map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                role="radio"
+                                aria-checked={status === option.value}
+                                onClick={() => setFilters({ status: option.value })}
+                                className={cn(
+                                    'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                                    status === option.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                )}
+                            >
+                                {option.label}
+                                <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">
+                                    {plansApi.isLoading ? '' : counts[option.value]}
+                                </span>
+                            </button>
+                        ))}
                     </div>
                 )}
             </div>
 
-            {/* Student Diets Tab */}
-            {activeTab === 'students' && (
-                <div className="space-y-3">
-                    {filteredPlans.length === 0 ? (
-                        <Card className="border-dashed border-border/80 bg-card/40">
-                            <CardContent className="p-12 text-center">
-                                <div className="w-14 h-14 rounded-2xl bg-[#F88022]/10 flex items-center justify-center mx-auto mb-4 text-[#F88022]">
-                                    <Utensils className="w-7 h-7" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-foreground mb-1">
-                                    Nenhuma dieta encontrada
-                                </h3>
-                                <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5">
-                                    {searchTerm
-                                        ? 'Nenhuma dieta corresponde aos filtros aplicados.'
-                                        : 'Crie sua primeira prescrição nutricional para um aluno.'}
-                                </p>
-                                <Link href="/personal/diets/new">
-                                    <Button className="bg-[#F88022] hover:bg-[#F88022]/90 text-white">
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        Criar Nova Dieta
-                                    </Button>
+            <div ref={listRef}>
+                {tab === 'plans' ? (
+                    plansApi.error && !plansApi.data ? (
+                        <LoadError message={plansApi.error.message} onRetry={() => void plansApi.mutate()} />
+                    ) : plansApi.isLoading ? (
+                        <RowsSkeleton />
+                    ) : plans.length === 0 ? (
+                        <EmptyState
+                            icon={Utensils}
+                            title="Nenhum plano alimentar ainda"
+                            description="Crie a primeira dieta de um aluno do zero, a partir de um modelo ou com um rascunho gerado."
+                            action={
+                                <Link href="/personal/diets/new" className="inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90">
+                                    <Plus className="h-4 w-4" />
+                                    Nova dieta
                                 </Link>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        filteredPlans.map((plan) => (
-                            <Card
-                                key={plan.id}
-                                className="group hover:border-[#F88022]/60 hover:shadow-md transition-all duration-200 bg-card/80 backdrop-blur-sm"
-                            >
-                                <CardContent className="p-4">
-                                    <div className="flex items-center gap-4">
-                                        <Avatar
-                                            name={plan.student?.user?.name || 'Aluno'}
-                                            src={plan.student?.user?.avatar}
-                                            size="md"
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Link
-                                                    href={`/personal/diets/${plan.id}`}
-                                                    className="font-semibold text-foreground hover:text-[#F88022] transition-colors truncate"
-                                                >
-                                                    {plan.title}
-                                                </Link>
-                                                <Badge variant={plan.active ? 'success' : 'default'} className="text-[11px] px-2 py-0.5">
-                                                    {plan.active ? 'Ativo' : 'Inativo'}
-                                                </Badge>
-                                            </div>
-
-                                            <div className="flex items-center gap-2">
-                                                <Link
-                                                    href={`/personal/students/${plan.student?.id}`}
-                                                    className="text-sm text-muted-foreground hover:text-foreground transition-colors font-medium"
-                                                >
-                                                    {plan.student?.user?.name || 'Aluno'}
-                                                </Link>
-                                            </div>
-
-                                            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                                                <span className="flex items-center gap-1 font-semibold text-foreground">
-                                                    <Flame className="w-3.5 h-3.5 text-orange-500" />
-                                                    {plan.calories || 0} kcal
-                                                </span>
-                                                <span className="text-muted-foreground">
-                                                    P: <strong className="text-foreground">{plan.protein || 0}g</strong>
-                                                </span>
-                                                <span className="text-muted-foreground">
-                                                    C: <strong className="text-foreground">{plan.carbs || 0}g</strong>
-                                                </span>
-                                                <span className="text-muted-foreground">
-                                                    G: <strong className="text-foreground">{plan.fat || 0}g</strong>
-                                                </span>
-                                                <span>•</span>
-                                                <span>{plan.meals?.length || 0} refeições</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                            <Link href={`/personal/diets/${plan.id}`}>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="hidden sm:flex items-center gap-1.5 text-xs hover:border-[#F88022] hover:text-[#F88022]"
-                                                >
-                                                    <Edit className="w-3.5 h-3.5" />
-                                                    Editar
-                                                </Button>
-                                            </Link>
-
-                                            <div className="relative">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => setOpenMenuId(openMenuId === plan.id ? null : plan.id)}
-                                                    className="p-2"
-                                                >
-                                                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                                                </Button>
-
-                                                {openMenuId === plan.id && (
-                                                    <div className="absolute right-0 top-full mt-1 w-44 bg-card border border-border rounded-xl shadow-xl z-20 overflow-hidden py-1">
-                                                        <Link
-                                                            href={`/personal/diets/${plan.id}`}
-                                                            className="w-full px-3.5 py-2.5 text-left text-xs font-medium hover:bg-muted flex items-center gap-2 text-foreground"
-                                                        >
-                                                            <Edit className="w-3.5 h-3.5 text-muted-foreground" />
-                                                            Editar Dieta
-                                                        </Link>
-                                                        <Link
-                                                            href={`/personal/students/${plan.student?.id}`}
-                                                            className="w-full px-3.5 py-2.5 text-left text-xs font-medium hover:bg-muted flex items-center gap-2 text-foreground"
-                                                        >
-                                                            <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                                                            Ficha do Aluno
-                                                        </Link>
-                                                        <button
-                                                            onClick={() => {
-                                                                setDietToDelete(plan.id);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full px-3.5 py-2.5 text-left text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 text-red-500 border-t border-border"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                            Excluir Dieta
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))
-                    )}
-                </div>
-            )}
-
-            {/* Templates Library Tab */}
-            {activeTab === 'templates' && (
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{filteredTemplates.length} modelos nutricionais disponíveis</span>
-                    </div>
-
-                    {filteredTemplates.length === 0 ? (
-                        <Card className="border-dashed border-border/80 bg-card/40">
-                            <CardContent className="p-12 text-center">
-                                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-4 text-blue-500">
-                                    <BookOpen className="w-7 h-7" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-foreground mb-1">
-                                    Nenhum modelo cadastrado
-                                </h3>
-                                <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5">
-                                    Para criar um modelo, acesse o plano alimentar de qualquer aluno e clique em &quot;Copiar para Biblioteca&quot;.
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {filteredTemplates.map((template) => (
-                                <Card
-                                    key={template.id}
-                                    className="hover:border-[#F88022]/60 hover:shadow-md transition-all duration-200 bg-card/80 backdrop-blur-sm flex flex-col justify-between"
+                            }
+                        />
+                    ) : visiblePlans.length === 0 ? (
+                        <EmptyState
+                            icon={Search}
+                            title="Nenhuma dieta encontrada"
+                            description={search ? `Nada corresponde a “${search}” em ${STATUS_OPTIONS.find((o) => o.value === status)?.label.toLowerCase()}.` : `Não há dietas ${status === 'active' ? 'ativas' : 'inativas'}.`}
+                            action={
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearch('');
+                                        setFilters({ q: '', status: 'all' });
+                                    }}
+                                    className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted"
                                 >
-                                    <CardContent className="p-5 space-y-4">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                    <Flame className="w-5 h-5 text-orange-500" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-semibold text-foreground text-base leading-tight">
-                                                        {template.title}
-                                                    </h3>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="font-bold text-sm text-foreground">
-                                                            {template.calories || 0} kcal
+                                    Limpar filtros
+                                </button>
+                            }
+                        />
+                    ) : (
+                        <div role="list" className="divide-y divide-border overflow-visible rounded-2xl border border-border bg-card shadow-sm">
+                            {visiblePlans.map((plan) => {
+                                const days = plan.active ? daysUntil(plan.endDate) : null;
+                                const mealCount = plan.mealCount ?? plan.meals?.length ?? 0;
+                                return (
+                                    <div key={plan.id} role="listitem" className="group flex items-center gap-2 px-2 py-2 transition-colors hover:bg-muted/40 sm:px-3">
+                                        <Link href={`/personal/diets/${plan.id}`} data-row-link className={rowLinkClass}>
+                                            <Avatar name={plan.student?.user?.name || 'Aluno'} src={plan.student?.user?.avatar ?? undefined} size="md" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                    <span className="truncate font-semibold text-foreground">{plan.student?.user?.name || 'Aluno'}</span>
+                                                    <span
+                                                        className={cn(
+                                                            'rounded-full px-2 py-0.5 text-xs font-semibold',
+                                                            plan.active ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'
+                                                        )}
+                                                    >
+                                                        {plan.active ? 'Ativa' : 'Inativa'}
+                                                    </span>
+                                                    {days !== null && days < 0 && (
+                                                        <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                                                            Vencida há {Math.abs(days)} {Math.abs(days) === 1 ? 'dia' : 'dias'}
                                                         </span>
-                                                        <span className="text-xs text-muted-foreground">• {template.meals?.length || 0} refeições</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="relative">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => setOpenMenuId(openMenuId === template.id ? null : template.id)}
-                                                    className="p-1.5"
-                                                >
-                                                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                                                </Button>
-
-                                                {openMenuId === template.id && (
-                                                    <div className="absolute right-0 top-full mt-1 w-44 bg-card border border-border rounded-xl shadow-xl z-20 overflow-hidden py-1">
-                                                        <button
-                                                            onClick={() => {
-                                                                setTemplateToDelete(template.id);
-                                                                setOpenMenuId(null);
-                                                            }}
-                                                            className="w-full px-3.5 py-2.5 text-left text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 text-red-500"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                            Excluir Modelo
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Macro breakdown */}
-                                        <div className="grid grid-cols-3 gap-2 p-2.5 bg-muted/40 rounded-xl text-center text-xs">
-                                            <div>
-                                                <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Proteína</span>
-                                                <span className="font-bold text-foreground">{template.protein || 0}g</span>
-                                            </div>
-                                            <div>
-                                                <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Carboidratos</span>
-                                                <span className="font-bold text-foreground">{template.carbs || 0}g</span>
-                                            </div>
-                                            <div>
-                                                <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Gordura</span>
-                                                <span className="font-bold text-foreground">{template.fat || 0}g</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Action buttons */}
-                                        <div className="flex items-center gap-2 pt-2 border-t border-border/60">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setPreviewTemplate(template)}
-                                                className="flex-1 text-xs gap-1.5 hover:border-[#F88022] hover:text-[#F88022]"
-                                            >
-                                                <Eye className="w-3.5 h-3.5" />
-                                                Visualizar
-                                            </Button>
-
-                                            <Button
-                                                size="sm"
-                                                onClick={() => openAssignModal(template)}
-                                                className="flex-1 text-xs gap-1.5 bg-[#F88022] hover:bg-[#F88022]/90 text-white font-semibold"
-                                            >
-                                                <UserPlus className="w-3.5 h-3.5" />
-                                                Atribuir a Aluno
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Preview Diet Template Modal */}
-            <Dialog open={!!previewTemplate} onOpenChange={(open) => !open && setPreviewTemplate(null)}>
-                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
-                                <Utensils className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <DialogTitle className="text-xl font-bold">{previewTemplate?.title}</DialogTitle>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                                    <span className="font-semibold text-foreground">{previewTemplate?.calories || 0} kcal</span>
-                                    <span>•</span>
-                                    <span>P: {previewTemplate?.protein || 0}g | C: {previewTemplate?.carbs || 0}g | G: {previewTemplate?.fat || 0}g</span>
-                                </div>
-                            </div>
-                        </div>
-                    </DialogHeader>
-
-                    <div className="space-y-4 my-2">
-                        {previewTemplate?.meals && previewTemplate.meals.length > 0 ? (
-                            previewTemplate.meals.map((meal, idx) => (
-                                <div key={meal.id || idx} className="border border-border rounded-xl p-4 space-y-2 bg-muted/30">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
-                                            <span className="w-6 h-6 rounded-lg bg-[#F88022]/15 text-[#F88022] text-xs flex items-center justify-center font-bold">
-                                                {idx + 1}
-                                            </span>
-                                            {meal.name}
-                                        </h4>
-                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                            <Clock className="w-3 h-3 text-[#F88022]" />
-                                            {meal.time}
-                                        </span>
-                                    </div>
-
-                                    {meal.items && meal.items.length > 0 ? (
-                                        <div className="divide-y divide-border/50 text-xs">
-                                            {meal.items.map((food, fIdx) => (
-                                                <div key={fIdx} className="py-2 flex items-center justify-between gap-4">
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="font-medium text-foreground truncate">{food.name}</p>
-                                                        <p className="text-[11px] text-muted-foreground">
-                                                            {food.quantity} {food.portion || 'unidade'}{food.notes ? ` • ${food.notes}` : ''}
-                                                        </p>
-                                                    </div>
-                                                    {typeof food.calories === 'number' && (
-                                                        <span className="text-xs font-semibold text-orange-500 shrink-0">
-                                                            {Math.round(food.calories)} kcal
+                                                    )}
+                                                    {days !== null && days >= 0 && days <= 7 && (
+                                                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                                            {days === 0 ? 'Vence hoje' : `Vence em ${days} ${days === 1 ? 'dia' : 'dias'}`}
                                                         </span>
                                                     )}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-xs text-muted-foreground italic">Nenhum alimento nesta refeição.</p>
-                                    )}
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-sm text-muted-foreground text-center py-6">
-                                Nenhuma refeição configurada neste modelo.
-                            </p>
-                        )}
+                                                <p className="truncate text-sm text-muted-foreground group-hover:text-foreground">{plan.title}</p>
+                                            </div>
+                                            <div className="hidden w-48 shrink-0 text-sm tabular-nums text-muted-foreground md:block">
+                                                {plan.startDate || plan.endDate
+                                                    ? `${formatDateBR(plan.startDate) || '…'} – ${formatDateBR(plan.endDate) || '…'}`
+                                                    : 'Sem período definido'}
+                                            </div>
+                                            <div className="hidden w-60 shrink-0 items-baseline gap-2 text-sm tabular-nums text-muted-foreground lg:flex">
+                                                <span className="font-semibold text-foreground">{formatKcal(plan.calories ?? 0)} kcal</span>
+                                                <span>P {plan.protein ?? 0}</span>
+                                                <span>C {plan.carbs ?? 0}</span>
+                                                <span>G {plan.fat ?? 0}</span>
+                                            </div>
+                                            <div className="hidden w-24 shrink-0 text-right text-sm text-muted-foreground sm:block">
+                                                {mealCount} {mealCount === 1 ? 'refeição' : 'refeições'}
+                                            </div>
+                                        </Link>
+                                        <DropdownMenu label={`Ações de ${plan.title}`} items={planMenu(plan)} buttonClassName={menuButtonClass}>
+                                            <MoreVertical className="h-4 w-4" />
+                                        </DropdownMenu>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )
+                ) : templatesApi.error && !templatesApi.data ? (
+                    <LoadError message={templatesApi.error.message} onRetry={() => void templatesApi.mutate()} />
+                ) : templatesApi.isLoading ? (
+                    <RowsSkeleton />
+                ) : templates.length === 0 ? (
+                    <EmptyState
+                        icon={BookOpen}
+                        title="Nenhum modelo na biblioteca"
+                        description="Crie um modelo do zero ou use “Salvar como modelo” em qualquer plano para reaproveitá-lo com outros alunos."
+                        action={
+                            <Link
+                                href="/personal/diets/templates/new"
+                                className="inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                            >
+                                <Plus className="h-4 w-4" />
+                                Novo modelo
+                            </Link>
+                        }
+                    />
+                ) : visibleTemplates.length === 0 ? (
+                    <EmptyState
+                        icon={Search}
+                        title="Nenhum modelo encontrado"
+                        description={`Nada corresponde a “${search}”.`}
+                        action={
+                            <button type="button" onClick={() => setSearch('')} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted">
+                                Limpar busca
+                            </button>
+                        }
+                    />
+                ) : (
+                    <div role="list" className="divide-y divide-border rounded-2xl border border-border bg-card shadow-sm">
+                        {visibleTemplates.map((template) => (
+                            <div key={template.id} role="listitem" className="group flex items-center gap-2 px-2 py-2 transition-colors hover:bg-muted/40 sm:px-3">
+                                <Link href={`/personal/diets/templates/${template.id}`} data-row-link className={rowLinkClass}>
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
+                                        <Flame className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate font-semibold text-foreground">{template.title}</p>
+                                        <p className="truncate text-sm text-muted-foreground">
+                                            {template.meals.length} {template.meals.length === 1 ? 'refeição' : 'refeições'}
+                                            {template.updatedAt ? ` · atualizado em ${formatDateBR(template.updatedAt)}` : ''}
+                                        </p>
+                                    </div>
+                                    <div className="hidden w-60 shrink-0 items-baseline gap-2 text-sm tabular-nums text-muted-foreground lg:flex">
+                                        <span className="font-semibold text-foreground">{formatKcal(template.calories ?? 0)} kcal</span>
+                                        <span>P {template.protein ?? 0}</span>
+                                        <span>C {template.carbs ?? 0}</span>
+                                        <span>G {template.fat ?? 0}</span>
+                                    </div>
+                                </Link>
+                                <Link
+                                    href={`/personal/diets/new?templateId=${template.id}`}
+                                    className="hidden items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted md:inline-flex"
+                                >
+                                    <FilePlus2 className="h-4 w-4" />
+                                    Usar modelo
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => setAssignTemplate(template)}
+                                    className="hidden items-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#F88022]/90 sm:inline-flex"
+                                >
+                                    <UserPlus className="h-4 w-4" />
+                                    Atribuir a aluno
+                                </button>
+                                <DropdownMenu label={`Ações de ${template.title}`} items={templateMenu(template)} buttonClassName={menuButtonClass}>
+                                    <MoreVertical className="h-4 w-4" />
+                                </DropdownMenu>
+                            </div>
+                        ))}
                     </div>
+                )}
+            </div>
 
-                    <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                        <Button variant="outline" size="sm" onClick={() => setPreviewTemplate(null)}>
-                            Fechar
-                        </Button>
-                        {previewTemplate && (
-                            <Button
-                                size="sm"
-                                className="bg-[#F88022] hover:bg-[#F88022]/90 text-white"
-                                onClick={() => {
-                                    const tpl = previewTemplate;
-                                    setPreviewTemplate(null);
-                                    openAssignModal(tpl);
-                                }}
-                            >
-                                <UserPlus className="w-4 h-4 mr-1.5" />
-                                Atribuir a Aluno
-                            </Button>
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <p className="text-xs text-muted-foreground">
+                Dica: <kbd className="font-semibold">/</kbd> busca · <kbd className="font-semibold">↑ ↓</kbd> navega · <kbd className="font-semibold">Enter</kbd> abre ·
+                Ctrl/⌘ + clique abre em nova aba.
+            </p>
 
-            {/* Assign Diet to Student Modal */}
-            <Dialog open={!!assignTemplate} onOpenChange={(open) => !open && setAssignTemplate(null)}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-[#F88022]/10 flex items-center justify-center text-[#F88022]">
-                                <UserPlus className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <DialogTitle className="text-lg font-bold">Atribuir Dieta a Aluno</DialogTitle>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Recalcula e prescreve este modelo para o aluno
-                                </p>
-                            </div>
-                        </div>
-                    </DialogHeader>
-
-                    <form onSubmit={handleAssignTemplate} className="space-y-4 my-2">
-                        <div>
-                            <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                                Selecione o Aluno *
-                            </label>
-                            {students.length === 0 ? (
-                                <p className="text-xs text-red-500">Nenhum aluno cadastrado.</p>
-                            ) : (
-                                <Select
-                                    value={assignStudentId}
-                                    onChange={(e) => setAssignStudentId(e.target.value)}
-                                    options={students.map((s) => ({
-                                        value: s.id,
-                                        label: `${s.user.name} (${s.user.email})`,
-                                    }))}
-                                />
-                            )}
-                        </div>
-
-                        <div>
-                            <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                                Meta Calórica Alvo (kcal) *
-                            </label>
-                            <Input
-                                type="number"
-                                min={800}
-                                max={6000}
-                                value={assignTargetCalories}
-                                onChange={(e) => setAssignTargetCalories(Number(e.target.value))}
-                                placeholder="Ex: 2200"
-                                required
-                            />
-                            <p className="text-[11px] text-muted-foreground mt-1">
-                                O sistema escalará proporcionalmente as quantidades e macros dos alimentos.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                                    Data de Início *
-                                </label>
-                                <Input
-                                    type="date"
-                                    value={assignStartDate}
-                                    onChange={(e) => setAssignStartDate(e.target.value)}
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                                    Data de Término *
-                                </label>
-                                <Input
-                                    type="date"
-                                    value={assignEndDate}
-                                    onChange={(e) => setAssignEndDate(e.target.value)}
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end gap-2 pt-3 border-t border-border">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setAssignTemplate(null)}
-                                disabled={assigning}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                type="submit"
-                                size="sm"
-                                className="bg-[#F88022] hover:bg-[#F88022]/90 text-white font-semibold"
-                                loading={assigning}
-                            >
-                                Prescrever Dieta
-                            </Button>
-                        </div>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            {/* Confirm Delete Diet Modal */}
-            <AlertDialog open={!!dietToDelete} onOpenChange={(open) => !open && setDietToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir Plano Alimentar</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Tem certeza que deseja excluir esta dieta? Esta ação não pode ser desfeita.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setDietToDelete(null)}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDeleteDiet} className="bg-red-600 hover:bg-red-700">
-                            Excluir Dieta
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            {/* Confirm Delete Template Modal */}
-            <AlertDialog open={!!templateToDelete} onOpenChange={(open) => !open && setTemplateToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir Modelo de Dieta</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Tem certeza que deseja excluir este modelo da sua biblioteca? Planos já atribuídos a alunos não serão afetados.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setTemplateToDelete(null)}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDeleteTemplate} className="bg-red-600 hover:bg-red-700">
-                            Excluir Modelo
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <TemplatePreviewDialog
+                template={previewTemplate}
+                onClose={() => setPreviewTemplate(null)}
+                onAssign={(template) => {
+                    setPreviewTemplate(null);
+                    setAssignTemplate(template);
+                }}
+            />
+            <AssignTemplateDialog template={assignTemplate} onClose={() => setAssignTemplate(null)} />
         </div>
     );
 }

@@ -11,7 +11,8 @@ const requestSchema = z.object({
     mode: z.enum(['student', 'template']).default('student'),
     studentId: z.string().trim().optional(),
     studentInfo: z.string().trim().min(10, 'Descreva as necessidades do aluno').max(4000),
-    requiredFoods: z.string().trim().min(2, 'Informe os alimentos que devem estar na dieta').max(2000),
+    // Opcional: o personal pode deixar a escolha dos alimentos para a IA.
+    requiredFoods: z.string().trim().max(2000).optional().default(''),
     mealCount: z.number().int().min(2).max(8),
 }).superRefine((data, context) => {
     if (data.mode === 'student' && !data.studentId) {

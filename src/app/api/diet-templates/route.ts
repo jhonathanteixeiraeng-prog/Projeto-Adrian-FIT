@@ -3,32 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
-import { normalizeDietFood } from '@/lib/diet-normalizer';
-
-const foodItemSchema = z.object({
-    id: z.string().optional(),
-    foodId: z.string().optional(),
-    name: z.string(),
-    portion: z.string(),
-    quantity: z.number(),
-    calories: z.number(),
-    protein: z.number(),
-    carbs: z.number(),
-    fat: z.number(),
-    notes: z.string().optional(),
-});
-
-const mealSchema = z.object({
-    name: z.string().min(1),
-    time: z.string(),
-    items: z.array(foodItemSchema),
-    notes: z.string().optional(),
-});
-
-const dietTemplateSchema = z.object({
-    title: z.string().min(1, 'Título é obrigatório'),
-    meals: z.array(mealSchema),
-});
+import { dietTemplateSchema, formatTemplate, prepareMeals, toPositiveInt } from '@/lib/diet-plans';
 
 // GET - List diet templates
 export async function GET(request: NextRequest) {
@@ -51,20 +26,7 @@ export async function GET(request: NextRequest) {
         });
 
         // Parse JSON foods and normalize legacy formats
-        const formattedTemplates = templates.map(template => ({
-            ...template,
-            meals: template.meals.map(meal => {
-                const rawItems = JSON.parse(meal.foods);
-                return {
-                    ...meal,
-                    items: Array.isArray(rawItems)
-                        ? rawItems.map((item: any) => normalizeDietFood(item))
-                        : rawItems,
-                };
-            }),
-        }));
-
-        return NextResponse.json({ success: true, data: formattedTemplates });
+        return NextResponse.json({ success: true, data: templates.map(formatTemplate) });
     } catch (error) {
         console.error('Error fetching diet templates:', error);
         return NextResponse.json({ success: false, error: 'Erro ao buscar modelos' }, { status: 500 });
@@ -81,60 +43,32 @@ export async function POST(request: NextRequest) {
 
         const body = await request.json();
         const validatedData = dietTemplateSchema.parse(body);
-
-        // Calculate totals
-        let totalCalories = 0;
-        let totalProtein = 0;
-        let totalCarbs = 0;
-        let totalFat = 0;
-
-        const normalizedMeals = validatedData.meals.map(meal => ({
-            ...meal,
-            items: meal.items.map(item => normalizeDietFood(item)),
-        }));
-
-        normalizedMeals.forEach(meal => {
-            meal.items.forEach(item => {
-                totalCalories += item.totalCalories;
-                totalProtein += item.totalProtein;
-                totalCarbs += item.totalCarbs;
-                totalFat += item.totalFat;
-            });
-        });
+        const { meals, totals } = prepareMeals(validatedData.meals);
 
         const template = await prisma.dietTemplate.create({
             data: {
                 title: validatedData.title,
                 personalId: session.user.personalId!,
-                calories: Math.round(totalCalories),
-                protein: Math.round(totalProtein),
-                carbs: Math.round(totalCarbs),
-                fat: Math.round(totalFat),
+                calories: toPositiveInt(validatedData.calories) ?? Math.round(totals.calories),
+                protein: toPositiveInt(validatedData.protein) ?? Math.round(totals.protein),
+                carbs: toPositiveInt(validatedData.carbs) ?? Math.round(totals.carbs),
+                fat: toPositiveInt(validatedData.fat) ?? Math.round(totals.fat),
                 meals: {
-                    create: normalizedMeals.map((meal, index) => ({
+                    create: meals.map((meal) => ({
                         name: meal.name,
                         time: meal.time,
-                        order: index,
+                        order: meal.order,
                         notes: meal.notes,
-                        foods: JSON.stringify(meal.items),
+                        foods: meal.foods,
                     })),
                 },
             },
             include: {
-                meals: true,
+                meals: { orderBy: { order: 'asc' } },
             },
         });
 
-        // Format return
-        const formattedTemplate = {
-            ...template,
-            meals: template.meals.map(meal => ({
-                ...meal,
-                items: JSON.parse(meal.foods).map((item: any) => normalizeDietFood(item)),
-            })),
-        };
-
-        return NextResponse.json({ success: true, data: formattedTemplate }, { status: 201 });
+        return NextResponse.json({ success: true, data: formatTemplate(template) }, { status: 201 });
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ success: false, error: error.errors[0].message }, { status: 400 });

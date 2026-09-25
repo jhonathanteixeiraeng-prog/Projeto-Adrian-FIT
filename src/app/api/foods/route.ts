@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
+import { getVisibleCreatorIds } from '@/lib/food-database';
 
 export async function GET(request: NextRequest) {
     try {
@@ -21,6 +22,14 @@ export async function GET(request: NextRequest) {
 
         if (systemOnly) {
             where.isSystem = true;
+        } else {
+            // Alimentos próprios só aparecem para o personal que os criou (e seus alunos).
+            const session = await getServerSession(authOptions);
+            const creatorIds = await getVisibleCreatorIds(session?.user);
+            where.OR = [
+                { isSystem: true },
+                ...(creatorIds.length > 0 ? [{ createdById: { in: creatorIds } }] : []),
+            ];
         }
 
         const foods = await prisma.food.findMany({
@@ -36,6 +45,11 @@ export async function GET(request: NextRequest) {
     }
 }
 
+function toMacro(value: unknown): number {
+    const parsed = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+    return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
@@ -45,20 +59,25 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { name, portion, calories, protein, carbs, fat } = body;
+        const name = typeof body?.name === 'string' ? body.name.trim() : '';
+        const portion = typeof body?.portion === 'string' && body.portion.trim() ? body.portion.trim() : '100g';
+        const calories = toMacro(body?.calories);
+        const protein = toMacro(body?.protein);
+        const carbs = toMacro(body?.carbs);
+        const fat = toMacro(body?.fat);
 
-        if (!name || isNaN(calories) || isNaN(protein) || isNaN(carbs) || isNaN(fat)) {
+        if (!name || [calories, protein, carbs, fat].some((value) => Number.isNaN(value) || value < 0)) {
             return NextResponse.json({ success: false, error: 'Dados inválidos' }, { status: 400 });
         }
 
         const newFood = await prisma.food.create({
             data: {
-                name,
-                portion: portion || '100g',
-                calories: Number(calories),
-                protein: Number(protein),
-                carbs: Number(carbs),
-                fat: Number(fat),
+                name: name.slice(0, 200),
+                portion: portion.slice(0, 120),
+                calories,
+                protein,
+                carbs,
+                fat,
                 isSystem: false, // User created / Imported
                 createdById: session.user.id
             }

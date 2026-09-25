@@ -4,37 +4,30 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { normalizeDietFood } from '@/lib/diet-normalizer';
-
-const mealItemSchema = z.object({
-    id: z.string().optional(),
-    foodId: z.string().optional(),
-    name: z.string(),
-    portion: z.string(),
-    quantity: z.number().min(0),
-    calories: z.number(),
-    protein: z.number(),
-    carbs: z.number(),
-    fat: z.number(),
-});
-
-const mealSchema = z.object({
-    name: z.string().min(1),
-    time: z.string(),
-    items: z.array(mealItemSchema),
-    notes: z.string().optional(),
-});
+import {
+    createDietPlanForStudent,
+    defaultPlanDates,
+    dietMealInputSchema,
+    findOwnedStudent,
+    parseDateInput,
+    prepareMeals,
+    safeParseFoods,
+    toPositiveInt,
+} from '@/lib/diet-plans';
 
 const dietPlanSchema = z.object({
-    title: z.string().min(1, 'Título é obrigatório'),
+    title: z.string().trim().min(1, 'Título é obrigatório').max(300),
     studentId: z.string().min(1, 'Aluno é obrigatório'),
-    startDate: z.string(),
-    endDate: z.string(),
+    // Opcionais: sem datas o plano vale de hoje até +30 dias.
+    startDate: z.string().optional().nullable(),
+    endDate: z.string().optional().nullable(),
     active: z.boolean().optional(),
-    targetCalories: z.number().optional(),
-    targetProtein: z.number().optional(),
-    targetCarbs: z.number().optional(),
-    targetFat: z.number().optional(),
-    meals: z.array(mealSchema).optional(),
+    notifyStudent: z.boolean().optional(),
+    targetCalories: z.number().optional().nullable(),
+    targetProtein: z.number().optional().nullable(),
+    targetCarbs: z.number().optional().nullable(),
+    targetFat: z.number().optional().nullable(),
+    meals: z.array(dietMealInputSchema).optional(),
     saveAsTemplate: z.boolean().optional(),
 });
 
@@ -50,6 +43,14 @@ export async function GET(request: NextRequest) {
         const studentId = searchParams.get('studentId');
         const active = searchParams.get('active');
 
+        // Only a trainer (their students' plans) or a student with a profile (their own plans) may list plans;
+        // anything else (e.g. a self-registered account without a student profile) would get an unfiltered query.
+        const isPersonal = session.user.role === 'PERSONAL' && Boolean(session.user.personalId);
+        const isStudent = session.user.role === 'STUDENT' && Boolean(session.user.studentId);
+        if (!isPersonal && !isStudent) {
+            return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
+        }
+
         const where: any = {};
 
         if (session.user.role === 'PERSONAL' && session.user.personalId) {
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
             where.studentId = session.user.studentId;
         }
 
-        if (studentId) {
+        if (studentId && session.user.role === 'PERSONAL') {
             where.studentId = studentId;
         }
 
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
             ...plan,
             meals: plan.meals.map(meal => ({
                 ...meal,
-                items: JSON.parse(meal.foods).map((item: any) => normalizeDietFood(item)),
+                items: safeParseFoods(meal.foods).map((item) => normalizeDietFood(item)),
             }))
         }));
 
@@ -106,103 +107,61 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session?.user?.id || session.user.role !== 'PERSONAL') {
+        if (!session?.user?.id || session.user.role !== 'PERSONAL' || !session.user.personalId) {
             return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
         }
+        const personalId = session.user.personalId;
 
         const body = await request.json();
         const validatedData = dietPlanSchema.parse(body);
 
-        // Calculate total macros from meals
-        let totalCalories = 0;
-        let totalProtein = 0;
-        let totalCarbs = 0;
-        let totalFat = 0;
+        const student = await findOwnedStudent(validatedData.studentId, personalId);
+        if (!student) {
+            return NextResponse.json({ error: 'Aluno não encontrado' }, { status: 404 });
+        }
 
-        const normalizedMeals = validatedData.meals
-            ? validatedData.meals.map(meal => ({
-                ...meal,
-                items: meal.items.map(item => normalizeDietFood(item)),
-            }))
-            : [];
+        const defaults = defaultPlanDates();
+        const startDate = parseDateInput(validatedData.startDate) ?? defaults.startDate;
+        const endDate = parseDateInput(validatedData.endDate) ?? defaults.endDate;
+        if (endDate < startDate) {
+            return NextResponse.json({ error: 'A data de término deve ser posterior à data de início' }, { status: 400 });
+        }
 
-        normalizedMeals.forEach(meal => {
-            meal.items.forEach(item => {
-                totalCalories += item.totalCalories;
-                totalProtein += item.totalProtein;
-                totalCarbs += item.totalCarbs;
-                totalFat += item.totalFat;
-            });
-        });
+        const { meals: preparedMeals, totals } = prepareMeals(validatedData.meals);
 
-        const shouldActivate = validatedData.active ?? true;
-        const dietPlan = await prisma.$transaction(async (tx) => {
-            // A student must have only one active diet. Otherwise the app may
-            // keep loading an older plan depending on the database query order.
-            if (shouldActivate) {
-                await tx.dietPlan.updateMany({
-                    where: {
-                        studentId: validatedData.studentId,
-                        active: true,
-                    },
-                    data: { active: false },
-                });
-            }
-
-            return tx.dietPlan.create({
-                data: {
-                    title: validatedData.title,
-                    studentId: validatedData.studentId,
-                    personalId: session.user.personalId!,
-                    startDate: new Date(validatedData.startDate),
-                    endDate: new Date(validatedData.endDate),
-                    active: shouldActivate,
-                    version: 1,
-                    calories: validatedData.targetCalories || Math.round(totalCalories),
-                    protein: validatedData.targetProtein || Math.round(totalProtein),
-                    carbs: validatedData.targetCarbs || Math.round(totalCarbs),
-                    fat: validatedData.targetFat || Math.round(totalFat),
-                    meals: normalizedMeals.length > 0 ? {
-                        create: normalizedMeals.map((meal, mealIndex) => ({
-                            name: meal.name,
-                            time: meal.time,
-                            order: mealIndex,
-                            notes: meal.notes,
-                            foods: JSON.stringify(meal.items),
-                        })),
-                    } : undefined,
-                },
-                include: {
-                    meals: true,
-                    student: {
-                        include: {
-                            user: {
-                                select: { name: true },
-                            },
-                        },
-                    },
-                },
-            });
+        const dietPlan = await createDietPlanForStudent({
+            personalId,
+            studentId: validatedData.studentId,
+            title: validatedData.title,
+            startDate,
+            endDate,
+            active: validatedData.active ?? true,
+            notifyStudent: validatedData.notifyStudent,
+            calories: toPositiveInt(validatedData.targetCalories) ?? Math.round(totals.calories),
+            protein: toPositiveInt(validatedData.targetProtein) ?? Math.round(totals.protein),
+            carbs: toPositiveInt(validatedData.targetCarbs) ?? Math.round(totals.carbs),
+            fat: toPositiveInt(validatedData.targetFat) ?? Math.round(totals.fat),
+            meals: preparedMeals,
         });
 
         // Save as template if requested
-        if (validatedData.saveAsTemplate && validatedData.meals) {
+        if (validatedData.saveAsTemplate && preparedMeals.length > 0) {
             try {
                 await prisma.dietTemplate.create({
                     data: {
                         title: validatedData.title,
-                        personalId: session.user.personalId!,
-                        calories: Math.round(totalCalories),
-                        protein: Math.round(totalProtein),
-                        carbs: Math.round(totalCarbs),
-                        fat: Math.round(totalFat),
+                        personalId,
+                        calories: Math.round(totals.calories),
+                        protein: Math.round(totals.protein),
+                        carbs: Math.round(totals.carbs),
+                        fat: Math.round(totals.fat),
                         meals: {
-                            create: normalizedMeals.map((meal, index) => ({
+                            create: preparedMeals.map((meal) => ({
                                 name: meal.name,
                                 time: meal.time,
-                                order: index,
+                                order: meal.order,
                                 notes: meal.notes,
-                                foods: JSON.stringify(meal.items),
+                                foods: meal.foods,
                             })),
                         },
                     },
@@ -216,9 +175,10 @@ export async function POST(request: NextRequest) {
         // Format response
         const formattedPlan = {
             ...dietPlan,
+            success: true,
             meals: dietPlan.meals.map(meal => ({
                 ...meal,
-                items: JSON.parse(meal.foods).map((item: any) => normalizeDietFood(item)),
+                items: safeParseFoods(meal.foods).map((item) => normalizeDietFood(item)),
             }))
         };
 
