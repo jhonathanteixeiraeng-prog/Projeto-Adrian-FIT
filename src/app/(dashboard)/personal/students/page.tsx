@@ -1076,7 +1076,7 @@ export default function StudentsPage() {
                                                     aria-label={`Selecionar ${row.name}`}
                                                 />
                                             </td>
-                                            <td className="max-w-[260px] px-3 py-2">
+                                            <td className="max-w-[220px] px-3 py-2">
                                                 <div className="flex min-w-0 items-center gap-2.5">
                                                     <Avatar name={row.name} src={row.student.user?.avatar || undefined} size="sm" />
                                                     <div className="min-w-0">
@@ -1096,14 +1096,14 @@ export default function StudentsPage() {
                                             <td className="whitespace-nowrap px-3 py-2">
                                                 <StudentStatusBadge status={row.status} />
                                             </td>
-                                            <td className="max-w-[200px] px-3 py-2">{renderWorkout(row)}</td>
+                                            <td className="max-w-[170px] px-3 py-2">{renderWorkout(row)}</td>
                                             <td className="hidden max-w-[180px] px-3 py-2 2xl:table-cell">{renderDiet(row)}</td>
                                             <td className="whitespace-nowrap px-3 py-2">
                                                 <p className={cn('font-semibold', lastWorkoutTone(row))}>
                                                     {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
                                                 </p>
                                                 {row.lastWorkoutName && (
-                                                    <p className="max-w-[140px] truncate text-xs text-muted-foreground" title={row.lastWorkoutName}>
+                                                    <p className="max-w-[110px] truncate text-xs text-muted-foreground" title={row.lastWorkoutName}>
                                                         {row.lastWorkoutName}
                                                     </p>
                                                 )}
