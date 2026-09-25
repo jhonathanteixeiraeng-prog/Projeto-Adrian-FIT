@@ -428,6 +428,26 @@ export function buildTemplateDaysCreateInput(days: PlanDayInput[]) {
 }
 
 /**
+ * Groups kept by a save that didn't send them (older app versions) may no longer be valid: items reordered,
+ * séries changed or a member removed. Those are ungrouped instead of rejecting the save, and members that
+ * rested 0 inside the group get the group's rest back, as "Desagrupar" does in the web editor.
+ */
+async function repairKeptGroups(tx: Prisma.TransactionClient, dayId: string, groupRest: Map<string, number>) {
+    const saved = await tx.workoutItem.findMany({
+        where: { workoutDayId: dayId },
+        orderBy: { order: 'asc' },
+        select: { id: true, sets: true, rest: true, restBySet: true, groupId: true },
+    });
+    const repaired = normalizedGroupIds(saved, { repairInvalid: true });
+    for (let index = 0; index < saved.length; index++) {
+        const row = saved[index];
+        if (!row.groupId || repaired[index] === row.groupId) continue;
+        const rest = row.rest === 0 && !row.restBySet ? groupRest.get(row.groupId) ?? 0 : 0;
+        await tx.workoutItem.update({ where: { id: row.id }, data: rest > 0 ? { groupId: null, rest } : { groupId: null } });
+    }
+}
+
+/**
  * Applies the edited days to a plan WITHOUT recreating the days that still exist, so
  * completions, set logs and sessions (which reference WorkoutDay.id) keep working.
  *
@@ -478,6 +498,8 @@ export async function syncPlanDays(tx: Prisma.TransactionClient, planId: string,
 
     const existingItems = new Map(existingDays.flatMap((day) => day.items.map((item) => [item.id, item] as const)));
     const keptItemIds = new Set<string>();
+    // Days saved without group ids (older app versions), with the rest each stored group had before this save.
+    const toRepair: Array<{ dayId: string; groupRest: Map<string, number> }> = [];
 
     for (let dayIndex = 0; dayIndex < incoming.length; dayIndex++) {
         const day = incoming[dayIndex];
@@ -546,25 +568,23 @@ export async function syncPlanDays(tx: Prisma.TransactionClient, planId: string,
             await tx.workoutItem.createMany({ data: toCreate });
         }
 
-        // Groups kept from a save that didn't send them may no longer be valid (items moved, sets changed):
-        // ungroup those instead of rejecting the save.
         if (day.items.some((item) => item.groupId === undefined)) {
-            const saved = await tx.workoutItem.findMany({
-                where: { workoutDayId: dayId },
-                orderBy: { order: 'asc' },
-                select: { id: true, sets: true, groupId: true },
+            // The last member holds the group's rest (the others are stored with 0).
+            const groupRest = new Map<string, number>();
+            match?.items.forEach((item) => {
+                if (item.groupId) groupRest.set(item.groupId, item.rest);
             });
-            const repaired = normalizedGroupIds(saved, { repairInvalid: true });
-            const toUngroup = saved.filter((row, index) => (row.groupId ?? null) !== repaired[index]).map((row) => row.id);
-            if (toUngroup.length) {
-                await tx.workoutItem.updateMany({ where: { id: { in: toUngroup } }, data: { groupId: null } });
-            }
+            toRepair.push({ dayId, groupRest });
         }
     }
 
     const removedItemIds = Array.from(existingItems.keys()).filter((id) => !keptItemIds.has(id));
     if (removedItemIds.length) {
         await tx.workoutItem.deleteMany({ where: { id: { in: removedItemIds } } });
+    }
+    // After the removals, so rows deleted by this save don't count as group members.
+    for (const { dayId, groupRest } of toRepair) {
+        await repairKeptGroups(tx, dayId, groupRest);
     }
     if (unmatchedDayIds.size) {
         await tx.workoutDay.deleteMany({ where: { planId, id: { in: Array.from(unmatchedDayIds) } } });
