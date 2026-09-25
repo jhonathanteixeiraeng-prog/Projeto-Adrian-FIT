@@ -99,6 +99,10 @@ export interface WorkoutItem {
     reps: string;
     rest: number;
     restBySet?: string | null;
+    /** Prescribed load in kg: "20" or per set "20/22.5/25". */
+    load?: string | null;
+    /** Prescribed RPE (1-10): "8" or "7-8". */
+    rpe?: string | null;
     notes?: string | null;
     order: number;
     exercise?: {

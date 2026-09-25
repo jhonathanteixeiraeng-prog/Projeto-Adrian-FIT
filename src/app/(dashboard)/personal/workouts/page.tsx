@@ -354,6 +354,8 @@ export default function WorkoutsPage() {
                             sets: item.sets,
                             reps: item.reps,
                             rest: item.rest,
+                            load: item.load ?? null,
+                            rpe: item.rpe ?? null,
                             notes: item.notes ?? '',
                         })),
                     })),

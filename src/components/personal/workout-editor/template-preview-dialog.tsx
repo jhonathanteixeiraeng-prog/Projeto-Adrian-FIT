@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Clock, Dumbbell, Pencil, UserPlus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui';
+import { formatLoad, formatRpe } from '@/lib/workout-load';
 import { WEEKDAY_OPTIONS, type ApiPlanDay } from './editor-state';
 
 export interface TemplateSummary {
@@ -50,24 +51,36 @@ export function TemplatePreviewDialog({ template, onOpenChange, onAssign }: Temp
                                 </div>
                                 {day.items.length ? (
                                     <ol className="divide-y divide-border/60">
-                                        {day.items.map((item, itemIndex) => (
-                                            <li key={item.id} className="flex items-center gap-3 px-3 py-1.5 text-sm">
-                                                <span className="w-5 text-right text-xs font-semibold text-muted-foreground">{itemIndex + 1}</span>
-                                                <span className="min-w-0 flex-1 truncate font-medium text-foreground">
-                                                    {item.exercise?.name ?? 'Exercício'}
-                                                    {item.exercise?.muscleGroup && (
-                                                        <span className="ml-2 text-xs font-normal text-muted-foreground">{item.exercise.muscleGroup}</span>
-                                                    )}
-                                                </span>
-                                                <span className="shrink-0 text-xs text-muted-foreground">
-                                                    {item.sets} × {item.reps}
-                                                </span>
-                                                <span className="flex w-14 shrink-0 items-center justify-end gap-1 text-xs text-muted-foreground">
-                                                    <Clock className="h-3 w-3" />
-                                                    {item.rest}s
-                                                </span>
-                                            </li>
-                                        ))}
+                                        {day.items.map((item, itemIndex) => {
+                                            const intensity = [formatLoad(item.load), formatRpe(item.rpe)].filter(Boolean).join(' · ');
+                                            return (
+                                                <li key={item.id} className="flex items-center gap-3 px-3 py-1.5 text-sm">
+                                                    <span className="w-5 text-right text-xs font-semibold text-muted-foreground">{itemIndex + 1}</span>
+                                                    <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+                                                        {item.exercise?.name ?? 'Exercício'}
+                                                        {item.exercise?.muscleGroup && (
+                                                            <span className="ml-2 text-xs font-normal text-muted-foreground">{item.exercise.muscleGroup}</span>
+                                                        )}
+                                                    </span>
+                                                    {/* "3 × 10-12 · 20 kg · RPE 8"; on phones carga/RPE go under séries × reps. */}
+                                                    <span className="shrink-0 text-right text-xs text-muted-foreground">
+                                                        <span className="whitespace-nowrap">
+                                                            {item.sets} × {item.reps}
+                                                        </span>
+                                                        {intensity && (
+                                                            <span className="block whitespace-nowrap sm:inline">
+                                                                <span className="hidden sm:inline"> · </span>
+                                                                {intensity}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <span className="flex w-14 shrink-0 items-center justify-end gap-1 text-xs text-muted-foreground">
+                                                        <Clock className="h-3 w-3" />
+                                                        {item.rest}s
+                                                    </span>
+                                                </li>
+                                            );
+                                        })}
                                     </ol>
                                 ) : (
                                     <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum exercício neste dia.</p>

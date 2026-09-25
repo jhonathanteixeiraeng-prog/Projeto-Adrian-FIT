@@ -26,12 +26,20 @@ export interface ExerciseRowProps {
     onDragEnd: () => void;
 }
 
-/** Desktop column template shared by the rows and the column header. */
+/**
+ * Desktop column template shared by the rows and the column header (both use gap-x-1.5 from md):
+ * grip · # · exercício · séries · reps · carga · RPE · descanso · observações · menu.
+ * In the ~734 px left at 1440 px (sidebar + library open) this gives exercício ≈198, reps ≈89 ("12/10/8/6"),
+ * carga ≈99 ("20/22,5/25"), descanso ≈59, observações ≈84; the minimum (≈550 px) still fits at 1280 px.
+ */
 export const ROW_GRID_MD =
-    'md:grid-cols-[16px_22px_minmax(160px,2fr)_52px_minmax(72px,0.7fr)_minmax(60px,0.5fr)_minmax(100px,1.1fr)_32px]';
+    'md:grid-cols-[16px_22px_minmax(120px,2fr)_40px_minmax(56px,0.9fr)_minmax(56px,1fr)_40px_minmax(48px,0.6fr)_minmax(64px,0.85fr)_32px]';
 
 const inputBase =
     'h-8 w-full min-w-0 rounded-md border bg-muted/40 px-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors hover:border-border focus:border-[#F88022] focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#F88022]/20';
+
+/** Optional fields: the example only shows while typing, so empty cells don't read as prescribed values. */
+const focusPlaceholder = 'placeholder:text-transparent focus:placeholder:text-muted-foreground/70';
 
 function fieldClass(error?: string, warning?: string | null) {
     return cn(
@@ -101,7 +109,7 @@ function ExerciseRowComponent({
                 onDragEnd();
             }}
             className={cn(
-                'group relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_32px] items-center gap-x-2 gap-y-1.5 rounded-lg px-1.5 py-1.5 transition-colors md:gap-y-0 md:py-0.5',
+                'group relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_32px] items-center gap-x-2 gap-y-1.5 rounded-lg px-1.5 py-1.5 transition-colors md:gap-x-1.5 md:gap-y-0 md:py-0.5',
                 ROW_GRID_MD,
                 flash ? 'bg-[#F88022]/10' : 'hover:bg-muted/40',
                 hasIssues && 'bg-red-500/5'
@@ -148,7 +156,8 @@ function ExerciseRowComponent({
                 <span className={cn('truncate text-sm font-medium', issues?.exercise ? 'text-red-500' : 'text-foreground')}>
                     {item.exerciseName || 'Selecione o exercício'}
                 </span>
-                {item.muscleGroup && <span className="hidden shrink-0 truncate text-xs text-muted-foreground xl:inline">{item.muscleGroup}</span>}
+                {/* Only where the name has room to spare next to the carga/RPE columns. */}
+                {item.muscleGroup && <span className="hidden shrink-0 truncate text-xs text-muted-foreground 2xl:inline">{item.muscleGroup}</span>}
             </button>
 
             <div className="col-start-4 row-start-1 flex justify-end md:order-last md:col-start-auto md:row-start-auto">
@@ -190,6 +199,39 @@ function ExerciseRowComponent({
             </label>
 
             <label className="flex min-w-0 flex-col gap-0.5 md:block">
+                <span className="text-xs text-muted-foreground md:sr-only">Carga (kg)</span>
+                <input
+                    data-item-key={item.key}
+                    data-field="load"
+                    aria-label="Carga em kg"
+                    aria-invalid={Boolean(issues?.load) || undefined}
+                    title={issues?.load ?? 'Quilos (opcional). Por série: 20/22,5/25'}
+                    value={item.load}
+                    placeholder="20"
+                    maxLength={80}
+                    onChange={(event) => onChange(item.key, { load: event.target.value })}
+                    className={cn(fieldClass(issues?.load), focusPlaceholder, 'tabular-nums')}
+                />
+            </label>
+
+            {/* Mobile: RPE starts the next line (the 4th column is the menu's). */}
+            <label className="col-start-1 flex min-w-0 flex-col gap-0.5 md:col-start-auto md:block">
+                <span className="text-xs text-muted-foreground md:sr-only">RPE</span>
+                <input
+                    data-item-key={item.key}
+                    data-field="rpe"
+                    aria-label="RPE, esforço de 1 a 10"
+                    aria-invalid={Boolean(issues?.rpe) || undefined}
+                    title={issues?.rpe ?? 'Esforço percebido de 1 a 10 (opcional): 8, 8,5 ou 7-8'}
+                    value={item.rpe}
+                    placeholder="8"
+                    maxLength={20}
+                    onChange={(event) => onChange(item.key, { rpe: event.target.value })}
+                    className={cn(fieldClass(issues?.rpe), focusPlaceholder, 'text-center tabular-nums md:px-1')}
+                />
+            </label>
+
+            <label className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1 md:block">
                 <span className="text-xs text-muted-foreground md:sr-only">Descanso (s)</span>
                 <input
                     data-item-key={item.key}
@@ -217,7 +259,7 @@ function ExerciseRowComponent({
                     aria-invalid={Boolean(issues?.notes) || undefined}
                     title={issues?.notes ?? 'Enter volta para a busca de exercícios'}
                     value={item.notes}
-                    placeholder="Cadência, técnica, carga…"
+                    placeholder="Técnica…"
                     maxLength={1000}
                     onChange={(event) => onChange(item.key, { notes: event.target.value })}
                     className={fieldClass(issues?.notes)}

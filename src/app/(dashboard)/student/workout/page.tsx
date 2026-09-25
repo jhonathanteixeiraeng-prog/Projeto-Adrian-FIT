@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { getEmbedVideoUrl, isDirectVideoFile } from '@/lib/video';
+import { formatLoad, formatRpe, loadForSet } from '@/lib/workout-load';
 import { normalizePerSetReps, parsePerSetReps } from '@/lib/workout-reps';
 
 interface PersistedWorkoutProgress {
@@ -542,6 +543,9 @@ export default function WorkoutPage() {
                     const setProgress = getSetsProgress(exercise, repsBySet.length);
                     const completedSetsCount = setProgress.filter(Boolean).length;
                     const setLogs = normalizeSetLog(setLogsByExercise[exercise.id], repsBySet.length);
+                    // Prescribed by the personal: "20 kg" or per set "20/22,5/25 kg", "RPE 8".
+                    const prescribedLoad = formatLoad(exercise.load);
+                    const prescribedRpe = formatRpe(exercise.rpe);
                     const rawVideoUrl = typeof exercise.videoUrl === 'string' ? exercise.videoUrl.trim() : '';
                     const embedVideoUrl = rawVideoUrl ? getEmbedVideoUrl(rawVideoUrl) : null;
                     const isDirectVideo = rawVideoUrl ? isDirectVideoFile(rawVideoUrl) : false;
@@ -577,6 +581,18 @@ export default function WorkoutPage() {
                                             <span>{exercise.sets} séries</span>
                                             <span aria-hidden>•</span>
                                             <span>Meta: {exercise.reps}</span>
+                                            {prescribedLoad && (
+                                                <>
+                                                    <span aria-hidden>•</span>
+                                                    <span className="font-medium text-foreground">{prescribedLoad}</span>
+                                                </>
+                                            )}
+                                            {prescribedRpe && (
+                                                <>
+                                                    <span aria-hidden>•</span>
+                                                    <span className="font-medium text-foreground">{prescribedRpe}</span>
+                                                </>
+                                            )}
                                             <span aria-hidden>•</span>
                                             <span className="inline-flex items-center gap-1">
                                                 <Clock className="w-3 h-3" />
@@ -602,6 +618,11 @@ export default function WorkoutPage() {
                                                 <p className="text-xs text-muted-foreground mt-1">
                                                     Preencha carga e repetições realizadas em cada série.
                                                 </p>
+                                                {prescribedRpe && (
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        <span className="font-medium text-foreground">{prescribedRpe}</span>: esforço de 1 a 10, em que 10 é ir até a falha.
+                                                    </p>
+                                                )}
                                             </div>
                                             <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
                                                 <Clock className="w-3.5 h-3.5" />
@@ -609,91 +630,96 @@ export default function WorkoutPage() {
                                             </span>
                                         </div>
                                         <div className="mb-4 space-y-3">
-                                            {repsBySet.map((targetReps, setIndex) => (
-                                                <div
-                                                    key={`${exercise.id}-set-${setIndex}`}
-                                                    className={`rounded-2xl border px-3 py-3 transition-colors ${
-                                                        setProgress[setIndex]
-                                                            ? 'border-[#F88022]/40 bg-[#F88022]/8'
-                                                            : 'border-border/80 bg-white/[0.03]'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div>
-                                                            <p className="text-sm font-semibold text-foreground">
-                                                                Série {setIndex + 1}
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground mt-1">
-                                                                Meta: {targetReps}
-                                                            </p>
+                                            {repsBySet.map((targetReps, setIndex) => {
+                                                const setLoad = loadForSet(exercise.load, setIndex);
+                                                return (
+                                                    <div
+                                                        key={`${exercise.id}-set-${setIndex}`}
+                                                        className={`rounded-2xl border px-3 py-3 transition-colors ${
+                                                            setProgress[setIndex]
+                                                                ? 'border-[#F88022]/40 bg-[#F88022]/8'
+                                                                : 'border-border/80 bg-white/[0.03]'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div>
+                                                                <p className="text-sm font-semibold text-foreground">
+                                                                    Série {setIndex + 1}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground mt-1">
+                                                                    Meta: {targetReps}
+                                                                    {setLoad !== null && ` · ${formatLoad(String(setLoad))}`}
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                aria-label={`Marcar série ${setIndex + 1} como concluída`}
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    toggleExerciseSet(exercise, setIndex);
+                                                                }}
+                                                                className={`h-9 w-9 rounded-full border flex items-center justify-center transition-all duration-200 touch-bounce ${
+                                                                    setProgress[setIndex]
+                                                                        ? 'border-[#F88022] bg-[#F88022] text-white shadow-glow-orange'
+                                                                        : 'border-border bg-background text-transparent hover:border-[#F88022]'
+                                                                }`}
+                                                            >
+                                                                <Check className="w-4 h-4" />
+                                                            </button>
                                                         </div>
-                                                        <button
-                                                            type="button"
-                                                            aria-label={`Marcar série ${setIndex + 1} como concluída`}
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                toggleExerciseSet(exercise, setIndex);
-                                                            }}
-                                                            className={`h-9 w-9 rounded-full border flex items-center justify-center transition-all duration-200 touch-bounce ${
-                                                                setProgress[setIndex]
-                                                                    ? 'border-[#F88022] bg-[#F88022] text-white shadow-glow-orange'
-                                                                    : 'border-border bg-background text-transparent hover:border-[#F88022]'
-                                                            }`}
-                                                        >
-                                                            <Check className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
 
-                                                    <div className="mt-3 grid grid-cols-2 gap-3">
-                                                        <label className="space-y-1.5">
-                                                            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                                                Carga (kg)
-                                                            </span>
-                                                            <input
-                                                                type="number"
-                                                                inputMode="decimal"
-                                                                min="0"
-                                                                step="0.5"
-                                                                placeholder="Ex: 40"
-                                                                value={setLogs.loadKg[setIndex]}
-                                                                onChange={(event) =>
-                                                                    updateExerciseSetLog(
-                                                                        exercise.id,
-                                                                        repsBySet.length,
-                                                                        setIndex,
-                                                                        'loadKg',
-                                                                        event.target.value
-                                                                    )
-                                                                }
-                                                                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
-                                                            />
-                                                        </label>
-                                                        <label className="space-y-1.5">
-                                                            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                                                Reps realizadas
-                                                            </span>
-                                                            <input
-                                                                type="number"
-                                                                inputMode="numeric"
-                                                                min="0"
-                                                                step="1"
-                                                                placeholder="Ex: 12"
-                                                                value={setLogs.completedReps[setIndex]}
-                                                                onChange={(event) =>
-                                                                    updateExerciseSetLog(
-                                                                        exercise.id,
-                                                                        repsBySet.length,
-                                                                        setIndex,
-                                                                        'completedReps',
-                                                                        event.target.value
-                                                                    )
-                                                                }
-                                                                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
-                                                            />
-                                                        </label>
+                                                        <div className="mt-3 grid grid-cols-2 gap-3">
+                                                            <label className="space-y-1.5">
+                                                                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                                    Carga (kg)
+                                                                </span>
+                                                                <input
+                                                                    type="number"
+                                                                    inputMode="decimal"
+                                                                    min="0"
+                                                                    step="0.5"
+                                                                    // Nothing logged yet: suggest the load the personal prescribed for this set.
+                                                                    placeholder={setLoad !== null ? String(setLoad).replace('.', ',') : 'Ex: 40'}
+                                                                    value={setLogs.loadKg[setIndex]}
+                                                                    onChange={(event) =>
+                                                                        updateExerciseSetLog(
+                                                                            exercise.id,
+                                                                            repsBySet.length,
+                                                                            setIndex,
+                                                                            'loadKg',
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
+                                                                />
+                                                            </label>
+                                                            <label className="space-y-1.5">
+                                                                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                                    Reps realizadas
+                                                                </span>
+                                                                <input
+                                                                    type="number"
+                                                                    inputMode="numeric"
+                                                                    min="0"
+                                                                    step="1"
+                                                                    placeholder="Ex: 12"
+                                                                    value={setLogs.completedReps[setIndex]}
+                                                                    onChange={(event) =>
+                                                                        updateExerciseSetLog(
+                                                                            exercise.id,
+                                                                            repsBySet.length,
+                                                                            setIndex,
+                                                                            'completedReps',
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
+                                                                />
+                                                            </label>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
 
                                         {hasVideo && (

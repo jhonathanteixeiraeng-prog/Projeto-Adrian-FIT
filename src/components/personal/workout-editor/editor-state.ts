@@ -1,3 +1,4 @@
+import { formatLoadInput, normalizeLoadInput, normalizeRpeInput } from '@/lib/workout-load';
 import {
     formatRestInput,
     parsePerSetReps,
@@ -39,6 +40,10 @@ export interface EditorItem {
     reps: string;
     /** "60" or per set "60/60/90". */
     rest: string;
+    /** Prescribed load in kg as typed: "" (none), "20" or per set "20/22,5/25". */
+    load: string;
+    /** Prescribed RPE as typed: "" (none), "8", "8,5" or "7-8". */
+    rpe: string;
     notes: string;
 }
 
@@ -75,6 +80,10 @@ export interface ApiPlanItem {
     reps: string;
     rest: number;
     restBySet?: string | null;
+    /** Stored load: "20" or "20/22.5/25" (dot decimals). */
+    load?: string | null;
+    /** Stored RPE: "8", "8.5" or "7-8". */
+    rpe?: string | null;
     notes?: string | null;
     exercise?: ApiExerciseRef | null;
 }
@@ -126,6 +135,8 @@ export const WEEKDAY_OPTIONS = [
 export const DEFAULT_SETS = '3';
 export const DEFAULT_REPS = '10-12';
 export const DEFAULT_REST = '60';
+/** Limit of the student app. */
+export const MAX_SETS = 12;
 
 let keyCounter = 0;
 export function newKey(prefix: string) {
@@ -180,6 +191,8 @@ export function createItem(exercise: Pick<LibraryExercise, 'id' | 'name' | 'musc
         sets: DEFAULT_SETS,
         reps: DEFAULT_REPS,
         rest: DEFAULT_REST,
+        load: '',
+        rpe: '',
         notes: '',
         ...base,
     };
@@ -198,6 +211,11 @@ export function cloneDay(day: EditorDay, overrides: Partial<EditorDay> = {}): Ed
 // API → editor
 // ---------------------------------------------------------------------------
 
+/** Stored RPE shown in the input with pt-BR decimals: "8.5" → "8,5", "7-8" → "7-8". */
+export function formatRpeInput(stored: string | null | undefined): string {
+    return (stored ?? '').trim().replace(/\./g, ',');
+}
+
 export function apiItemToEditor(item: ApiPlanItem, keepIds: boolean): EditorItem {
     const restBySet = parseRestBySetJson(item.restBySet);
     return {
@@ -209,6 +227,9 @@ export function apiItemToEditor(item: ApiPlanItem, keepIds: boolean): EditorItem
         sets: String(item.sets ?? ''),
         reps: item.reps ?? '',
         rest: formatRestInput(item.rest ?? 0, restBySet),
+        // A stored value the helpers can't read is shown as is (validation flags it) instead of being dropped on save.
+        load: formatLoadInput(item.load) || (item.load ?? '').trim(),
+        rpe: formatRpeInput(item.rpe),
         notes: item.notes ?? '',
     };
 }
@@ -243,6 +264,17 @@ export function withActiveDay(state: EditorState): EditorState {
     return { ...state, days, activeDayKey };
 }
 
+/** Drafts stored before load/RPE existed have no such fields: fill them so the inputs stay controlled. */
+export function upgradeEditorState(state: EditorState): EditorState {
+    return {
+        ...state,
+        days: state.days.map((day) => ({
+            ...day,
+            items: day.items.map((item) => ({ ...item, load: item.load ?? '', rpe: item.rpe ?? '' })),
+        })),
+    };
+}
+
 // ---------------------------------------------------------------------------
 // Editor → API
 // ---------------------------------------------------------------------------
@@ -254,6 +286,10 @@ export interface ItemPayload {
     reps: string;
     rest: number;
     restBySet: string | null;
+    /** Normalized ("20", "20/22.5/25"); null clears it. */
+    load: string | null;
+    /** Normalized ("8", "8.5", "7-8"); null clears it. */
+    rpe: string | null;
     notes: string;
     order: number;
 }
@@ -274,6 +310,8 @@ export function daysToPayload(days: EditorDay[], includeIds: boolean): DayPayloa
         items: day.items.map((item, index) => {
             const sets = Number.parseInt(item.sets, 10);
             const rest = parseRestInput(item.rest, sets) ?? { rest: 0, restBySet: null };
+            const load = normalizeLoadInput(item.load, sets);
+            const rpe = normalizeRpeInput(item.rpe);
             return {
                 ...(includeIds ? { id: item.id } : {}),
                 exerciseId: item.exerciseId,
@@ -281,11 +319,26 @@ export function daysToPayload(days: EditorDay[], includeIds: boolean): DayPayloa
                 reps: item.reps.trim(),
                 rest: rest.rest,
                 restBySet: rest.restBySet ? JSON.stringify(rest.restBySet) : null,
+                // Invalid text never gets here (validation); if it did, the API answers with the message instead of clearing it.
+                load: load.ok ? load.value : item.load.trim(),
+                rpe: rpe.ok ? rpe.value : item.rpe.trim(),
                 notes: item.notes.trim(),
                 order: index,
             };
         }),
     }));
+}
+
+/**
+ * Load/RPE as they would be stored, so "22,5", "22.5" and "22,5 kg" are the same prescription
+ * (a plan loaded as "22,5" and a draft typed as "22.5" don't count as different). Text the
+ * helpers reject is compared as typed.
+ */
+function prescriptionKey(item: EditorItem): [string, string] {
+    const sets = Number.parseInt(item.sets, 10);
+    const load = normalizeLoadInput(item.load, sets);
+    const rpe = normalizeRpeInput(item.rpe);
+    return [load.ok ? (load.value ?? '') : item.load.trim(), rpe.ok ? (rpe.value ?? '') : item.rpe.trim()];
 }
 
 /** What counts as "unsaved changes" (keys, ids and the active day are UI details). */
@@ -299,7 +352,14 @@ export function serializeForDirty(state: EditorState): string {
         state.days.map((day) => [
             day.name.trim(),
             day.dayOfWeek,
-            day.items.map((item) => [item.exerciseId, item.sets.trim(), item.reps.trim(), item.rest.trim(), item.notes.trim()]),
+            day.items.map((item) => [
+                item.exerciseId,
+                item.sets.trim(),
+                item.reps.trim(),
+                item.rest.trim(),
+                ...prescriptionKey(item),
+                item.notes.trim(),
+            ]),
         ]),
     ]);
 }
@@ -308,7 +368,7 @@ export function serializeForDirty(state: EditorState): string {
 // Validation
 // ---------------------------------------------------------------------------
 
-export type ItemField = 'exercise' | 'sets' | 'reps' | 'rest' | 'notes';
+export type ItemField = 'exercise' | 'sets' | 'reps' | 'load' | 'rpe' | 'rest' | 'notes';
 
 export interface ValidationIssue {
     /** `plan:title`, `day:<key>:name`, `item:<key>:<field>` */
@@ -361,9 +421,10 @@ export function validateEditor(
                 push({ ...base, id: issueId.item(item.key, 'exercise'), field: 'exercise', message: `${where}: selecione o exercício` });
             }
             const sets = Number(item.sets.trim());
+            const setsValid = Boolean(item.sets.trim()) && Number.isInteger(sets) && sets >= 1 && sets <= MAX_SETS;
             if (!item.sets.trim()) {
                 push({ ...base, id: issueId.item(item.key, 'sets'), field: 'sets', message: `${where}: informe as séries` });
-            } else if (!Number.isInteger(sets) || sets < 1 || sets > 12) {
+            } else if (!setsValid) {
                 push({ ...base, id: issueId.item(item.key, 'sets'), field: 'sets', message: `${where}: Séries: use de 1 a 12 (limite do app do aluno)` });
             }
             const trimmedReps = item.reps.trim();
@@ -372,6 +433,15 @@ export function validateEditor(
                 push({ ...base, id: issueId.item(item.key, 'reps'), field: 'reps', message: `${where}: Informe as repetições` });
             } else if (trimmedReps.length > 60) {
                 push({ ...base, id: issueId.item(item.key, 'reps'), field: 'reps', message: `${where}: repetições com no máximo 60 caracteres` });
+            }
+            // Optional. Per-set loads are counted against the séries only once séries is valid (its own error comes first).
+            const load = normalizeLoadInput(item.load, setsValid ? sets : MAX_SETS);
+            if (!load.ok) {
+                push({ ...base, id: issueId.item(item.key, 'load'), field: 'load', message: `${where}: ${load.error}` });
+            }
+            const rpe = normalizeRpeInput(item.rpe);
+            if (!rpe.ok) {
+                push({ ...base, id: issueId.item(item.key, 'rpe'), field: 'rpe', message: `${where}: ${rpe.error}` });
             }
             if (!item.rest.trim()) {
                 push({ ...base, id: issueId.item(item.key, 'rest'), field: 'rest', message: `${where}: informe o descanso em segundos` });

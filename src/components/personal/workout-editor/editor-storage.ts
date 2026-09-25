@@ -1,4 +1,4 @@
-import type { EditorState } from './editor-state';
+import { upgradeEditorState, type EditorState } from './editor-state';
 
 /**
  * After creating a plan the editor navigates to the plan's edit URL; the new page picks the
@@ -45,7 +45,7 @@ export function readDraft(key: string): EditorDraft | null {
             window.localStorage.removeItem(DRAFT_PREFIX + key);
             return null;
         }
-        return draft;
+        return { ...draft, state: upgradeEditorState(draft.state) };
     } catch {
         return null;
     }

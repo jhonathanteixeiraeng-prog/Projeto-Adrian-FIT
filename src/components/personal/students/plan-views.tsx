@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { AlertTriangle, Clock, Dumbbell, Utensils } from 'lucide-react';
 import { normalizeDietFood, type NormalizedDietFood } from '@/lib/diet-normalizer';
 import { cn, getDayOfWeekName } from '@/lib/utils';
+import { formatLoad, formatRpe } from '@/lib/workout-load';
 import { parsePerSetReps } from '@/lib/workout-reps';
 import { formatDate, formatNumber, planEndInfo, toneText } from './lib';
 import type { DietPlanFull, WorkoutItem, WorkoutPlanFull } from './types';
@@ -20,6 +21,11 @@ function formatVolume(item: WorkoutItem): string {
     const perSet = parsePerSetReps(item.reps);
     if (perSet.length > 1) return `${item.sets} × (${perSet.join(' / ')})`;
     return `${item.sets} × ${item.reps || '—'}`;
+}
+
+/** Prescribed carga/RPE ("20 kg · RPE 8", "20/22,5/25 kg"); '' when the item has none. */
+function formatIntensity(item: WorkoutItem & { load?: string | null; rpe?: string | null }): string {
+    return [formatLoad(item.load), formatRpe(item.rpe)].filter(Boolean).join(' · ');
 }
 
 function PlanHeader({
@@ -97,30 +103,44 @@ export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; 
                                         <tr className="border-b border-border/70">
                                             <th scope="col" className="w-8 px-3 py-1.5 font-semibold">#</th>
                                             <th scope="col" className="px-2 py-1.5 font-semibold">Exercício</th>
-                                            <th scope="col" className="px-2 py-1.5 font-semibold">Séries × reps</th>
+                                            <th scope="col" className="px-2 py-1.5 font-semibold">Séries × reps · carga</th>
                                             <th scope="col" className="px-2 py-1.5 font-semibold">Descanso</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/50">
                                         {[...day.items]
                                             .sort((a, b) => a.order - b.order)
-                                            .map((item, index) => (
-                                                <tr key={item.id} className="align-top">
-                                                    <td className="px-3 py-1.5 text-xs text-muted-foreground">{index + 1}</td>
-                                                    <td className="px-2 py-1.5">
-                                                        <p className="font-medium text-foreground">{item.exercise?.name ?? 'Exercício removido'}</p>
-                                                        {(item.exercise?.muscleGroup || item.notes) && (
-                                                            <p className="text-xs text-muted-foreground">
-                                                                {item.exercise?.muscleGroup}
-                                                                {item.exercise?.muscleGroup && item.notes && ' · '}
-                                                                {item.notes && <span className="italic">{item.notes}</span>}
-                                                            </p>
-                                                        )}
-                                                    </td>
-                                                    <td className="whitespace-nowrap px-2 py-1.5 font-semibold text-foreground">{formatVolume(item)}</td>
-                                                    <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">{formatRest(item.rest)}</td>
-                                                </tr>
-                                            ))}
+                                            .map((item, index) => {
+                                                const intensity = formatIntensity(item);
+                                                return (
+                                                    <tr key={item.id} className="align-top">
+                                                        <td className="px-3 py-1.5 text-xs text-muted-foreground">{index + 1}</td>
+                                                        <td className="px-2 py-1.5">
+                                                            <p className="font-medium text-foreground">{item.exercise?.name ?? 'Exercício removido'}</p>
+                                                            {(item.exercise?.muscleGroup || item.notes) && (
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {item.exercise?.muscleGroup}
+                                                                    {item.exercise?.muscleGroup && item.notes && ' · '}
+                                                                    {item.notes && <span className="italic">{item.notes}</span>}
+                                                                </p>
+                                                            )}
+                                                        </td>
+                                                        {/* "3 × 10-12 · 20 kg · RPE 8": carga/RPE wrap to a second line when the column is narrow. */}
+                                                        <td className="px-2 py-1.5 text-foreground">
+                                                            <span className="whitespace-nowrap font-semibold">{formatVolume(item)}</span>
+                                                            {intensity && (
+                                                                <>
+                                                                    {' '}
+                                                                    <span className="whitespace-nowrap">
+                                                                        <span className="text-muted-foreground">·</span> {intensity}
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        </td>
+                                                        <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">{formatRest(item.rest)}</td>
+                                                    </tr>
+                                                );
+                                            })}
                                     </tbody>
                                 </table>
                             )}

@@ -16,6 +16,7 @@ import {
     Calendar
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
+import { formatLoad, formatRpe } from '@/lib/workout-load';
 
 function SkeletonHome() {
     return (
@@ -177,7 +178,14 @@ export default function StudentHomePage() {
                                                 {exercise.name}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                {exercise.sets}x{exercise.reps} • {exercise.rest}s descanso
+                                                {[
+                                                    `${exercise.sets}x${exercise.reps}`,
+                                                    formatLoad(exercise.load),
+                                                    formatRpe(exercise.rpe),
+                                                    `${exercise.rest}s descanso`,
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(' • ')}
                                             </p>
                                         </div>
                                     </div>

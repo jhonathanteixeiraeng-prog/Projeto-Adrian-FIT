@@ -96,6 +96,8 @@ export interface WorkoutItem {
     sets: number;
     reps: string;
     rest: number;
+    load?: string | null;
+    rpe?: string | null;
     notes?: string;
     order: number;
 }

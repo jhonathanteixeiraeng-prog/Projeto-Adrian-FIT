@@ -13,6 +13,7 @@ import {
     Play
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
+import { formatLoad, formatRpe } from '@/lib/workout-load';
 
 const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -144,8 +145,15 @@ export default function WeeklyWorkoutPage() {
                                             <div key={exercise.id} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
                                                 <div className="flex-1">
                                                     <p className="text-sm font-medium">{exercise.name}</p>
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        {exercise.sets}x{exercise.reps} • {exercise.rest}s desc.
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {[
+                                                            `${exercise.sets}x${exercise.reps}`,
+                                                            formatLoad(exercise.load),
+                                                            formatRpe(exercise.rpe),
+                                                            `${exercise.rest}s desc.`,
+                                                        ]
+                                                            .filter(Boolean)
+                                                            .join(' • ')}
                                                     </p>
                                                 </div>
                                                 {exercise.videoUrl && <Play className="w-4 h-4 text-secondary/60" />}

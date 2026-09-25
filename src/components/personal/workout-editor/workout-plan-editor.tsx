@@ -84,7 +84,8 @@ type UndoEntry =
 
 type DragPayload = { kind: 'item'; itemKey: string } | { kind: 'exercises'; exercises: LibraryExercise[] };
 
-const ROW_FIELDS: ItemField[] = ['sets', 'reps', 'rest', 'notes'];
+/** Enter order inside a row: same as Tab and as the columns. */
+const ROW_FIELDS: ItemField[] = ['sets', 'reps', 'load', 'rpe', 'rest', 'notes'];
 const RECENTS_KEY = 'personal:recent-exercises';
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -1177,7 +1178,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                         <div
                             aria-hidden
                             className={cn(
-                                'sticky top-0 z-10 hidden gap-x-2 border-b border-border/60 bg-background/95 px-[13px] py-1 text-xs font-medium text-muted-foreground backdrop-blur md:grid',
+                                'sticky top-0 z-10 hidden gap-x-1.5 border-b border-border/60 bg-background/95 px-[13px] py-1 text-xs font-medium text-muted-foreground backdrop-blur md:grid',
                                 ROW_GRID_MD
                             )}
                         >
@@ -1186,7 +1187,9 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                             <span className="pl-1">Exercício</span>
                             <span className="text-center">Séries</span>
                             <span className="pl-2">Reps</span>
-                            <span className="pl-2">Desc. (s)</span>
+                            <span className="truncate pl-2">Carga (kg)</span>
+                            <span className="text-center">RPE</span>
+                            <span className="whitespace-nowrap pl-2">Desc. (s)</span>
                             <span className="pl-2">Observações</span>
                             <span />
                         </div>
