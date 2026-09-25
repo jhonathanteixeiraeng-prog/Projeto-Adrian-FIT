@@ -458,6 +458,11 @@ export default function DietPage() {
                                     <p className="text-sm text-muted-foreground">
                                         {meal.time} • {meal.calories} kcal
                                     </p>
+                                    {meal.notes && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {meal.notes}
+                                        </p>
+                                    )}
                                 </div>
                                 {expandedMeal === meal.id ? (
                                     <ChevronUp className="w-5 h-5 text-muted-foreground" />
@@ -473,9 +478,9 @@ export default function DietPage() {
                                         {meal.foods.map((food: any, index: number) => (
                                             <div
                                                 key={index}
-                                                className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg group"
+                                                className="flex items-start justify-between py-2 px-3 bg-muted/50 rounded-lg group gap-2"
                                             >
-                                                <div>
+                                                <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2">
                                                         <p className="font-medium text-foreground text-sm">{food.name}</p>
                                                         {food.isSubstitution && (
@@ -483,8 +488,24 @@ export default function DietPage() {
                                                         )}
                                                     </div>
                                                     <p className="text-xs text-muted-foreground">{food.quantityDisplay}</p>
+                                                    {food.notes && (
+                                                        <p className="text-xs text-muted-foreground italic mt-0.5">
+                                                            {food.notes}
+                                                        </p>
+                                                    )}
+                                                    {food.substitutionNote && (
+                                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                                            {food.substitutionNote.toLowerCase().startsWith('pode trocar por') ? (
+                                                                food.substitutionNote
+                                                            ) : (
+                                                                <>
+                                                                    <span className="font-medium text-foreground/80">Pode trocar por:</span> {food.substitutionNote}
+                                                                </>
+                                                            )}
+                                                        </p>
+                                                    )}
                                                 </div>
-                                                <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-3 flex-shrink-0 pt-0.5">
                                                     <span className="text-sm text-muted-foreground">{Math.round(food.totalCalories || 0)} kcal</span>
                                                     {!meal.completed && (
                                                         <Button
