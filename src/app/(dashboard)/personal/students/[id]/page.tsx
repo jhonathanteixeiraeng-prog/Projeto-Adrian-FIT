@@ -24,7 +24,7 @@ import {
     FileText,
     Sparkles
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge, Avatar, Button, Input } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge, Avatar, Button, Input, useToast } from '@/components/ui';
 
 interface Student {
     id: string;
@@ -104,6 +104,7 @@ interface Student {
 
 export default function StudentDetailPage() {
     const params = useParams();
+    const { toast } = useToast();
     const [student, setStudent] = useState<Student | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -149,7 +150,7 @@ export default function StudentDetailPage() {
 
     const handleCloneFromStudent = async () => {
         if (!selectedSourceStudentId) {
-            alert('Selecione um aluno de origem');
+            toast.warning('Selecione um aluno de origem');
             return;
         }
         try {
@@ -164,14 +165,14 @@ export default function StudentDetailPage() {
             });
             const data = await res.json();
             if (data.success) {
-                alert(data.message || 'Ficha clonada com sucesso!');
+                toast.success('Ficha clonada com sucesso!', data.message);
                 setShowCloneStudentModal(false);
                 fetchStudent();
             } else {
-                alert(data.error || 'Erro ao clonar ficha');
+                toast.error(data.error || 'Erro ao clonar ficha');
             }
         } catch {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setCloningFromStudent(false);
         }
@@ -296,7 +297,7 @@ export default function StudentDetailPage() {
 
     const handleAssignFromLibrary = async () => {
         if (!selectedTemplateId || !cloneTitle || !cloneStartDate || !cloneEndDate) {
-            alert('Por favor, preencha todos os campos');
+            toast.warning('Por favor, preencha todos os campos obrigatórios');
             return;
         }
 
@@ -316,14 +317,14 @@ export default function StudentDetailPage() {
             const result = await response.json();
 
             if (result.success) {
-                alert('Plano atribuído com sucesso!');
+                toast.success('Plano de treino atribuído com sucesso!');
                 setShowLibraryModal(false);
                 fetchStudent(); // Refresh data
             } else {
-                alert(result.error || 'Erro ao atribuir plano');
+                toast.error(result.error || 'Erro ao atribuir plano');
             }
         } catch (err) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setCloning(false);
         }
@@ -331,7 +332,7 @@ export default function StudentDetailPage() {
 
     const handleAssignDietFromLibrary = async () => {
         if (!selectedDietTemplateId || !cloneDietTitle || !cloneStartDate || !cloneEndDate) {
-            alert('Por favor, preencha todos os campos');
+            toast.warning('Por favor, preencha todos os campos obrigatórios');
             return;
         }
 
@@ -342,39 +343,22 @@ export default function StudentDetailPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     templateId: selectedDietTemplateId,
-                    studentId: params.id, // Using existing params.id
-                    startDate: cloneStartDate, // Using existing state
-                    endDate: cloneEndDate, // Using existing state
+                    studentId: params.id,
+                    startDate: cloneStartDate,
+                    endDate: cloneEndDate,
                 }),
             });
 
-            // The clone route doesn't accept "title" in current implementation?
-            // Let's check api/diet-plans/from-template/route.ts
-            // It takes: templateId, studentId, startDate, endDate.
-            // It uses template.title as dietPlan.title.
-            // If I want to override title, I should update the API or just rely on template title.
-            // For now, I'll ignore cloneDietTitle in the payload if the API doesn't support it, 
-            // OR I update the API. 
-            // Creating a new endpoint is safer.
-            // Actually, I'll modify the API call if needed.
-
-            // Wait, I strictly implemented `api/diet-plans/from-template/route.ts` in step 834.
-            // It DOES NOT take title. It uses `template.title`.
-            // So `cloneDietTitle` is useless unless I update the API.
-            // I will update the API later if needed, but for now I'll just send what is required or update the API.
-            // Actually, providing a title is good UX.
-
             if (response.ok) {
-                alert('Dieta atribuída com sucesso!');
+                toast.success('Plano alimentar atribuído com sucesso!');
                 setShowDietLibraryModal(false);
                 fetchStudent();
             } else {
                 const result = await response.json();
-                alert(result.error || 'Erro ao atribuir dieta');
+                toast.error(result.error || 'Erro ao atribuir dieta');
             }
-
         } catch (err) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setCloning(false);
         }

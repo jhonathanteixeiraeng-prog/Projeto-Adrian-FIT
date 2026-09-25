@@ -24,7 +24,7 @@ import {
     Edit3,
     Sparkles,
 } from 'lucide-react';
-import { Card, CardContent, Badge, Avatar, Button, Input } from '@/components/ui';
+import { Card, CardContent, Badge, Avatar, Button, Input, useToast } from '@/components/ui';
 
 interface StudentData {
     id: string;
@@ -67,6 +67,7 @@ interface StudentData {
 type FunnelTab = 'ALL' | 'ACTIVE_GOOD' | 'CHURN_RISK' | 'PAYMENT_ALERT' | 'INACTIVE';
 
 export default function StudentsPage() {
+    const { toast } = useToast();
     const [students, setStudents] = useState<StudentData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -118,11 +119,12 @@ export default function StudentsPage() {
             if (result.success) {
                 setStudents(students.filter(s => s.id !== studentId));
                 setDeleteConfirm(null);
+                toast.success('Aluno removido com sucesso!');
             } else {
-                alert(result.error || 'Erro ao excluir aluno');
+                toast.error(result.error || 'Erro ao excluir aluno');
             }
         } catch (err) {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setDeleting(false);
         }
@@ -158,12 +160,13 @@ export default function StudentsPage() {
                 setStudents(prev =>
                     prev.map(s => s.id === editingContractStudent.id ? { ...s, ...data.data } : s)
                 );
+                toast.success('Plano atualizado com sucesso!', `${editingContractStudent.user?.name || 'Aluno'} atualizado.`);
                 setEditingContractStudent(null);
             } else {
-                alert(data.error || 'Erro ao salvar dados do contrato');
+                toast.error(data.error || 'Erro ao salvar dados do contrato');
             }
         } catch {
-            alert('Erro ao conectar com o servidor');
+            toast.error('Erro ao conectar com o servidor');
         } finally {
             setSavingContract(false);
         }

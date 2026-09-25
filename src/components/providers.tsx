@@ -66,11 +66,15 @@ function ThemeProvider({ children }: { children: ReactNode }) {
     );
 }
 
+import { ToastProvider } from '@/components/ui/toast';
+
 export function Providers({ children }: ProvidersProps) {
     return (
         <SessionProvider>
             <ThemeProvider>
-                {children}
+                <ToastProvider>
+                    {children}
+                </ToastProvider>
             </ThemeProvider>
         </SessionProvider>
     );
