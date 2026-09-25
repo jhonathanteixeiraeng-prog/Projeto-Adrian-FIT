@@ -98,6 +98,8 @@ export interface WorkoutItem {
     rest: number;
     load?: string | null;
     rpe?: string | null;
+    /** Superset: consecutive items of the day sharing an id (bi-set, tri-set, circuito). */
+    groupId?: string | null;
     notes?: string;
     order: number;
 }

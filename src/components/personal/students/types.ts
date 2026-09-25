@@ -103,6 +103,8 @@ export interface WorkoutItem {
     load?: string | null;
     /** Prescribed RPE (1-10): "8" or "7-8". */
     rpe?: string | null;
+    /** Superset: consecutive items of the day sharing an id (bi-set, tri-set, circuito). */
+    groupId?: string | null;
     notes?: string | null;
     order: number;
     exercise?: {

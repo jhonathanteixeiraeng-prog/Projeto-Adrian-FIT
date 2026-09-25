@@ -16,7 +16,10 @@ import {
     ExternalLink
 } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
+import { groupChipLabel, groupPositionLabel, groupRestHint, groupRuns, groupTone } from '@/components/personal/workout-editor/group-ui';
+import { cn } from '@/lib/utils';
 import { getEmbedVideoUrl, isDirectVideoFile } from '@/lib/video';
+import { describeGroups, sessionSequence } from '@/lib/workout-groups';
 import { formatLoad, formatRpe, loadForSet } from '@/lib/workout-load';
 import { normalizePerSetReps, parsePerSetReps } from '@/lib/workout-reps';
 
@@ -122,6 +125,14 @@ function normalizeSetLog(log: ExerciseSetLog | undefined, totalSets: number): Ex
     };
 }
 
+const setsOf = (exercise: any) => Math.max(0, Number(exercise?.sets) || 0);
+
+/** Rest after a set: the per-set value when the personal prescribed one ("60/90/120"), else the exercise's rest. */
+function restAfterSet(exercise: any, setIndex: number) {
+    const perSet = Array.isArray(exercise?.restBySet) ? Number(exercise.restBySet[setIndex]) : NaN;
+    return Math.max(0, Number.isFinite(perSet) ? perSet : Number(exercise?.rest) || 0);
+}
+
 // Mock data
 const mockWorkout = {
     id: '1',
@@ -193,6 +204,9 @@ export default function WorkoutPage() {
     const [completedSetsByExercise, setCompletedSetsByExercise] = useState<Record<string, boolean[]>>({});
     const [setLogsByExercise, setSetLogsByExercise] = useState<Record<string, ExerciseSetLog>>({});
     const [hydratedProgress, setHydratedProgress] = useState<PersistedWorkoutProgress | null>(null);
+    /** Next set in the session order (highlighted); in a superset it is the next exercise of the round. */
+    const [upNext, setUpNext] = useState<{ exerciseId: string; setIndex: number } | null>(null);
+    const scrollToUpNextRef = useRef(false);
     const restIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
@@ -296,6 +310,18 @@ export default function WorkoutPage() {
         };
     }, []);
 
+    // After a superset step opens the next exercise's card, bring its set into view.
+    useEffect(() => {
+        if (!scrollToUpNextRef.current || !upNext) return;
+        scrollToUpNextRef.current = false;
+        const id = window.requestAnimationFrame(() => {
+            document
+                .querySelector(`[data-set-row="${upNext.exerciseId}:${upNext.setIndex}"]`)
+                ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        });
+        return () => window.cancelAnimationFrame(id);
+    }, [upNext, selectedExercise]);
+
     if (loading) {
         return (
             <div className="space-y-6 pb-4">
@@ -358,35 +384,80 @@ export default function WorkoutPage() {
         });
     };
 
+    // Supersets (bi-set, tri-set, circuito): consecutive exercises done in rounds, A1 → A2 → rest → A1 → A2…
+    const groupInfos = describeGroups(exercises.map((exercise: any) => ({ groupId: exercise.groupId, sets: setsOf(exercise) })));
+
+    /** Indexes of the exercises of the group at `index` (just `index` when it isn't grouped). */
+    const groupMembers = (index: number) => {
+        const group = groupInfos[index];
+        if (!group) return [index];
+        const start = index - (group.position - 1);
+        return Array.from({ length: group.size }, (_, offset) => start + offset);
+    };
+
+    /** Rest after each round of a group: its last exercise's. */
+    const roundRest = (index: number, setIndex = 0) => {
+        const members = groupMembers(index);
+        return restAfterSet(exercises[members[members.length - 1]], setIndex);
+    };
+
+    /**
+     * Guided flow in the order of `sessionSequence`: an ungrouped exercise rests after every set; in a group
+     * the next exercise of the round comes up right away (its card opens on the same set) and the rest — the
+     * last exercise's — starts once every exercise of the round is done.
+     */
+    const followSequence = (exercise: any, setIndex: number, updatedSets: boolean[]) => {
+        const itemIndex = exercises.findIndex((item: any) => item.id === exercise.id);
+        if (itemIndex < 0) return;
+        const isDone = (index: number, set: number) =>
+            index === itemIndex ? Boolean(updatedSets[set]) : Boolean(getSetsProgress(exercises[index], setsOf(exercises[index]))[set]);
+
+        const group = groupInfos[itemIndex];
+        const round = groupMembers(itemIndex).filter((index) => setIndex < setsOf(exercises[index]));
+        if (!group || round.every((index) => isDone(index, setIndex))) {
+            const restSeconds = restAfterSet(exercises[round[round.length - 1] ?? itemIndex], setIndex);
+            if (restSeconds > 0) startRest(restSeconds);
+        }
+
+        const sequence = sessionSequence(exercises.map((item: any) => ({ groupId: item.groupId, sets: setsOf(item) })));
+        const position = sequence.findIndex((step) => step.itemIndex === itemIndex && step.setIndex === setIndex);
+        const next = [...sequence.slice(position + 1), ...sequence.slice(0, Math.max(0, position))].find(
+            (step) => !isDone(step.itemIndex, step.setIndex)
+        );
+        if (!next) {
+            setUpNext(null);
+            return;
+        }
+        const nextExercise = exercises[next.itemIndex];
+        setUpNext({ exerciseId: nextExercise.id, setIndex: next.setIndex });
+        // Inside a group the next exercise of the round (or the first one, for the next round) opens by itself.
+        if (group && next.itemIndex !== itemIndex && groupInfos[next.itemIndex]?.groupId === group.groupId) {
+            setSelectedExercise(nextExercise.id);
+            scrollToUpNextRef.current = true;
+        }
+    };
+
     const toggleExerciseSet = (exercise: any, setIndex: number) => {
-        const totalSets = Math.max(0, Number(exercise?.sets) || 0);
+        const totalSets = setsOf(exercise);
         if (totalSets <= 0) return;
 
-        setCompletedSetsByExercise((previous) => {
-            const current = getSetsProgress(exercise, totalSets);
-            const wasCompleted = current[setIndex];
-            current[setIndex] = !current[setIndex];
-            const allSetsDone = current.length > 0 && current.every(Boolean);
+        const current = getSetsProgress(exercise, totalSets);
+        const marking = !current[setIndex];
+        current[setIndex] = marking;
+        const allSetsDone = current.length > 0 && current.every(Boolean);
 
-            if (!wasCompleted && current[setIndex]) {
-                const restSeconds = Math.max(0, Number(exercise?.rest) || 0);
-                if (restSeconds > 0) {
-                    startRest(restSeconds);
-                }
-            }
+        setCompletedSetsByExercise((previous) => ({
+            ...previous,
+            [exercise.id]: current,
+        }));
+        setWorkout((previousWorkout: any) => ({
+            ...previousWorkout,
+            exercises: previousWorkout.exercises.map((item: any) =>
+                item.id === exercise.id ? { ...item, completed: allSetsDone } : item
+            )
+        }));
 
-            setWorkout((previousWorkout: any) => ({
-                ...previousWorkout,
-                exercises: previousWorkout.exercises.map((item: any) =>
-                    item.id === exercise.id ? { ...item, completed: allSetsDone } : item
-                )
-            }));
-
-            return {
-                ...previous,
-                [exercise.id]: current,
-            };
-        });
+        if (marking) followSequence(exercise, setIndex, current);
     };
 
     const toggleExercise = (exerciseId: string) => {
@@ -482,6 +553,333 @@ export default function WorkoutPage() {
         );
     }
 
+    const renderExercise = (exercise: any, index: number) => {
+        const repsBySet = getRepsBySet(exercise);
+        const setProgress = getSetsProgress(exercise, repsBySet.length);
+        const completedSetsCount = setProgress.filter(Boolean).length;
+        const setLogs = normalizeSetLog(setLogsByExercise[exercise.id], repsBySet.length);
+        // Prescribed by the personal: "20 kg" or per set "20/22,5/25 kg", "RPE 8".
+        const prescribedLoad = formatLoad(exercise.load);
+        const prescribedRpe = formatRpe(exercise.rpe);
+        const rawVideoUrl = typeof exercise.videoUrl === 'string' ? exercise.videoUrl.trim() : '';
+        const embedVideoUrl = rawVideoUrl ? getEmbedVideoUrl(rawVideoUrl) : null;
+        const isDirectVideo = rawVideoUrl ? isDirectVideoFile(rawVideoUrl) : false;
+        const hasVideo = Boolean(rawVideoUrl);
+        // Superset: A1, A2… No rest between the exercises of a round; the last one's rest comes after it.
+        const group = groupInfos[index];
+        const tone = group ? groupTone(group) : null;
+        const nextInRound = group && !group.isLast ? groupPositionLabel({ letter: group.letter, position: group.position + 1 }) : null;
+
+        return (
+            <Card
+                key={exercise.id}
+                className={`touch-bounce transition-all duration-200 ${exercise.completed ? 'bg-[#F88022]/5 border-[#F88022]/20' : ''}`}
+            >
+                <CardContent className="p-4">
+                    <div
+                        className="flex items-start gap-4 cursor-pointer"
+                        onClick={() => setSelectedExercise(
+                            selectedExercise === exercise.id ? null : exercise.id
+                        )}
+                    >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${exercise.completed
+                            ? 'bg-[#F88022] text-white shadow-glow-orange'
+                            : tone ? tone.pill : 'bg-muted text-foreground'
+                            }`}>
+                            {exercise.completed ? (
+                                <CheckCircle2 className="w-6 h-6 check-pop" />
+                            ) : (
+                                <span className={group ? 'text-sm font-bold' : 'font-bold'}>{group ? groupPositionLabel(group) : index + 1}</span>
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className={`font-semibold ${exercise.completed ? 'text-secondary' : 'text-foreground'}`}>
+                                {exercise.name}
+                            </h3>
+                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-muted-foreground">
+                                <span>{exercise.sets} séries</span>
+                                <span aria-hidden>•</span>
+                                <span>Meta: {exercise.reps}</span>
+                                {prescribedLoad && (
+                                    <>
+                                        <span aria-hidden>•</span>
+                                        <span className="font-medium text-foreground">{prescribedLoad}</span>
+                                    </>
+                                )}
+                                {prescribedRpe && (
+                                    <>
+                                        <span aria-hidden>•</span>
+                                        <span className="font-medium text-foreground">{prescribedRpe}</span>
+                                    </>
+                                )}
+                                <span aria-hidden>•</span>
+                                {nextInRound ? (
+                                    <span className="inline-flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        sem descanso, siga para {nextInRound}
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        {exercise.rest}s{group ? ' após a volta' : ''}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="mt-2">
+                                <Badge variant="outline" className="text-[11px]">
+                                    {completedSetsCount}/{repsBySet.length} séries concluídas
+                                </Badge>
+                            </div>
+                        </div>
+                        <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform ${selectedExercise === exercise.id ? 'rotate-90' : ''
+                            }`} />
+                    </div>
+
+                    {/* Expanded Details */}
+                    {selectedExercise === exercise.id && (
+                        <div className="mt-4 pt-4 border-t border-border animate-in">
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-sm font-medium text-foreground">Plano de séries</p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Preencha carga e repetições realizadas em cada série.
+                                    </p>
+                                    {prescribedRpe && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            <span className="font-medium text-foreground">{prescribedRpe}</span>: esforço de 1 a 10, em que 10 é ir até a falha.
+                                        </p>
+                                    )}
+                                </div>
+                                <span
+                                    className="text-xs text-muted-foreground inline-flex items-center gap-1"
+                                    title={group ? groupRestHint(group) : undefined}
+                                >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    {nextInRound
+                                        ? `Sem descanso: siga para ${nextInRound}`
+                                        : group
+                                          ? `Descanso após a volta: ${exercise.rest}s`
+                                          : `Descanso: ${exercise.rest}s`}
+                                </span>
+                            </div>
+                            <div className="mb-4 space-y-3">
+                                {repsBySet.map((targetReps, setIndex) => {
+                                    const setLoad = loadForSet(exercise.load, setIndex);
+                                    const isUpNext =
+                                        !setProgress[setIndex] && upNext?.exerciseId === exercise.id && upNext?.setIndex === setIndex;
+                                    return (
+                                        <div
+                                            key={`${exercise.id}-set-${setIndex}`}
+                                            data-set-row={`${exercise.id}:${setIndex}`}
+                                            className={cn(
+                                                'rounded-2xl border px-3 py-3 transition-colors',
+                                                setProgress[setIndex]
+                                                    ? 'border-[#F88022]/40 bg-[#F88022]/8'
+                                                    : isUpNext
+                                                      ? 'border-[#F88022] bg-[#F88022]/5 ring-2 ring-[#F88022]/25'
+                                                      : 'border-border/80 bg-white/[0.03]'
+                                            )}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                                        Série {setIndex + 1}
+                                                        {isUpNext && (
+                                                            <span className="rounded-full bg-[#F88022] px-2 py-0.5 text-xs font-semibold text-white">
+                                                                Agora
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Meta: {targetReps}
+                                                        {setLoad !== null && ` · ${formatLoad(String(setLoad))}`}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    aria-label={`Marcar série ${setIndex + 1} como concluída`}
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        toggleExerciseSet(exercise, setIndex);
+                                                    }}
+                                                    className={`h-9 w-9 rounded-full border flex items-center justify-center transition-all duration-200 touch-bounce ${
+                                                        setProgress[setIndex]
+                                                            ? 'border-[#F88022] bg-[#F88022] text-white shadow-glow-orange'
+                                                            : 'border-border bg-background text-transparent hover:border-[#F88022]'
+                                                    }`}
+                                                >
+                                                    <Check className="w-4 h-4" />
+                                                </button>
+                                            </div>
+
+                                            <div className="mt-3 grid grid-cols-2 gap-3">
+                                                <label className="space-y-1.5">
+                                                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                        Carga (kg)
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        inputMode="decimal"
+                                                        min="0"
+                                                        step="0.5"
+                                                        // Nothing logged yet: suggest the load the personal prescribed for this set.
+                                                        placeholder={setLoad !== null ? String(setLoad).replace('.', ',') : 'Ex: 40'}
+                                                        value={setLogs.loadKg[setIndex]}
+                                                        onChange={(event) =>
+                                                            updateExerciseSetLog(
+                                                                exercise.id,
+                                                                repsBySet.length,
+                                                                setIndex,
+                                                                'loadKg',
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
+                                                    />
+                                                </label>
+                                                <label className="space-y-1.5">
+                                                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                        Reps realizadas
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        inputMode="numeric"
+                                                        min="0"
+                                                        step="1"
+                                                        placeholder="Ex: 12"
+                                                        value={setLogs.completedReps[setIndex]}
+                                                        onChange={(event) =>
+                                                            updateExerciseSetLog(
+                                                                exercise.id,
+                                                                repsBySet.length,
+                                                                setIndex,
+                                                                'completedReps',
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {hasVideo && (
+                                <div className="aspect-video bg-muted rounded-xl mb-4 overflow-hidden border border-border">
+                                    {embedVideoUrl ? (
+                                        <iframe
+                                            src={embedVideoUrl}
+                                            title={`Video de ${exercise.name}`}
+                                            className="w-full h-full"
+                                            loading="lazy"
+                                            referrerPolicy="strict-origin-when-cross-origin"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowFullScreen
+                                        />
+                                    ) : isDirectVideo ? (
+                                        <video controls className="w-full h-full" preload="metadata">
+                                            <source src={rawVideoUrl} />
+                                            Seu navegador nao suporta reproducao de video.
+                                        </video>
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 text-center">
+                                            <Play className="w-8 h-8 text-muted-foreground" />
+                                            <a
+                                                href={rawVideoUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 text-sm text-secondary hover:underline"
+                                            >
+                                                <ExternalLink className="w-4 h-4" />
+                                                Abrir vídeo
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Instructions */}
+                            {(exercise.instructions || exercise.notes) && (
+                                <div className="mb-4 space-y-3">
+                                    {exercise.instructions && (
+                                        <div>
+                                            <p className="text-sm font-medium text-foreground mb-1">Instruções:</p>
+                                            <p className="text-sm text-muted-foreground">{exercise.instructions}</p>
+                                        </div>
+                                    )}
+                                    {exercise.notes && (
+                                        <div className="bg-muted p-3 rounded-lg border border-border">
+                                            <p className="text-sm font-medium text-foreground mb-1 flex items-center gap-2">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[#F88022]" />
+                                                Observações do Personal:
+                                            </p>
+                                            <p className="text-sm text-foreground/80 italic">{exercise.notes}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-1">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 h-12"
+                                    // In a group this is the rest after the round (the last exercise's).
+                                    onClick={() => startRest(group ? roundRest(index) : exercise.rest)}
+                                >
+                                    <Clock className="w-4 h-4" />
+                                    Descanso
+                                </Button>
+                                <Button
+                                    variant={exercise.completed ? 'outline' : 'secondary'}
+                                    className="flex-1 h-12"
+                                    onClick={() => toggleExercise(exercise.id)}
+                                >
+                                    {exercise.completed ? (
+                                        <>
+                                            <RotateCcw className="w-4 h-4" />
+                                            Refazer
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            Concluir
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        );
+    };
+
+    /** Ungrouped exercises one by one; the exercises of a group together, with how to do the rounds. */
+    const renderExerciseList = () =>
+        groupRuns(groupInfos).map((run) => {
+            const group = run.group;
+            if (!group) return renderExercise(exercises[run.indexes[0]], run.indexes[0]);
+            const tone = groupTone(group);
+            const rest = roundRest(run.indexes[0]);
+            const order = run.indexes.map((index) => groupPositionLabel(groupInfos[index] ?? group)).join(' → ');
+            return (
+                <section key={group.groupId} aria-label={groupChipLabel(group)} className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1">
+                        <span className={cn('rounded-full border px-2 py-0.5 text-xs font-semibold', tone.chip)}>{groupChipLabel(group)}</span>
+                        <span className="text-xs text-muted-foreground">
+                            {order} em sequência{rest > 0 ? ` · descanso de ${rest}s após a volta` : ''}
+                        </span>
+                    </div>
+                    <div className={cn('space-y-3 border-l-2 pl-3', tone.border)}>
+                        {run.indexes.map((index) => renderExercise(exercises[index], index))}
+                    </div>
+                </section>
+            );
+        });
+
     return (
         <div className="space-y-5 animate-in pb-4">
             {/* Header */}
@@ -538,279 +936,7 @@ export default function WorkoutPage() {
 
             {/* Exercises List */}
             <div className="space-y-3 stagger-in">
-                {exercises.map((exercise: any, index: number) => {
-                    const repsBySet = getRepsBySet(exercise);
-                    const setProgress = getSetsProgress(exercise, repsBySet.length);
-                    const completedSetsCount = setProgress.filter(Boolean).length;
-                    const setLogs = normalizeSetLog(setLogsByExercise[exercise.id], repsBySet.length);
-                    // Prescribed by the personal: "20 kg" or per set "20/22,5/25 kg", "RPE 8".
-                    const prescribedLoad = formatLoad(exercise.load);
-                    const prescribedRpe = formatRpe(exercise.rpe);
-                    const rawVideoUrl = typeof exercise.videoUrl === 'string' ? exercise.videoUrl.trim() : '';
-                    const embedVideoUrl = rawVideoUrl ? getEmbedVideoUrl(rawVideoUrl) : null;
-                    const isDirectVideo = rawVideoUrl ? isDirectVideoFile(rawVideoUrl) : false;
-                    const hasVideo = Boolean(rawVideoUrl);
-
-                    return (
-                        <Card
-                            key={exercise.id}
-                            className={`touch-bounce transition-all duration-200 ${exercise.completed ? 'bg-[#F88022]/5 border-[#F88022]/20' : ''}`}
-                        >
-                            <CardContent className="p-4">
-                                <div
-                                    className="flex items-start gap-4 cursor-pointer"
-                                    onClick={() => setSelectedExercise(
-                                        selectedExercise === exercise.id ? null : exercise.id
-                                    )}
-                                >
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${exercise.completed
-                                        ? 'bg-[#F88022] text-white shadow-glow-orange'
-                                        : 'bg-muted text-foreground'
-                                        }`}>
-                                        {exercise.completed ? (
-                                            <CheckCircle2 className="w-6 h-6 check-pop" />
-                                        ) : (
-                                            <span className="font-bold">{index + 1}</span>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className={`font-semibold ${exercise.completed ? 'text-secondary' : 'text-foreground'}`}>
-                                            {exercise.name}
-                                        </h3>
-                                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-muted-foreground">
-                                            <span>{exercise.sets} séries</span>
-                                            <span aria-hidden>•</span>
-                                            <span>Meta: {exercise.reps}</span>
-                                            {prescribedLoad && (
-                                                <>
-                                                    <span aria-hidden>•</span>
-                                                    <span className="font-medium text-foreground">{prescribedLoad}</span>
-                                                </>
-                                            )}
-                                            {prescribedRpe && (
-                                                <>
-                                                    <span aria-hidden>•</span>
-                                                    <span className="font-medium text-foreground">{prescribedRpe}</span>
-                                                </>
-                                            )}
-                                            <span aria-hidden>•</span>
-                                            <span className="inline-flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                {exercise.rest}s
-                                            </span>
-                                        </div>
-                                        <div className="mt-2">
-                                            <Badge variant="outline" className="text-[11px]">
-                                                {completedSetsCount}/{repsBySet.length} séries concluídas
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className={`w-5 h-5 text-muted-foreground transition-transform ${selectedExercise === exercise.id ? 'rotate-90' : ''
-                                        }`} />
-                                </div>
-
-                                {/* Expanded Details */}
-                                {selectedExercise === exercise.id && (
-                                    <div className="mt-4 pt-4 border-t border-border animate-in">
-                                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                            <div>
-                                                <p className="text-sm font-medium text-foreground">Plano de séries</p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Preencha carga e repetições realizadas em cada série.
-                                                </p>
-                                                {prescribedRpe && (
-                                                    <p className="text-xs text-muted-foreground mt-1">
-                                                        <span className="font-medium text-foreground">{prescribedRpe}</span>: esforço de 1 a 10, em que 10 é ir até a falha.
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                                                <Clock className="w-3.5 h-3.5" />
-                                                Descanso: {exercise.rest}s
-                                            </span>
-                                        </div>
-                                        <div className="mb-4 space-y-3">
-                                            {repsBySet.map((targetReps, setIndex) => {
-                                                const setLoad = loadForSet(exercise.load, setIndex);
-                                                return (
-                                                    <div
-                                                        key={`${exercise.id}-set-${setIndex}`}
-                                                        className={`rounded-2xl border px-3 py-3 transition-colors ${
-                                                            setProgress[setIndex]
-                                                                ? 'border-[#F88022]/40 bg-[#F88022]/8'
-                                                                : 'border-border/80 bg-white/[0.03]'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div>
-                                                                <p className="text-sm font-semibold text-foreground">
-                                                                    Série {setIndex + 1}
-                                                                </p>
-                                                                <p className="text-xs text-muted-foreground mt-1">
-                                                                    Meta: {targetReps}
-                                                                    {setLoad !== null && ` · ${formatLoad(String(setLoad))}`}
-                                                                </p>
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                aria-label={`Marcar série ${setIndex + 1} como concluída`}
-                                                                onClick={(event) => {
-                                                                    event.stopPropagation();
-                                                                    toggleExerciseSet(exercise, setIndex);
-                                                                }}
-                                                                className={`h-9 w-9 rounded-full border flex items-center justify-center transition-all duration-200 touch-bounce ${
-                                                                    setProgress[setIndex]
-                                                                        ? 'border-[#F88022] bg-[#F88022] text-white shadow-glow-orange'
-                                                                        : 'border-border bg-background text-transparent hover:border-[#F88022]'
-                                                                }`}
-                                                            >
-                                                                <Check className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
-
-                                                        <div className="mt-3 grid grid-cols-2 gap-3">
-                                                            <label className="space-y-1.5">
-                                                                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                                                    Carga (kg)
-                                                                </span>
-                                                                <input
-                                                                    type="number"
-                                                                    inputMode="decimal"
-                                                                    min="0"
-                                                                    step="0.5"
-                                                                    // Nothing logged yet: suggest the load the personal prescribed for this set.
-                                                                    placeholder={setLoad !== null ? String(setLoad).replace('.', ',') : 'Ex: 40'}
-                                                                    value={setLogs.loadKg[setIndex]}
-                                                                    onChange={(event) =>
-                                                                        updateExerciseSetLog(
-                                                                            exercise.id,
-                                                                            repsBySet.length,
-                                                                            setIndex,
-                                                                            'loadKg',
-                                                                            event.target.value
-                                                                        )
-                                                                    }
-                                                                    className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
-                                                                />
-                                                            </label>
-                                                            <label className="space-y-1.5">
-                                                                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                                                                    Reps realizadas
-                                                                </span>
-                                                                <input
-                                                                    type="number"
-                                                                    inputMode="numeric"
-                                                                    min="0"
-                                                                    step="1"
-                                                                    placeholder="Ex: 12"
-                                                                    value={setLogs.completedReps[setIndex]}
-                                                                    onChange={(event) =>
-                                                                        updateExerciseSetLog(
-                                                                            exercise.id,
-                                                                            repsBySet.length,
-                                                                            setIndex,
-                                                                            'completedReps',
-                                                                            event.target.value
-                                                                        )
-                                                                    }
-                                                                    className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F88022]"
-                                                                />
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {hasVideo && (
-                                            <div className="aspect-video bg-muted rounded-xl mb-4 overflow-hidden border border-border">
-                                                {embedVideoUrl ? (
-                                                    <iframe
-                                                        src={embedVideoUrl}
-                                                        title={`Video de ${exercise.name}`}
-                                                        className="w-full h-full"
-                                                        loading="lazy"
-                                                        referrerPolicy="strict-origin-when-cross-origin"
-                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                        allowFullScreen
-                                                    />
-                                                ) : isDirectVideo ? (
-                                                    <video controls className="w-full h-full" preload="metadata">
-                                                        <source src={rawVideoUrl} />
-                                                        Seu navegador nao suporta reproducao de video.
-                                                    </video>
-                                                ) : (
-                                                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 text-center">
-                                                        <Play className="w-8 h-8 text-muted-foreground" />
-                                                        <a
-                                                            href={rawVideoUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex items-center gap-2 text-sm text-secondary hover:underline"
-                                                        >
-                                                            <ExternalLink className="w-4 h-4" />
-                                                            Abrir vídeo
-                                                        </a>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Instructions */}
-                                        {(exercise.instructions || exercise.notes) && (
-                                            <div className="mb-4 space-y-3">
-                                                {exercise.instructions && (
-                                                    <div>
-                                                        <p className="text-sm font-medium text-foreground mb-1">Instruções:</p>
-                                                        <p className="text-sm text-muted-foreground">{exercise.instructions}</p>
-                                                    </div>
-                                                )}
-                                                {exercise.notes && (
-                                                    <div className="bg-muted p-3 rounded-lg border border-border">
-                                                        <p className="text-sm font-medium text-foreground mb-1 flex items-center gap-2">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-[#F88022]" />
-                                                            Observações do Personal:
-                                                        </p>
-                                                        <p className="text-sm text-foreground/80 italic">{exercise.notes}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Actions */}
-                                        <div className="flex gap-3 pt-1">
-                                            <Button
-                                                variant="outline"
-                                                className="flex-1 h-12"
-                                                onClick={() => startRest(exercise.rest)}
-                                            >
-                                                <Clock className="w-4 h-4" />
-                                                Descanso
-                                            </Button>
-                                            <Button
-                                                variant={exercise.completed ? 'outline' : 'secondary'}
-                                                className="flex-1 h-12"
-                                                onClick={() => toggleExercise(exercise.id)}
-                                            >
-                                                {exercise.completed ? (
-                                                    <>
-                                                        <RotateCcw className="w-4 h-4" />
-                                                        Refazer
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <CheckCircle2 className="w-4 h-4" />
-                                                        Concluir
-                                                    </>
-                                                )}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    );
-                })}
+                {renderExerciseList()}
             </div>
 
             {/* Complete Workout Button */}

@@ -20,6 +20,7 @@ import {
 import { Dialog, DialogContent, DialogTitle, useDialogs, useToast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { NOTIFY_STUDENT_STORAGE_KEY, getStoredNotifyStudent, personalLinks } from '@/lib/notifications';
+import { groupLabel } from '@/lib/workout-groups';
 import { parsePerSetReps } from '@/lib/workout-reps';
 import { invalidateApi, useApi } from '@/hooks/use-api';
 import { isModalOpen, isTypingTarget, modKeyLabel, useHotkey } from '@/hooks/use-hotkey';
@@ -36,9 +37,12 @@ import {
     daysToPayload,
     editorReducer,
     findItem,
+    planGroupWithNext,
     serializeForDirty,
+    snapInsertIndex,
     validateEditor,
     withActiveDay,
+    withFreshGroupIds,
     type ApiPlan,
     type ApiPlanDay,
     type ApiTemplate,
@@ -79,7 +83,8 @@ export interface WorkoutPlanEditorProps {
 }
 
 type UndoEntry =
-    | { kind: 'item'; dayKey: string; index: number; item: EditorItem; message: string }
+    /** `groupPeers`: the other members of the row's group, linked again if the removal dissolved it. */
+    | { kind: 'item'; dayKey: string; index: number; item: EditorItem; groupPeers: string[]; message: string }
     | { kind: 'day'; index: number; day: EditorDay; message: string };
 
 type DragPayload = { kind: 'item'; itemKey: string } | { kind: 'exercises'; exercises: LibraryExercise[] };
@@ -270,7 +275,11 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
 
     const focusField = useCallback((itemKey: string, field: string) => {
         const element = document.querySelector<HTMLElement>(`[data-item-key="${itemKey}"][data-field="${field}"]`);
-        if (!element) return;
+        if (!element) {
+            // Issues without an input (a group problem): at least bring the row into view.
+            document.querySelector<HTMLElement>(`[data-row-key="${itemKey}"]`)?.scrollIntoView({ block: 'nearest' });
+            return;
+        }
         element.focus();
         element.scrollIntoView({ block: 'nearest' });
         if (element instanceof HTMLInputElement) element.select();
@@ -406,7 +415,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
         undoStackRef.current = undoStackRef.current.slice(0, -1);
         setUndoStack(undoStackRef.current);
         if (last.kind === 'item') {
-            dispatch({ type: 'restoreItem', dayKey: last.dayKey, index: last.index, item: last.item });
+            dispatch({ type: 'restoreItem', dayKey: last.dayKey, index: last.index, item: last.item, groupPeers: last.groupPeers });
             setFlashKey(last.item.key);
         } else {
             dispatch({ type: 'restoreDay', day: last.day, index: last.index });
@@ -515,20 +524,50 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                 setFlashKey(itemKey);
             },
             onImportIntoDay: (dayKey: string) => setImportDayKey(dayKey),
+            onUngroup: (itemKey: string) => {
+                // A middle row moves right after its group: the flash shows where it went.
+                dispatch({ type: 'ungroup', itemKey });
+                setFlashKey(itemKey);
+            },
         }),
         []
+    );
+
+    /** "Agrupar com o próximo": the séries of the row where it started win, after the personal confirms. */
+    const groupWithNext = useCallback(
+        async (itemKey: string) => {
+            const found = findItem(stateRef.current, itemKey);
+            const plan = found ? planGroupWithNext(found.day.items, found.index) : null;
+            if (!plan) return;
+            let sets: string | undefined;
+            if (plan.mismatch) {
+                const label = groupLabel(plan.size).toLowerCase();
+                const count = `${plan.sets} ${plan.sets === '1' ? 'série' : 'séries'}`;
+                const ok = await confirm({
+                    title: `Agrupar em ${label}`,
+                    description: `Os exercícios do ${label} precisam ter o mesmo número de séries. Igualar para ${count}?`,
+                    confirmText: `Igualar para ${count}`,
+                });
+                if (!ok) return;
+                sets = plan.sets;
+            }
+            dispatch({ type: 'groupWithNext', itemKey, sets });
+        },
+        [confirm]
     );
 
     const removeItem = useCallback(
         (itemKey: string) => {
             const found = findItem(stateRef.current, itemKey);
             if (!found) return;
+            const groupId = found.item.groupId;
             dispatch({ type: 'removeItem', itemKey });
             pushUndo({
                 kind: 'item',
                 dayKey: found.day.key,
                 index: found.index,
                 item: found.item,
+                groupPeers: groupId ? found.day.items.filter((item) => item.key !== itemKey && item.groupId === groupId).map((item) => item.key) : [],
                 message: `“${found.item.exerciseName}” removido de ${found.day.name || 'dia'}`,
             });
             if (swapItemKeyRef.current === itemKey) setSwapItemKey(null);
@@ -600,7 +639,17 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                 setDragActive(true);
             },
             onDragEnd: endDrag,
-            onDragOverDay: (dayKey: string, index: number) => setDropTarget({ dayKey, index }),
+            onDragOverDay: (dayKey: string, index: number) => {
+                // The indicator shows where the row will really land: never between two exercises of a group
+                // it doesn't belong to (the reducer applies the same rule on drop).
+                const day = stateRef.current.days.find((candidate) => candidate.key === dayKey);
+                const payload = dragRef.current;
+                const from = day && payload?.kind === 'item' ? day.items.findIndex((item) => item.key === payload.itemKey) : -1;
+                const target = day
+                    ? snapInsertIndex(day.items, index, from >= 0 ? { groupId: day.items[from].groupId, fromIndex: from } : {})
+                    : index;
+                setDropTarget({ dayKey, index: target });
+            },
             onDropOnDay: (dayKey: string) => {
                 const payload = dragRef.current;
                 const current = stateRef.current;
@@ -660,7 +709,14 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             const index = ROW_FIELDS.indexOf(field as ItemField);
-            if (index >= 0 && index < ROW_FIELDS.length - 1) focusField(itemKey, ROW_FIELDS[index + 1]);
+            // Skips fields the row doesn't show (grouped rows before the last one have no descanso input).
+            const nextField =
+                index >= 0
+                    ? ROW_FIELDS.slice(index + 1).find((candidate) =>
+                          document.querySelector(`[data-item-key="${itemKey}"][data-field="${candidate}"]`)
+                      )
+                    : undefined;
+            if (nextField) focusField(itemKey, nextField);
             else focusSearch({ select: true });
             return;
         }
@@ -1218,6 +1274,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                             onAddExercise={addExerciseToDay}
                             onSwap={startSwap}
                             onRemoveItem={removeItem}
+                            onGroupWithNext={groupWithNext}
                         />
                     ))}
 
@@ -1331,7 +1388,13 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                 excludePlanId={mode === 'plan' ? entityId : null}
                 onImport={(days: ApiPlanDay[], importMode) => {
                     const targetKey = importDayKey;
-                    const imported = apiDaysToEditor(days, false);
+                    // Same grouping under new group ids, unique in the target day and between the imported days.
+                    const taken = new Set((importTargetDay?.items ?? []).map((item) => item.groupId));
+                    const imported = apiDaysToEditor(days, false).map((day) => {
+                        const items = withFreshGroupIds(day.items, taken);
+                        items.forEach((item) => taken.add(item.groupId));
+                        return { ...day, items };
+                    });
                     if (importMode === 'append' && targetKey) {
                         const items = imported.flatMap((day) => day.items);
                         dispatch({ type: 'addItems', dayKey: targetKey, items });

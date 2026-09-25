@@ -2,8 +2,10 @@
 
 import React, { useMemo } from 'react';
 import { AlertTriangle, Clock, Dumbbell, Utensils } from 'lucide-react';
+import { groupChipLabel, groupPositionLabel, groupRestHint, groupTone } from '@/components/personal/workout-editor/group-ui';
 import { normalizeDietFood, type NormalizedDietFood } from '@/lib/diet-normalizer';
 import { cn, getDayOfWeekName } from '@/lib/utils';
+import { describeGroups } from '@/lib/workout-groups';
 import { formatLoad, formatRpe } from '@/lib/workout-load';
 import { parsePerSetReps } from '@/lib/workout-reps';
 import { formatDate, formatNumber, planEndInfo, toneText } from './lib';
@@ -82,6 +84,8 @@ export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; 
             <div className="grid gap-3 2xl:grid-cols-2">
                 {days.map((day) => {
                     const sets = day.items.reduce((sum, item) => sum + (item.sets || 0), 0);
+                    const items = [...day.items].sort((a, b) => a.order - b.order);
+                    const groups = describeGroups(items);
                     return (
                         <section key={day.id} className="overflow-hidden rounded-xl border border-border">
                             <header className="flex items-center justify-between gap-2 bg-muted/60 px-3 py-2">
@@ -108,39 +112,83 @@ export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; 
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/50">
-                                        {[...day.items]
-                                            .sort((a, b) => a.order - b.order)
-                                            .map((item, index) => {
-                                                const intensity = formatIntensity(item);
-                                                return (
-                                                    <tr key={item.id} className="align-top">
-                                                        <td className="px-3 py-1.5 text-xs text-muted-foreground">{index + 1}</td>
-                                                        <td className="px-2 py-1.5">
-                                                            <p className="font-medium text-foreground">{item.exercise?.name ?? 'Exercício removido'}</p>
-                                                            {(item.exercise?.muscleGroup || item.notes) && (
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    {item.exercise?.muscleGroup}
-                                                                    {item.exercise?.muscleGroup && item.notes && ' · '}
-                                                                    {item.notes && <span className="italic">{item.notes}</span>}
-                                                                </p>
+                                        {items.map((item, index) => {
+                                            const intensity = formatIntensity(item);
+                                            const group = groups[index];
+                                            const tone = group ? groupTone(group) : null;
+                                            return (
+                                                <tr key={item.id} className="align-top">
+                                                    <td className="relative px-3 py-1.5 text-xs text-muted-foreground">
+                                                        {/* Superset bracket spanning the group's rows. */}
+                                                        {group && tone && (
+                                                            <span
+                                                                aria-hidden
+                                                                className={cn(
+                                                                    'pointer-events-none absolute left-1 w-1 border-l-2',
+                                                                    tone.border,
+                                                                    group.isFirst ? 'top-2 rounded-tl border-t-2' : '-top-px',
+                                                                    group.isLast ? 'bottom-2 rounded-bl border-b-2' : 'bottom-0'
+                                                                )}
+                                                            />
+                                                        )}
+                                                        {index + 1}
+                                                    </td>
+                                                    <td className="px-2 py-1.5">
+                                                        <p className="flex flex-wrap items-baseline gap-x-1.5 font-medium text-foreground">
+                                                            {group && tone && (
+                                                                <span className={cn('rounded px-1 text-xs font-bold tabular-nums', tone.pill)}>
+                                                                    {groupPositionLabel(group)}
+                                                                </span>
                                                             )}
-                                                        </td>
-                                                        {/* "3 × 10-12 · 20 kg · RPE 8": carga/RPE wrap to a second line when the column is narrow. */}
-                                                        <td className="px-2 py-1.5 text-foreground">
-                                                            <span className="whitespace-nowrap font-semibold">{formatVolume(item)}</span>
-                                                            {intensity && (
-                                                                <>
-                                                                    {' '}
-                                                                    <span className="whitespace-nowrap">
-                                                                        <span className="text-muted-foreground">·</span> {intensity}
-                                                                    </span>
-                                                                </>
+                                                            <span>{item.exercise?.name ?? 'Exercício removido'}</span>
+                                                            {group?.isFirst && tone && (
+                                                                <span
+                                                                    className={cn(
+                                                                        'whitespace-nowrap rounded-full border px-1.5 text-xs font-semibold',
+                                                                        tone.chip
+                                                                    )}
+                                                                >
+                                                                    {groupChipLabel(group)}
+                                                                </span>
                                                             )}
-                                                        </td>
-                                                        <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">{formatRest(item.rest)}</td>
-                                                    </tr>
-                                                );
-                                            })}
+                                                        </p>
+                                                        {(item.exercise?.muscleGroup || item.notes) && (
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {item.exercise?.muscleGroup}
+                                                                {item.exercise?.muscleGroup && item.notes && ' · '}
+                                                                {item.notes && <span className="italic">{item.notes}</span>}
+                                                            </p>
+                                                        )}
+                                                    </td>
+                                                    {/* "3 × 10-12 · 20 kg · RPE 8": carga/RPE wrap to a second line when the column is narrow. */}
+                                                    <td className="px-2 py-1.5 text-foreground">
+                                                        <span className="whitespace-nowrap font-semibold">{formatVolume(item)}</span>
+                                                        {intensity && (
+                                                            <>
+                                                                {' '}
+                                                                <span className="whitespace-nowrap">
+                                                                    <span className="text-muted-foreground">·</span> {intensity}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
+                                                        {group && !group.isLast ? (
+                                                            // No rest between the exercises of a round.
+                                                            <span className="cursor-help" title={groupRestHint(group)}>
+                                                                <span aria-hidden>—</span>
+                                                                <span className="sr-only">{groupRestHint(group)}</span>
+                                                            </span>
+                                                        ) : (
+                                                            <>
+                                                                {formatRest(item.rest)}
+                                                                {group && <span className="block text-xs">após a volta</span>}
+                                                            </>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             )}

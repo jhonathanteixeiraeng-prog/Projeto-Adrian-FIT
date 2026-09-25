@@ -1,14 +1,20 @@
 'use client';
 
 import React, { memo, useRef } from 'react';
-import { ArrowDown, ArrowUp, CopyPlus, CornerDownRight, GripVertical, Replace, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CopyPlus, CornerDownRight, GripVertical, Link2, Replace, Trash2, Unlink2 } from 'lucide-react';
+import type { GroupInfo } from '@/lib/workout-groups';
 import { cn } from '@/lib/utils';
 import { ActionMenu, type ActionMenuEntry } from './action-menu';
 import { repsSetsMismatch, type EditorItem, type ItemField } from './editor-state';
+import { groupChipLabel, groupPositionLabel, groupRestHint, groupTone } from './group-ui';
 
 export interface ExerciseRowProps {
     item: EditorItem;
     index: number;
+    /** Superset of the row (A1, "Bi-set A"…); null when it isn't grouped. */
+    group: GroupInfo | null;
+    /** "Agrupar com o próximo": disabled on the last row, hidden when the next row is already in the same group. */
+    groupWithNext: 'enabled' | 'disabled' | 'hidden';
     issues?: Partial<Record<ItemField, string>>;
     /** Brief highlight right after the row was added. */
     flash: boolean;
@@ -22,6 +28,8 @@ export interface ExerciseRowProps {
     onDuplicate: (itemKey: string) => void;
     onMoveBy: (itemKey: string, delta: -1 | 1) => void;
     onMoveToDay: (itemKey: string, dayKey: string) => void;
+    onGroupWithNext: (itemKey: string) => void;
+    onUngroup: (itemKey: string) => void;
     onDragStart: (itemKey: string) => void;
     onDragEnd: () => void;
 }
@@ -51,6 +59,8 @@ function fieldClass(error?: string, warning?: string | null) {
 function ExerciseRowComponent({
     item,
     index,
+    group,
+    groupWithNext,
     issues,
     flash,
     dropIndicator,
@@ -63,12 +73,18 @@ function ExerciseRowComponent({
     onDuplicate,
     onMoveBy,
     onMoveToDay,
+    onGroupWithNext,
+    onUngroup,
     onDragStart,
     onDragEnd,
 }: ExerciseRowProps) {
     const rowRef = useRef<HTMLDivElement>(null);
     const mismatch = repsSetsMismatch(item);
     const hasIssues = Boolean(issues && Object.keys(issues).length);
+    const tone = group ? groupTone(group) : null;
+    const groupName = group?.label.toLowerCase();
+    // Grouped rows before the last one don't rest: the rest comes after the round (the last row's).
+    const restAfterRound = Boolean(group && !group.isLast);
 
     const armDrag = (armed: boolean) => {
         if (armed) rowRef.current?.setAttribute('draggable', 'true');
@@ -78,6 +94,17 @@ function ExerciseRowComponent({
     const menu: ActionMenuEntry[] = [
         { label: 'Trocar exercício', icon: Replace, onSelect: () => onSwap(item.key) },
         { label: 'Duplicar linha', icon: CopyPlus, onSelect: () => onDuplicate(item.key) },
+        ...(groupWithNext !== 'hidden'
+            ? [
+                  {
+                      label: 'Agrupar com o próximo',
+                      icon: Link2,
+                      disabled: groupWithNext === 'disabled',
+                      onSelect: () => onGroupWithNext(item.key),
+                  },
+              ]
+            : []),
+        ...(group ? [{ label: 'Desagrupar', icon: Unlink2, onSelect: () => onUngroup(item.key) }] : []),
         { label: 'Mover para cima', icon: ArrowUp, hint: 'Alt ↑', disabled: !canMoveUp, onSelect: () => onMoveBy(item.key, -1) },
         { label: 'Mover para baixo', icon: ArrowDown, hint: 'Alt ↓', disabled: !canMoveDown, onSelect: () => onMoveBy(item.key, 1) },
         ...(otherDays.length
@@ -125,6 +152,19 @@ function ExerciseRowComponent({
                 />
             )}
 
+            {/* Group bracket: its pieces overlap the 2 px gap between rows so they read as one line. */}
+            {group && tone && (
+                <span
+                    aria-hidden
+                    className={cn(
+                        'pointer-events-none absolute left-0 w-1 border-l-2',
+                        tone.border,
+                        group.isFirst ? 'top-1.5 rounded-tl border-t-2' : '-top-0.5',
+                        group.isLast ? 'bottom-1.5 rounded-bl border-b-2' : '-bottom-0.5'
+                    )}
+                />
+            )}
+
             <span
                 onMouseDown={() => armDrag(true)}
                 onMouseUp={() => armDrag(false)}
@@ -150,12 +190,28 @@ function ExerciseRowComponent({
                 data-field="exercise"
                 onClick={() => onSwap(item.key)}
                 title="Clique para trocar o exercício"
-                className="col-span-3 flex min-w-0 items-baseline gap-2 rounded-md px-1 py-1 text-left hover:bg-muted md:col-span-1"
+                className="col-span-3 flex min-w-0 items-baseline gap-1.5 rounded-md px-1 py-1 text-left hover:bg-muted md:col-span-1"
             >
                 <span className="text-xs font-semibold tabular-nums text-muted-foreground md:hidden">{index + 1}.</span>
+                {group && tone && (
+                    <span
+                        title={issues?.group ?? `${groupChipLabel(group)}: exercício ${group.position} de ${group.size}`}
+                        className={cn(
+                            'shrink-0 rounded px-1 text-xs font-bold tabular-nums',
+                            issues?.group ? 'bg-red-500/10 text-red-500' : tone.pill
+                        )}
+                    >
+                        {groupPositionLabel(group)}
+                    </span>
+                )}
                 <span className={cn('truncate text-sm font-medium', issues?.exercise ? 'text-red-500' : 'text-foreground')}>
                     {item.exerciseName || 'Selecione o exercício'}
                 </span>
+                {group?.isFirst && tone && (
+                    <span className={cn('shrink-0 whitespace-nowrap rounded-full border px-1.5 text-xs font-semibold', tone.chip)}>
+                        {groupChipLabel(group)}
+                    </span>
+                )}
                 {/* Only where the name has room to spare next to the carga/RPE columns. */}
                 {item.muscleGroup && <span className="hidden shrink-0 truncate text-xs text-muted-foreground 2xl:inline">{item.muscleGroup}</span>}
             </button>
@@ -172,7 +228,7 @@ function ExerciseRowComponent({
                     inputMode="numeric"
                     aria-label="Séries"
                     aria-invalid={Boolean(issues?.sets) || undefined}
-                    title={issues?.sets}
+                    title={issues?.sets ?? (group ? `Séries de todos os exercícios do ${groupName}` : undefined)}
                     value={item.sets}
                     placeholder="3"
                     min={1}
@@ -231,24 +287,40 @@ function ExerciseRowComponent({
                 />
             </label>
 
-            <label className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1 md:block">
-                <span className="text-xs text-muted-foreground md:sr-only">Descanso (s)</span>
-                <input
-                    data-item-key={item.key}
-                    data-field="rest"
-                    inputMode="numeric"
-                    aria-label="Descanso em segundos"
-                    aria-invalid={Boolean(issues?.rest) || undefined}
-                    title={issues?.rest ?? 'Segundos. Por série: 60/90/120'}
-                    value={item.rest}
-                    placeholder="60"
-                    min={0}
-                    max={600}
-                    maxLength={40}
-                    onChange={(event) => onChange(item.key, { rest: event.target.value })}
-                    className={cn(fieldClass(issues?.rest), 'tabular-nums')}
-                />
-            </label>
+            {restAfterRound && group ? (
+                <div className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1 md:block" title={groupRestHint(group)}>
+                    <span className="text-xs text-muted-foreground md:sr-only">Descanso (s)</span>
+                    <span className="flex h-8 w-full cursor-help select-none items-center justify-center gap-1 rounded-md border border-dashed border-border text-sm text-muted-foreground">
+                        <span aria-hidden>—</span>
+                        <span className="sr-only">{groupRestHint(group)}</span>
+                        <span aria-hidden className="text-xs md:hidden">
+                            após {`${group.letter}${group.size}`}
+                        </span>
+                    </span>
+                </div>
+            ) : (
+                <label className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1 md:block">
+                    <span className="text-xs text-muted-foreground md:sr-only">{group ? 'Descanso após a volta (s)' : 'Descanso (s)'}</span>
+                    <input
+                        data-item-key={item.key}
+                        data-field="rest"
+                        inputMode="numeric"
+                        aria-label={group ? `Descanso após cada volta do ${groupName}, em segundos` : 'Descanso em segundos'}
+                        aria-invalid={Boolean(issues?.rest) || undefined}
+                        title={
+                            issues?.rest ??
+                            (group ? `Descanso após cada volta do ${groupName} (s). Por volta: 60/90/120` : 'Segundos. Por série: 60/90/120')
+                        }
+                        value={item.rest}
+                        placeholder="60"
+                        min={0}
+                        max={600}
+                        maxLength={40}
+                        onChange={(event) => onChange(item.key, { rest: event.target.value })}
+                        className={cn(fieldClass(issues?.rest), 'tabular-nums')}
+                    />
+                </label>
+            )}
 
             <label className="col-span-3 flex min-w-0 flex-col gap-0.5 md:col-span-1 md:block">
                 <span className="text-xs text-muted-foreground md:sr-only">Observações</span>

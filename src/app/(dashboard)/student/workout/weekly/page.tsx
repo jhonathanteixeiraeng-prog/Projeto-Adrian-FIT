@@ -13,9 +13,61 @@ import {
     Play
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
+import { groupChipLabel, groupPositionLabel, groupRestHint, groupRuns, groupTone } from '@/components/personal/workout-editor/group-ui';
+import { cn } from '@/lib/utils';
+import { describeGroups } from '@/lib/workout-groups';
 import { formatLoad, formatRpe } from '@/lib/workout-load';
 
 const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+/** Exercises of a day; the exercises of a superset (bi-set, tri-set, circuito) go together under their bracket. */
+function DayExercises({ exercises }: { exercises: any[] }) {
+    const groups = describeGroups(exercises.map((exercise) => ({ groupId: exercise.groupId, sets: Number(exercise.sets) || 0 })));
+
+    const row = (exercise: any, index: number) => {
+        const group = groups[index];
+        const tone = group ? groupTone(group) : null;
+        // No rest between the exercises of a round: it comes after the last one.
+        const rest = group && !group.isLast ? 'sem descanso' : `${exercise.rest}s desc.${group ? ' após a volta' : ''}`;
+        return (
+            <div key={exercise.id} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
+                <div className="flex-1 min-w-0">
+                    <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm font-medium">
+                        {group && tone && (
+                            <span className={cn('rounded px-1 text-xs font-bold tabular-nums', tone.pill)}>{groupPositionLabel(group)}</span>
+                        )}
+                        <span>{exercise.name}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground" title={group && !group.isLast ? groupRestHint(group) : undefined}>
+                        {[`${exercise.sets}x${exercise.reps}`, formatLoad(exercise.load), formatRpe(exercise.rpe), rest]
+                            .filter(Boolean)
+                            .join(' • ')}
+                    </p>
+                </div>
+                {exercise.videoUrl && <Play className="w-4 h-4 text-secondary/60" />}
+            </div>
+        );
+    };
+
+    return (
+        <div className="space-y-3 mt-4">
+            {groupRuns(groups).map((run) => {
+                const group = run.group;
+                if (!group) return row(exercises[run.indexes[0]], run.indexes[0]);
+                const tone = groupTone(group);
+                return (
+                    <div key={group.groupId} className={cn('space-y-2 border-l-2 pl-2', tone.border)}>
+                        <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className={cn('rounded-full border px-2 py-0.5 font-semibold', tone.chip)}>{groupChipLabel(group)}</span>
+                            em sequência, descanso após a volta
+                        </p>
+                        {run.indexes.map((index) => row(exercises[index], index))}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
 
 export default function WeeklyWorkoutPage() {
     const [workoutPlan, setWorkoutPlan] = useState<any>(null);
@@ -140,26 +192,7 @@ export default function WeeklyWorkoutPage() {
 
                             {isExpanded && (
                                 <CardContent className="p-4 pt-0 border-t border-border animate-in">
-                                    <div className="space-y-3 mt-4">
-                                        {day.exercises.map((exercise: any) => (
-                                            <div key={exercise.id} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
-                                                <div className="flex-1">
-                                                    <p className="text-sm font-medium">{exercise.name}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {[
-                                                            `${exercise.sets}x${exercise.reps}`,
-                                                            formatLoad(exercise.load),
-                                                            formatRpe(exercise.rpe),
-                                                            `${exercise.rest}s desc.`,
-                                                        ]
-                                                            .filter(Boolean)
-                                                            .join(' • ')}
-                                                    </p>
-                                                </div>
-                                                {exercise.videoUrl && <Play className="w-4 h-4 text-secondary/60" />}
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <DayExercises exercises={Array.isArray(day.exercises) ? day.exercises : []} />
                                     <Link href={`/student/workout?dayId=${day.id}`} className="block mt-4">
                                         <Button variant={isToday ? 'secondary' : 'outline'} className={`w-full ${isToday ? 'bg-gradient-to-r from-[#F88022] to-[#e06b10] text-white border-0 shadow-glow-orange' : ''}`}>
                                             Ver Detalhes do Treino

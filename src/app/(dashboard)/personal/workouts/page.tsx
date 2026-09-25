@@ -356,6 +356,7 @@ export default function WorkoutsPage() {
                             rest: item.rest,
                             load: item.load ?? null,
                             rpe: item.rpe ?? null,
+                            groupId: item.groupId ?? null,
                             notes: item.notes ?? '',
                         })),
                     })),

@@ -5,7 +5,8 @@ import { ArrowDown, ArrowUp, ChevronDown, CopyPlus, Import, Plus, Trash2 } from 
 import { cn } from '@/lib/utils';
 import { ActionMenu, type ActionMenuEntry } from './action-menu';
 import { ExerciseRow } from './exercise-row';
-import { WEEKDAY_OPTIONS, dayLetter, type EditorDay, type EditorItem, type ItemField } from './editor-state';
+import { WEEKDAY_OPTIONS, dayLetter, describeEditorGroups, type EditorDay, type EditorItem, type ItemField } from './editor-state';
+import { groupPositionLabel } from './group-ui';
 
 export interface DayCardHandlers {
     onActivate: (dayKey: string) => void;
@@ -21,6 +22,8 @@ export interface DayCardHandlers {
     onDuplicateItem: (itemKey: string) => void;
     onMoveItemBy: (itemKey: string, delta: -1 | 1) => void;
     onMoveItemToDay: (itemKey: string, dayKey: string) => void;
+    onGroupWithNext: (itemKey: string) => void;
+    onUngroup: (itemKey: string) => void;
     onItemDragStart: (itemKey: string) => void;
     onDragEnd: () => void;
     onDragOverDay: (dayKey: string, index: number) => void;
@@ -64,6 +67,10 @@ function DayCardComponent(props: DayCardProps) {
     const totalSets = day.items.reduce((sum, item) => sum + (Number.parseInt(item.sets, 10) || 0), 0);
     // Stable reference so memoized rows don't re-render on every keystroke.
     const otherDays = useMemo(() => allDays.filter((other) => other.key !== day.key), [allDays, day.key]);
+    // A1, A2, "Bi-set A"… depend only on the group id of each position, so typing keeps the same objects.
+    const groupShape = day.items.map((item) => item.groupId ?? '').join('\u0001');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const groups = useMemo(() => describeEditorGroups(day.items), [groupShape]);
 
     const menu: ActionMenuEntry[] = [
         { label: 'Adicionar exercício', icon: Plus, onSelect: () => props.onAddExercise(day.key) },
@@ -173,6 +180,14 @@ function DayCardComponent(props: DayCardProps) {
                                 key={item.key}
                                 item={item}
                                 index={itemIndex}
+                                group={groups[itemIndex]}
+                                groupWithNext={
+                                    itemIndex === day.items.length - 1
+                                        ? 'disabled'
+                                        : item.groupId && day.items[itemIndex + 1].groupId === item.groupId
+                                          ? 'hidden'
+                                          : 'enabled'
+                                }
                                 issues={itemIssues[item.key]}
                                 flash={flashKey === item.key}
                                 dropIndicator={
@@ -187,6 +202,8 @@ function DayCardComponent(props: DayCardProps) {
                                 onDuplicate={props.onDuplicateItem}
                                 onMoveBy={props.onMoveItemBy}
                                 onMoveToDay={props.onMoveItemToDay}
+                                onGroupWithNext={props.onGroupWithNext}
+                                onUngroup={props.onUngroup}
                                 onDragStart={props.onItemDragStart}
                                 onDragEnd={props.onDragEnd}
                             />
@@ -223,7 +240,12 @@ function DayCardComponent(props: DayCardProps) {
             )}
             {collapsed && day.items.length > 0 && (
                 <p className="truncate border-t border-border/70 px-4 py-2 text-xs text-muted-foreground">
-                    {day.items.map((item) => item.exerciseName).join(' · ')}
+                    {day.items
+                        .map((item, itemIndex) => {
+                            const group = groups[itemIndex];
+                            return group ? `${groupPositionLabel(group)} ${item.exerciseName}` : item.exerciseName;
+                        })
+                        .join(' · ')}
                 </p>
             )}
         </section>

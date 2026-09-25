@@ -5,7 +5,9 @@ import { BookOpen, ClipboardList, Loader2, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui';
 import { useApi } from '@/hooks/use-api';
 import { cn, matchesSearch } from '@/lib/utils';
+import { describeGroups } from '@/lib/workout-groups';
 import { WEEKDAY_OPTIONS, type ApiPlan, type ApiPlanDay, type ApiTemplate } from './editor-state';
+import { groupPositionLabel } from './group-ui';
 
 interface PlanListItem {
     id: string;
@@ -26,6 +28,18 @@ interface ImportDayDialogProps {
 }
 
 const weekdayLabel = (value: number) => WEEKDAY_OPTIONS.find((option) => option.value === value)?.short ?? '';
+
+/** "Supino · A1 Crucifixo · A2 Tríceps" (grouped exercises keep their group position). */
+function exerciseSummary(day: ApiPlanDay): string {
+    const groups = describeGroups(day.items.map((item) => ({ groupId: item.groupId, sets: item.sets })));
+    return day.items
+        .map((item, index) => {
+            const name = item.exercise?.name ?? 'Exercício';
+            const group = groups[index];
+            return group ? `${groupPositionLabel(group)} ${name}` : name;
+        })
+        .join(' · ');
+}
 
 /** Copies the exercises of a day from another plan or template of this personal. */
 export function ImportDayDialog({ open, onOpenChange, targetDayName, excludePlanId, onImport }: ImportDayDialogProps) {
@@ -206,7 +220,7 @@ export function ImportDayDialog({ open, onOpenChange, targetDayName, excludePlan
                                             </span>
                                         </span>
                                         <span className="mt-1 line-clamp-2 block text-xs text-muted-foreground">
-                                            {day.items.map((item) => item.exercise?.name ?? 'Exercício').join(' · ') || 'Sem exercícios'}
+                                            {exerciseSummary(day) || 'Sem exercícios'}
                                         </span>
                                     </button>
                                 ))

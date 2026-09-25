@@ -16,6 +16,9 @@ import {
     Calendar
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
+import { groupChipLabel, groupPositionLabel, groupRestHint, groupTone } from '@/components/personal/workout-editor/group-ui';
+import { cn } from '@/lib/utils';
+import { describeGroups } from '@/lib/workout-groups';
 import { formatLoad, formatRpe } from '@/lib/workout-load';
 
 function SkeletonHome() {
@@ -85,6 +88,10 @@ export default function StudentHomePage() {
     const completedExercises = workout?.exercises?.filter((e: any) => e.completed)?.length || 0;
     const totalExercises = workout?.exercises?.length || 0;
     const workoutProgress = totalExercises > 0 ? (completedExercises / totalExercises) * 100 : 0;
+    // Supersets (bi-set, tri-set, circuito): A1, A2… with the rest after the last exercise of each round.
+    const exerciseGroups = describeGroups(
+        (Array.isArray(workout?.exercises) ? workout.exercises : []).map((e: any) => ({ groupId: e.groupId, sets: Number(e.sets) || 0 }))
+    );
 
     const meals = diet?.meals || [];
     const completedMeals = meals.filter((m: any) => m.completed).length;
@@ -159,37 +166,60 @@ export default function StudentHomePage() {
 
                             {/* Exercise Preview */}
                             <div className="space-y-2 mb-4 stagger-in">
-                                {workout.exercises.slice(0, 3).map((exercise: any, index: number) => (
-                                    <div
-                                        key={exercise.id}
-                                        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${exercise.completed ? 'bg-[#F88022]/10' : 'bg-muted/70'
-                                            }`}
-                                    >
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${exercise.completed ? 'bg-[#F88022] text-white' : 'bg-background text-muted-foreground'
-                                            }`}>
-                                            {exercise.completed ? (
-                                                <CheckCircle2 className="w-5 h-5 check-pop" />
-                                            ) : (
-                                                <span className="text-sm font-medium">{index + 1}</span>
+                                {workout.exercises.slice(0, 3).map((exercise: any, index: number) => {
+                                    const group = exerciseGroups[index];
+                                    const tone = group ? groupTone(group) : null;
+                                    const rest =
+                                        group && !group.isLast
+                                            ? 'sem descanso'
+                                            : `${exercise.rest}s descanso${group ? ' após a volta' : ''}`;
+                                    return (
+                                        <div
+                                            key={exercise.id}
+                                            className={cn(
+                                                'flex items-center gap-3 p-3 rounded-xl transition-colors',
+                                                exercise.completed ? 'bg-[#F88022]/10' : 'bg-muted/70',
+                                                // Superset bracket: the rows of a group share a colored edge.
+                                                tone && `border-l-2 ${tone.border}`
                                             )}
+                                        >
+                                            <div
+                                                className={cn(
+                                                    'w-8 h-8 rounded-full flex items-center justify-center transition-all',
+                                                    exercise.completed ? 'bg-[#F88022] text-white' : tone ? tone.pill : 'bg-background text-muted-foreground'
+                                                )}
+                                            >
+                                                {exercise.completed ? (
+                                                    <CheckCircle2 className="w-5 h-5 check-pop" />
+                                                ) : (
+                                                    <span className={group ? 'text-xs font-bold' : 'text-sm font-medium'}>
+                                                        {group ? groupPositionLabel(group) : index + 1}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`flex flex-wrap items-baseline gap-x-1.5 font-medium text-sm ${exercise.completed ? 'text-[#F88022]' : 'text-foreground'}`}>
+                                                    <span>{exercise.name}</span>
+                                                    {group?.isFirst && tone && (
+                                                        <span className={cn('whitespace-nowrap rounded-full border px-1.5 text-xs font-semibold', tone.chip)}>
+                                                            {groupChipLabel(group)}
+                                                        </span>
+                                                    )}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground" title={group && !group.isLast ? groupRestHint(group) : undefined}>
+                                                    {[
+                                                        `${exercise.sets}x${exercise.reps}`,
+                                                        formatLoad(exercise.load),
+                                                        formatRpe(exercise.rpe),
+                                                        rest,
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(' • ')}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`font-medium text-sm ${exercise.completed ? 'text-[#F88022]' : 'text-foreground'}`}>
-                                                {exercise.name}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {[
-                                                    `${exercise.sets}x${exercise.reps}`,
-                                                    formatLoad(exercise.load),
-                                                    formatRpe(exercise.rpe),
-                                                    `${exercise.rest}s descanso`,
-                                                ]
-                                                    .filter(Boolean)
-                                                    .join(' • ')}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {workout.exercises.length > 3 && (
                                     <p className="text-center text-sm text-muted-foreground py-1">
                                         +{workout.exercises.length - 3} exercícios
