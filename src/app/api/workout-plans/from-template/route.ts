@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
                                     sets: item.sets,
                                     reps: item.reps,
                                     rest: item.rest,
+                                    load: item.load,
+                                    rpe: item.rpe,
                                     notes: item.notes || '',
                                     order: itemIndex,
                                 })),

@@ -166,6 +166,8 @@ model WorkoutTemplateItem {
   sets          Int
   reps          String
   rest          Int
+  load          String? // Carga prescrita em kg: "20" ou por série "20/22.5/25"
+  rpe           String? // Intensidade prescrita (RPE 1-10): "8" ou "7-8"
   notes         String?
   order         Int                @default(0)
 }
@@ -199,6 +201,8 @@ model WorkoutItem {
   reps         String // "10-12" ou "15"
   rest         Int // Segundos de descanso
   restBySet    String? // JSON com descanso individual por série
+  load         String? // Carga prescrita em kg: "20" ou por série "20/22.5/25"
+  rpe          String? // Intensidade prescrita (RPE 1-10): "8" ou "7-8"
   notes        String?
   order        Int        @default(0)
 }

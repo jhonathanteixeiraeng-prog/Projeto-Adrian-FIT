@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { normalizeLoadInput, normalizeRpeInput } from '@/lib/workout-load';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { normalizeText } from '@/lib/utils';
@@ -69,7 +70,7 @@ const restBySetSchema = z
         return parsed.length ? JSON.stringify(parsed.map((rest) => Math.round(rest))) : null;
     });
 
-export const planItemInputSchema = z.object({
+const planItemFieldsSchema = z.object({
     id: z.string().nullish(),
     exerciseId: z
         .string({ required_error: 'Selecione o exercício', invalid_type_error: 'Selecione o exercício' })
@@ -100,8 +101,32 @@ export const planItemInputSchema = z.object({
         .default(60),
     restBySet: restBySetSchema,
     notes: z.string({ invalid_type_error: 'Observações inválidas' }).max(1000, 'Observações: use no máximo 1000 caracteres').nullish(),
+    // Omitted (undefined) = keep what is stored: the iOS app released before these fields doesn't send them.
+    load: z.string({ invalid_type_error: 'Carga inválida' }).max(80, 'Carga: use no máximo 80 caracteres').nullish(),
+    rpe: z.string({ invalid_type_error: 'RPE inválido' }).max(20, 'RPE: use no máximo 20 caracteres').nullish(),
     order: z.number().optional(),
 });
+
+export const planItemInputSchema = planItemFieldsSchema
+    .superRefine((item, ctx) => {
+        if (item.load != null) {
+            const load = normalizeLoadInput(item.load, item.sets);
+            if (!load.ok) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['load'], message: load.error });
+        }
+        if (item.rpe != null) {
+            const rpe = normalizeRpeInput(item.rpe);
+            if (!rpe.ok) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['rpe'], message: rpe.error });
+        }
+    })
+    .transform((item) => {
+        const load = item.load == null ? item.load : normalizeLoadInput(item.load, item.sets);
+        const rpe = item.rpe == null ? item.rpe : normalizeRpeInput(item.rpe);
+        return {
+            ...item,
+            load: load && typeof load === 'object' ? (load.ok ? load.value : null) : load,
+            rpe: rpe && typeof rpe === 'object' ? (rpe.ok ? rpe.value : null) : rpe,
+        };
+    });
 
 export const planDayInputSchema = z.object({
     id: z.string().nullish(),
@@ -249,6 +274,8 @@ const FIELD_LABELS: Record<string, string> = {
     reps: 'as repetições',
     rest: 'o descanso',
     restBySet: 'o descanso por série',
+    load: 'a carga',
+    rpe: 'o RPE',
     notes: 'as observações',
     active: 'o status',
     muscleGroup: 'o grupo muscular',
@@ -351,6 +378,8 @@ function itemData(item: PlanItemInput, order: number) {
         reps: item.reps,
         rest: item.rest,
         restBySet: item.restBySet ?? null,
+        load: item.load ?? null,
+        rpe: item.rpe ?? null,
         notes: item.notes ?? '',
         order,
     };
@@ -474,6 +503,10 @@ export async function syncPlanDays(tx: Prisma.TransactionClient, planId: string,
             }
 
             keptItemIds.add(existing.id);
+            // Older app versions don't send load/rpe: keep the stored prescription instead of wiping it.
+            const updateData: Partial<typeof data> = { ...data };
+            if (item.load === undefined) delete updateData.load;
+            if (item.rpe === undefined) delete updateData.rpe;
             const changed =
                 existing.workoutDayId !== data.workoutDayId ||
                 existing.exerciseId !== data.exerciseId ||
@@ -481,10 +514,12 @@ export async function syncPlanDays(tx: Prisma.TransactionClient, planId: string,
                 existing.reps !== data.reps ||
                 existing.rest !== data.rest ||
                 (existing.restBySet ?? null) !== data.restBySet ||
+                (item.load !== undefined && (existing.load ?? null) !== data.load) ||
+                (item.rpe !== undefined && (existing.rpe ?? null) !== data.rpe) ||
                 (existing.notes ?? '') !== data.notes ||
                 existing.order !== data.order;
             if (changed) {
-                await tx.workoutItem.update({ where: { id: existing.id }, data });
+                await tx.workoutItem.update({ where: { id: existing.id }, data: updateData });
             }
         }
 

@@ -100,6 +100,8 @@ export async function POST(request: NextRequest) {
                                     reps: item.reps,
                                     rest: item.rest,
                                     restBySet: item.restBySet,
+                                    load: item.load,
+                                    rpe: item.rpe,
                                     notes: item.notes,
                                     order: itemIndex,
                                 })),

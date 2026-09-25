@@ -171,6 +171,8 @@ export async function GET(request: NextRequest) {
                         sets: item.sets,
                         reps: item.reps,
                         rest: item.rest,
+                        load: item.load,
+                        rpe: item.rpe,
                         completed: false // TODO: Check completions
                     }))
                 };

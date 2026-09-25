@@ -75,6 +75,8 @@ export async function GET(request: NextRequest) {
                         try { return item.restBySet ? JSON.parse(item.restBySet) : null; }
                         catch { return null; }
                     })(),
+                    load: item.load,
+                    rpe: item.rpe,
                     notes: item.notes,
                     videoUrl: item.exercise.videoUrl,
                     instructions: item.exercise.instructions,
