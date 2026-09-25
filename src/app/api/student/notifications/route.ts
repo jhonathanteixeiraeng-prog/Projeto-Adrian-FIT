@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { studentLinkFor } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
                             data: {
                                 userId,
                                 type: 'WORKOUT_REMINDER',
+                                link: studentLinkFor('WORKOUT_REMINDER'),
                                 title: 'Hora de Treinar! 💪',
                                 body: 'Seu treino do dia está te esperando no app. Vamos manter o ritmo hoje?',
                                 read: false,
@@ -86,6 +88,7 @@ export async function GET(request: NextRequest) {
                         data: {
                             userId,
                             type: 'CHECKIN_REMINDER',
+                            link: studentLinkFor('CHECKIN_REMINDER'),
                             title: 'Check-in Semanal Pendente 📋',
                             body: 'Atualize seu peso, medidas e fotos para seu personal acompanhar sua evolução!',
                             read: false,

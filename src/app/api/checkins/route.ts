@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { personalLinks } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -193,6 +194,7 @@ export async function POST(request: NextRequest) {
                     type: 'CHECKIN_REMINDER',
                     title: 'Novo Check-in',
                     body: `${student.user.name} enviou o check-in semanal.`,
+                    link: personalLinks.student(student.id, 'progress'),
                 },
             });
         }

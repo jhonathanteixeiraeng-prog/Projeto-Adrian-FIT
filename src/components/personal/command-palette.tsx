@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     Search,
@@ -16,15 +16,43 @@ import {
     ArrowRight,
     Command as CommandIcon,
     X,
-    User
+    User,
+    TrendingUp,
+    FileText,
+    Phone,
+    ClipboardList,
+    Keyboard,
+    History,
+    Loader2,
+    type LucideIcon,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui';
+import { cn, matchesSearch, normalizeText } from '@/lib/utils';
+import { useApi } from '@/hooks/use-api';
+import { confirmNavigation } from '@/hooks/use-unsaved-changes';
+import { whatsappHref } from '@/components/personal/chat/contact';
 
 interface StudentItem {
     id: string;
     name: string;
     email: string;
+    phone: string | null;
     status: string;
+}
+
+interface PaletteItem {
+    id: string;
+    group: string;
+    title: string;
+    subtitle?: string;
+    icon?: LucideIcon;
+    avatarName?: string;
+    href?: string;
+    externalHref?: string;
+    onSelect?: () => void;
+    keywords?: string;
+    /** Remembered in "Recentes" when chosen. */
+    studentId?: string;
 }
 
 interface CommandPaletteProps {
@@ -32,207 +60,230 @@ interface CommandPaletteProps {
     onClose: () => void;
 }
 
+const RECENTS_KEY = 'personal:recent-students';
+const MAX_RECENTS = 6;
+
+function readRecents(): string[] {
+    try {
+        const raw = window.localStorage.getItem(RECENTS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+    } catch {
+        return [];
+    }
+}
+
+/** Records a student as recently opened, so it shows first in the ⌘K palette. Safe to call from any page. */
+export function rememberRecentStudent(studentId: string) {
+    try {
+        const next = [studentId, ...readRecents().filter((id) => id !== studentId)].slice(0, MAX_RECENTS);
+        window.localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+    } catch {
+        // Storage unavailable: recents are a convenience only.
+    }
+}
+
+/** Per-student actions; `words` let queries like "treino joao" or "chat ana" jump straight to the action. */
+const STUDENT_ACTIONS: {
+    key: string;
+    words: string[];
+    title: (name: string) => string;
+    icon: LucideIcon;
+    href?: (id: string) => string;
+}[] = [
+    { key: 'profile', words: ['ficha', 'perfil', 'abrir'], title: (n) => `Abrir ficha de ${n}`, icon: User, href: (id) => `/personal/students/${id}` },
+    { key: 'workout', words: ['treino', 'treinos', 'prescrever'], title: (n) => `Treino de ${n}`, icon: Dumbbell, href: (id) => `/personal/students/${id}/workout` },
+    { key: 'diet', words: ['dieta', 'dietas', 'plano', 'alimentar', 'nutricao'], title: (n) => `Plano alimentar de ${n}`, icon: Utensils, href: (id) => `/personal/students/${id}/diet` },
+    { key: 'chat', words: ['chat', 'mensagem', 'mensagens', 'conversa'], title: (n) => `Conversar com ${n}`, icon: MessageCircle, href: (id) => `/personal/chat/${id}` },
+    { key: 'progress', words: ['evolucao', 'progresso', 'checkin', 'check-in', 'fotos'], title: (n) => `Evolução de ${n}`, icon: TrendingUp, href: (id) => `/personal/students/${id}?tab=progress` },
+    { key: 'report', words: ['relatorio', 'pdf'], title: (n) => `Relatório de ${n}`, icon: FileText, href: (id) => `/personal/students/${id}/report` },
+    { key: 'whatsapp', words: ['whatsapp', 'whats', 'zap'], title: (n) => `WhatsApp de ${n}`, icon: Phone },
+];
+
+const ACTION_WORDS = new Set(STUDENT_ACTIONS.flatMap((action) => action.words));
+
+const STATIC_ITEMS: PaletteItem[] = [
+    { id: 'new-student', group: 'Ações rápidas', title: 'Cadastrar novo aluno', subtitle: 'Adicionar aluno à consultoria', icon: UserPlus, href: '/personal/students/new', keywords: 'criar' },
+    { id: 'new-workout', group: 'Ações rápidas', title: 'Nova ficha de treino', subtitle: 'Do zero ou a partir de um modelo', icon: Dumbbell, href: '/personal/workouts/new', keywords: 'criar prescrever' },
+    { id: 'new-diet', group: 'Ações rápidas', title: 'Novo plano alimentar', subtitle: 'Prescrever dieta e calcular macros', icon: Utensils, href: '/personal/diets/new', keywords: 'criar dieta' },
+    { id: 'nav-dashboard', group: 'Ir para', title: 'Dashboard', subtitle: 'G depois D', icon: LayoutDashboard, href: '/personal/dashboard', keywords: 'inicio painel' },
+    { id: 'nav-students', group: 'Ir para', title: 'Alunos (CRM)', subtitle: 'G depois A', icon: Users, href: '/personal/students', keywords: 'crm cobranca contratos' },
+    { id: 'nav-workouts', group: 'Ir para', title: 'Fichas de treino', subtitle: 'G depois T', icon: ClipboardList, href: '/personal/workouts', keywords: 'modelos biblioteca' },
+    { id: 'nav-diets', group: 'Ir para', title: 'Planos de dieta', subtitle: 'G depois N', icon: Utensils, href: '/personal/diets', keywords: 'nutricao modelos' },
+    { id: 'nav-exercises', group: 'Ir para', title: 'Exercícios', subtitle: 'G depois E', icon: Library, href: '/personal/exercises', keywords: 'biblioteca videos' },
+    { id: 'nav-chat', group: 'Ir para', title: 'Chat', subtitle: 'G depois C', icon: MessageCircle, href: '/personal/chat', keywords: 'mensagens conversas' },
+    { id: 'nav-notifications', group: 'Ir para', title: 'Notificações', icon: Bell, href: '/personal/notifications', keywords: 'alertas' },
+    { id: 'nav-settings', group: 'Ir para', title: 'Configurações', icon: Settings, href: '/personal/settings', keywords: 'perfil conta' },
+    {
+        id: 'shortcuts',
+        group: 'Ir para',
+        title: 'Atalhos de teclado',
+        subtitle: 'Tecla ?',
+        icon: Keyboard,
+        onSelect: () => window.dispatchEvent(new Event('personal:open-shortcuts')),
+        keywords: 'teclado ajuda',
+    },
+];
+
+function studentActionItems(student: StudentItem, onlyKeys?: Set<string>): PaletteItem[] {
+    return STUDENT_ACTIONS.filter((action) => !onlyKeys || onlyKeys.has(action.key)).flatMap<PaletteItem>((action) => {
+        const firstName = student.name.split(' ')[0];
+        if (action.key === 'whatsapp') {
+            const href = whatsappHref(student.phone);
+            if (!href) return [];
+            return [{ id: `${student.id}-${action.key}`, group: `Ações · ${student.name}`, title: action.title(firstName), icon: action.icon, externalHref: href, studentId: student.id }];
+        }
+        return [
+            {
+                id: `${student.id}-${action.key}`,
+                group: `Ações · ${student.name}`,
+                title: action.title(firstName),
+                icon: action.icon,
+                href: action.href?.(student.id),
+                studentId: student.id,
+            },
+        ];
+    });
+}
+
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     const router = useRouter();
     const [query, setQuery] = useState('');
-    const [students, setStudents] = useState<StudentItem[]>([]);
-    const [loadingStudents, setLoadingStudents] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const [recents, setRecents] = useState<string[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
 
-    // Fetch students when palette opens
+    // Cached: reopening the palette is instant and shares data with the CRM list.
+    const { data: rawStudents, isLoading } = useApi<any[]>(isOpen ? '/api/students' : null);
+
+    const students = useMemo<StudentItem[]>(
+        () =>
+            (Array.isArray(rawStudents) ? rawStudents : []).map((s: any) => ({
+                id: s.id,
+                name: s.user?.name || 'Aluno',
+                email: s.user?.email || '',
+                phone: s.user?.phone || null,
+                status: s.status,
+            })),
+        [rawStudents]
+    );
+
     useEffect(() => {
         if (!isOpen) {
             setQuery('');
             setSelectedIndex(0);
             return;
         }
-
-        const fetchStudents = async () => {
-            try {
-                setLoadingStudents(true);
-                const res = await fetch('/api/students');
-                const data = await res.json();
-                if (data.success && Array.isArray(data.data)) {
-                    setStudents(
-                        data.data.map((s: any) => ({
-                            id: s.id,
-                            name: s.user?.name || 'Aluno',
-                            email: s.user?.email || '',
-                            status: s.status,
-                        }))
-                    );
-                }
-            } catch (err) {
-                console.error('Erro ao buscar alunos para command palette:', err);
-            } finally {
-                setLoadingStudents(false);
-            }
-        };
-
-        fetchStudents();
-        setTimeout(() => inputRef.current?.focus(), 50);
+        setRecents(readRecents());
+        const id = window.setTimeout(() => inputRef.current?.focus(), 30);
+        return () => window.clearTimeout(id);
     }, [isOpen]);
 
-    // Handle global Cmd+K shortcut
+    const items = useMemo<PaletteItem[]>(() => {
+        const toStudentItem = (student: StudentItem, group: string): PaletteItem => ({
+            id: `student-${student.id}`,
+            group,
+            title: student.name,
+            subtitle: [student.email, student.status !== 'ACTIVE' ? (student.status === 'PAUSED' ? 'Pausado' : 'Inativo') : null]
+                .filter(Boolean)
+                .join(' · '),
+            avatarName: student.name,
+            href: `/personal/students/${student.id}`,
+            studentId: student.id,
+        });
+
+        const trimmed = query.trim();
+        if (!trimmed) {
+            const recentStudents = recents
+                .map((id) => students.find((student) => student.id === id))
+                .filter((student): student is StudentItem => Boolean(student))
+                .map((student) => toStudentItem(student, 'Recentes'));
+            return [...recentStudents, ...STATIC_ITEMS];
+        }
+
+        // Split "treino joao" into an action ("treino") and a name ("joao").
+        const terms = normalizeText(trimmed).split(/\s+/).filter(Boolean);
+        const actionTerms = terms.filter((term) => ACTION_WORDS.has(term));
+        const nameQuery = terms.filter((term) => !ACTION_WORDS.has(term)).join(' ');
+        const requestedActions = new Set(
+            STUDENT_ACTIONS.filter((action) => action.words.some((word) => actionTerms.includes(word))).map((action) => action.key)
+        );
+
+        const matchedStudents = students
+            .filter((student) => matchesSearch(trimmed, student.name, student.email, student.phone))
+            .concat(
+                nameQuery && requestedActions.size > 0
+                    ? students.filter(
+                          (student) =>
+                              matchesSearch(nameQuery, student.name, student.email) &&
+                              !matchesSearch(trimmed, student.name, student.email, student.phone)
+                      )
+                    : []
+            );
+
+        const result: PaletteItem[] = [];
+        if (requestedActions.size > 0) {
+            matchedStudents.slice(0, 3).forEach((student) => result.push(...studentActionItems(student, requestedActions)));
+        }
+        result.push(...matchedStudents.slice(0, 8).map((student) => toStudentItem(student, 'Alunos')));
+        if (requestedActions.size === 0 && matchedStudents.length > 0) {
+            result.push(...studentActionItems(matchedStudents[0]).filter((item) => !item.id.endsWith('-profile')));
+        }
+        result.push(...STATIC_ITEMS.filter((item) => matchesSearch(trimmed, item.title, item.subtitle, item.keywords)));
+        return result;
+    }, [query, students, recents]);
+
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-                e.preventDefault();
-                if (isOpen) {
-                    onClose();
-                }
-            } else if (e.key === 'Escape' && isOpen) {
-                e.preventDefault();
-                onClose();
-            }
-        };
+        setSelectedIndex((index) => Math.min(index, Math.max(items.length - 1, 0)));
+    }, [items.length]);
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+    useEffect(() => {
+        const node = listRef.current?.querySelector<HTMLElement>(`[data-index="${selectedIndex}"]`);
+        node?.scrollIntoView({ block: 'nearest' });
+    }, [selectedIndex]);
 
-    const staticActions = useMemo(
-        () => [
-            {
-                id: 'new-student',
-                category: 'Ações Rápidas',
-                title: 'Cadastrar Novo Aluno',
-                subtitle: 'Adicionar aluno à consultoria',
-                icon: UserPlus,
-                href: '/personal/students/new',
-            },
-            {
-                id: 'new-workout',
-                category: 'Ações Rápidas',
-                title: 'Prescrever Nova Ficha de Treino',
-                subtitle: 'Criar rotina do zero ou modelo',
-                icon: Dumbbell,
-                href: '/personal/workouts/new',
-            },
-            {
-                id: 'new-diet',
-                category: 'Ações Rápidas',
-                title: 'Criar Novo Plano Alimentar',
-                subtitle: 'Prescrever dieta ou calcular macros',
-                icon: Utensils,
-                href: '/personal/diets/new',
-            },
-            {
-                id: 'exercises-library',
-                category: 'Ações Rápidas',
-                title: 'Biblioteca de Exercícios',
-                subtitle: 'Gerenciar exercícios e vídeos',
-                icon: Library,
-                href: '/personal/exercises',
-            },
-            {
-                id: 'nav-dashboard',
-                category: 'Navegação',
-                title: 'Dashboard Geral',
-                subtitle: 'Métricas, retenção e feed ao vivo',
-                icon: LayoutDashboard,
-                href: '/personal/dashboard',
-            },
-            {
-                id: 'nav-students',
-                category: 'Navegação',
-                title: 'CRM de Alunos',
-                subtitle: 'Gestão de planos, contratos e churn',
-                icon: Users,
-                href: '/personal/students',
-            },
-            {
-                id: 'nav-chat',
-                category: 'Navegação',
-                title: 'Mensagens & Chat',
-                subtitle: 'Conversas com alunos',
-                icon: MessageCircle,
-                href: '/personal/chat',
-            },
-            {
-                id: 'nav-notifications',
-                category: 'Navegação',
-                title: 'Notificações',
-                subtitle: 'Alertas e atividades do sistema',
-                icon: Bell,
-                href: '/personal/notifications',
-            },
-            {
-                id: 'nav-settings',
-                category: 'Navegação',
-                title: 'Configurações',
-                subtitle: 'Dados profissionais e perfil',
-                icon: Settings,
-                href: '/personal/settings',
-            },
-        ],
-        []
-    );
-
-    const filteredStudents = useMemo(() => {
-        if (!query.trim()) return students.slice(0, 5);
-        const q = query.toLowerCase().trim();
-        return students.filter(
-            (s) => s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)
-        );
-    }, [students, query]);
-
-    const filteredActions = useMemo(() => {
-        if (!query.trim()) return staticActions;
-        const q = query.toLowerCase().trim();
-        return staticActions.filter(
-            (a) => a.title.toLowerCase().includes(q) || a.subtitle.toLowerCase().includes(q)
-        );
-    }, [staticActions, query]);
-
-    // Flattened list for keyboard navigation
-    const allItems = useMemo(() => {
-        const studentItems = filteredStudents.map((s) => ({
-            type: 'student' as const,
-            id: s.id,
-            title: s.name,
-            subtitle: s.email,
-            href: `/personal/students/${s.id}`,
-            data: s,
-        }));
-
-        const actionItems = filteredActions.map((a) => ({
-            type: 'action' as const,
-            id: a.id,
-            title: a.title,
-            subtitle: a.subtitle,
-            href: a.href,
-            icon: a.icon,
-        }));
-
-        return [...studentItems, ...actionItems];
-    }, [filteredStudents, filteredActions]);
-
-    const handleSelect = (href: string) => {
+    const handleSelect = async (item: PaletteItem) => {
+        // Close first: the "sair sem salvar?" confirmation must not open underneath the palette overlay.
         onClose();
-        router.push(href);
+        if (item.href && !(await confirmNavigation())) return;
+        if (item.studentId) rememberRecentStudent(item.studentId);
+        if (item.onSelect) item.onSelect();
+        else if (item.externalHref) window.open(item.externalHref, '_blank', 'noopener,noreferrer');
+        else if (item.href) router.push(item.href);
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (allItems.length === 0) return;
-
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setSelectedIndex((prev) => (prev + 1) % allItems.length);
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setSelectedIndex((prev) => (prev - 1 + allItems.length) % allItems.length);
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            const selected = allItems[selectedIndex];
-            if (selected) {
-                handleSelect(selected.href);
-            }
+    const handleKeyDown = (event: React.KeyboardEvent) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose();
+            return;
+        }
+        if (items.length === 0) return;
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setSelectedIndex((prev) => (prev + 1) % items.length);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setSelectedIndex((prev) => (prev - 1 + items.length) % items.length);
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            const selected = items[selectedIndex];
+            if (selected) handleSelect(selected);
         }
     };
 
     if (!isOpen) return null;
+
+    // Group consecutive items for rendering while keeping a flat index for keyboard navigation.
+    const groups: { name: string; entries: { item: PaletteItem; index: number }[] }[] = [];
+    items.forEach((item, index) => {
+        const last = groups[groups.length - 1];
+        if (last && last.name === item.group) last.entries.push({ item, index });
+        else groups.push({ name: item.group, entries: [{ item, index }] });
+    });
+
+    const activeId = items[selectedIndex] ? `palette-item-${selectedIndex}` : undefined;
 
     return (
         <div
@@ -240,7 +291,10 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             onClick={onClose}
         >
             <div
-                className="bg-card border border-border w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh] animate-in zoom-in-95 duration-150"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Busca e comandos"
+                className="bg-card border border-border w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh] animate-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={handleKeyDown}
             >
@@ -250,140 +304,108 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                     <input
                         ref={inputRef}
                         type="text"
+                        role="combobox"
+                        aria-expanded="true"
+                        aria-controls="palette-list"
+                        aria-activedescendant={activeId}
                         value={query}
                         onChange={(e) => {
                             setQuery(e.target.value);
                             setSelectedIndex(0);
                         }}
-                        placeholder="Buscar aluno, prescrição, ferramenta ou tela..."
-                        className="w-full bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
+                        placeholder='Buscar aluno ou comando — ex.: "treino ana", "chat joão"'
+                        className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none"
                     />
+                    {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}
                     {query && (
                         <button
                             onClick={() => {
                                 setQuery('');
                                 setSelectedIndex(0);
+                                inputRef.current?.focus();
                             }}
                             className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                            aria-label="Limpar busca"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     )}
-                    <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground bg-muted rounded-md border border-border shrink-0">
-                        ESC
+                    <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-xs font-semibold text-muted-foreground bg-muted rounded-md border border-border shrink-0">
+                        Esc
                     </kbd>
                 </div>
 
                 {/* Results List */}
-                <div className="flex-1 overflow-y-auto p-2 divide-y divide-border/50">
-                    {/* Alunos Section */}
-                    {filteredStudents.length > 0 && (
-                        <div className="py-2 first:pt-0">
-                            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5 flex items-center gap-1.5">
-                                <User className="w-3 h-3 text-[#F88022]" />
-                                Alunos
+                <div ref={listRef} id="palette-list" role="listbox" className="flex-1 overflow-y-auto p-2">
+                    {groups.map((group) => (
+                        <div key={group.name} className="py-1.5">
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1 flex items-center gap-1.5">
+                                {group.name === 'Recentes' ? (
+                                    <History className="w-3 h-3 text-[#F88022]" />
+                                ) : group.name === 'Alunos' ? (
+                                    <User className="w-3 h-3 text-[#F88022]" />
+                                ) : (
+                                    <CommandIcon className="w-3 h-3 text-[#F88022]" />
+                                )}
+                                {group.name}
                             </p>
                             <div className="space-y-0.5">
-                                {filteredStudents.map((student) => {
-                                    const itemIndex = allItems.findIndex(
-                                        (i) => i.type === 'student' && i.id === student.id
-                                    );
-                                    const isSelected = itemIndex === selectedIndex;
-
+                                {group.entries.map(({ item, index }) => {
+                                    const isSelected = index === selectedIndex;
+                                    const Icon = item.icon;
                                     return (
                                         <button
-                                            key={student.id}
-                                            onClick={() => handleSelect(`/personal/students/${student.id}`)}
-                                            onMouseEnter={() => setSelectedIndex(itemIndex)}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
-                                                isSelected
-                                                    ? 'bg-[#F88022]/15 text-[#F88022]'
-                                                    : 'hover:bg-muted/60 text-foreground'
-                                            }`}
+                                            key={item.id}
+                                            id={`palette-item-${index}`}
+                                            data-index={index}
+                                            role="option"
+                                            aria-selected={isSelected}
+                                            onClick={() => handleSelect(item)}
+                                            onMouseMove={() => setSelectedIndex(index)}
+                                            className={cn(
+                                                'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl text-left transition-colors',
+                                                isSelected ? 'bg-[#F88022]/15 text-[#F88022]' : 'text-foreground hover:bg-muted/60'
+                                            )}
                                         >
                                             <div className="flex items-center gap-3 min-w-0">
-                                                <Avatar name={student.name} size="sm" />
+                                                {item.avatarName ? (
+                                                    <Avatar name={item.avatarName} size="sm" />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                                                        {Icon && <Icon className="w-4 h-4 text-[#F88022]" />}
+                                                    </div>
+                                                )}
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-semibold truncate leading-tight">
-                                                        {student.name}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground truncate">
-                                                        {student.email}
-                                                    </p>
+                                                    <p className="text-sm font-semibold truncate leading-tight">{item.title}</p>
+                                                    {item.subtitle && (
+                                                        <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <span className="text-[11px] font-medium text-muted-foreground">
-                                                    Abrir Ficha
+                                            {isSelected && (
+                                                <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground shrink-0">
+                                                    {item.externalHref ? 'Abrir' : 'Ir'}
+                                                    <ArrowRight className="w-3.5 h-3.5" />
                                                 </span>
-                                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-                                            </div>
+                                            )}
                                         </button>
                                     );
                                 })}
                             </div>
                         </div>
-                    )}
+                    ))}
 
-                    {/* Ações e Navegação */}
-                    {filteredActions.length > 0 && (
-                        <div className="py-2">
-                            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5 flex items-center gap-1.5">
-                                <CommandIcon className="w-3 h-3 text-[#F88022]" />
-                                Ações & Telas
-                            </p>
-                            <div className="space-y-0.5">
-                                {filteredActions.map((action) => {
-                                    const itemIndex = allItems.findIndex(
-                                        (i) => i.type === 'action' && i.id === action.id
-                                    );
-                                    const isSelected = itemIndex === selectedIndex;
-                                    const IconComponent = action.icon;
-
-                                    return (
-                                        <button
-                                            key={action.id}
-                                            onClick={() => handleSelect(action.href)}
-                                            onMouseEnter={() => setSelectedIndex(itemIndex)}
-                                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
-                                                isSelected
-                                                    ? 'bg-[#F88022]/15 text-[#F88022]'
-                                                    : 'hover:bg-muted/60 text-foreground'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-foreground shrink-0">
-                                                    <IconComponent className="w-4 h-4 text-[#F88022]" />
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-semibold truncate leading-tight">
-                                                        {action.title}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground truncate">
-                                                        {action.subtitle}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Empty State */}
-                    {allItems.length === 0 && (
+                    {items.length === 0 && (
                         <div className="py-12 text-center text-muted-foreground">
                             <Search className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                            <p className="text-sm font-semibold text-foreground">Nenhum resultado encontrado</p>
-                            <p className="text-xs mt-1">Tente buscar por outro termo ou nome de aluno.</p>
+                            <p className="text-sm font-semibold text-foreground">Nenhum resultado</p>
+                            <p className="text-sm mt-1">Tente outro nome, e-mail ou comando.</p>
                         </div>
                     )}
                 </div>
 
                 {/* Footer Tips */}
-                <div className="px-4 py-2.5 bg-muted/40 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+                <div className="px-4 py-2.5 bg-muted/40 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                     <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1">
                             <kbd className="px-1 py-0.5 bg-muted rounded border border-border font-sans font-semibold">↑</kbd>
@@ -392,13 +414,14 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                         </span>
                         <span className="flex items-center gap-1">
                             <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-sans font-semibold">↵</kbd>
-                            selecionar
+                            abrir
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border font-sans font-semibold">Esc</kbd>
+                            fechar
                         </span>
                     </div>
-                    <span className="flex items-center gap-1 text-[#F88022] font-semibold">
-                        <CommandIcon className="w-3 h-3" />
-                        ADRIAN FIT PRO
-                    </span>
+                    <span className="hidden sm:inline">Busca ignora acentos</span>
                 </div>
             </div>
         </div>

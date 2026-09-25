@@ -15,29 +15,58 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const [notifications, unreadMessages] = await Promise.all([
+        // Optional (web): ?exclude=NEW_MESSAGE,...  ?limit=50 (max 100)  ?before=<ISO date> for older pages.
+        const { searchParams } = new URL(request.url);
+        const excludedTypes = (searchParams.get('exclude') || '')
+            .split(',')
+            .map((type) => type.trim())
+            .filter(Boolean);
+        const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 50, 1), 100);
+        const beforeParam = searchParams.get('before');
+        const before = beforeParam ? new Date(beforeParam) : null;
+
+        const [page, unreadMessages, unreadNotifications] = await Promise.all([
             prisma.notification.findMany({
-                where: { userId: session.user.id },
+                where: {
+                    userId: session.user.id,
+                    ...(excludedTypes.length > 0 && { type: { notIn: excludedTypes } }),
+                    ...(before && !Number.isNaN(before.getTime()) && { createdAt: { lt: before } }),
+                },
                 orderBy: { createdAt: 'desc' },
-                take: 50,
+                take: limit + 1,
             }),
             prisma.message.count({
                 where: {
                     toUserId: session.user.id,
                     read: false,
+                    fromUser: {
+                        student: {
+                            personalId: session.user.personalId,
+                        },
+                    },
+                },
+            }),
+            // Chat messages are counted once, via unreadMessages; their NEW_MESSAGE twins are not.
+            prisma.notification.count({
+                where: {
+                    userId: session.user.id,
+                    read: false,
+                    type: { not: 'NEW_MESSAGE' },
                 },
             }),
         ]);
 
-        const unreadNotificationCount = notifications.filter((notification) => !notification.read).length;
-        const unreadCount = unreadNotificationCount + unreadMessages;
+        const hasMore = page.length > limit;
+        const notifications = hasMore ? page.slice(0, limit) : page;
 
         return NextResponse.json({
             success: true,
             data: {
                 notifications,
                 unreadMessages,
-                unreadCount,
+                unreadNotifications,
+                unreadCount: unreadNotifications + unreadMessages,
+                hasMore,
             },
         });
     } catch (error) {
@@ -66,22 +95,14 @@ export async function PATCH(request: NextRequest) {
         const notificationId = typeof body?.id === 'string' ? body.id : null;
 
         if (readAll) {
-            await Promise.all([
-                prisma.notification.updateMany({
-                    where: {
-                        userId: session.user.id,
-                        read: false,
-                    },
-                    data: { read: true },
-                }),
-                prisma.message.updateMany({
-                    where: {
-                        toUserId: session.user.id,
-                        read: false,
-                    },
-                    data: { read: true },
-                }),
-            ]);
+            // Only notifications: chat messages stay unread until their conversation is opened.
+            await prisma.notification.updateMany({
+                where: {
+                    userId: session.user.id,
+                    read: false,
+                },
+                data: { read: true },
+            });
 
             return NextResponse.json({
                 success: true,

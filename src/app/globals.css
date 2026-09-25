@@ -93,7 +93,8 @@
   html,
   body {
     max-width: 100vw;
-    overflow-x: hidden;
+    /* clip (not hidden) so body doesn't become a scroll container and position: sticky keeps working */
+    overflow-x: clip;
     font-family: 'Inter', 'Montserrat', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
@@ -118,16 +119,18 @@
     letter-spacing: -0.02em;
   }
 
-  /* Better touch targets for interactive elements */
-  button, a, [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
+  /* Better touch targets for interactive elements (touch screens only; desktop keeps dense controls) */
+  @media (pointer: coarse) {
+    button, a, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
 
-  /* Exceptions for inline / small elements */
-  a:not([class]), span a, p a {
-    min-height: auto;
-    min-width: auto;
+    /* Exceptions for inline / small elements */
+    a:not([class]), span a, p a {
+      min-height: auto;
+      min-width: auto;
+    }
   }
 }
 

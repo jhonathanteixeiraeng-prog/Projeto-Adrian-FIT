@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     Dumbbell,
@@ -17,19 +17,32 @@ import {
     Utensils,
     MoreHorizontal,
     X,
-    Radio
+    Loader2,
+    PanelLeftClose,
+    PanelLeftOpen,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { TopHeader } from '@/components/personal/top-header';
+import { NotificationsProvider, useNotifications } from '@/components/personal/notifications-provider';
+import { PageMetaProvider } from '@/components/personal/page-meta';
+import { GO_TO_SHORTCUTS, ShortcutsHelpDialog } from '@/components/personal/shortcuts-help';
+import { useHotkey, isTypingTarget, isModalOpen } from '@/hooks/use-hotkey';
+import { useLocalStorageState } from '@/hooks/use-local-storage';
+import { confirmNavigation } from '@/hooks/use-unsaved-changes';
+
+type BadgeSource = 'messages' | 'notifications';
+
+interface NavItem {
+    href: string;
+    label: string;
+    icon: any;
+    badge?: BadgeSource;
+}
 
 interface NavGroup {
     title: string;
-    items: {
-        href: string;
-        label: string;
-        icon: any;
-    }[];
+    items: NavItem[];
 }
 
 const navGroups: NavGroup[] = [
@@ -51,8 +64,8 @@ const navGroups: NavGroup[] = [
     {
         title: 'Comunicação',
         items: [
-            { href: '/personal/chat', label: 'Chat & Mensagens', icon: MessageCircle },
-            { href: '/personal/notifications', label: 'Notificações', icon: Bell },
+            { href: '/personal/chat', label: 'Chat & Mensagens', icon: MessageCircle, badge: 'messages' },
+            { href: '/personal/notifications', label: 'Notificações', icon: Bell, badge: 'notifications' },
         ],
     },
     {
@@ -63,103 +76,146 @@ const navGroups: NavGroup[] = [
     },
 ];
 
-const mobileNavItems = [
+const mobileNavItems: NavItem[] = [
     { href: '/personal/dashboard', label: 'Início', icon: LayoutDashboard },
     { href: '/personal/students', label: 'Alunos', icon: Users },
     { href: '/personal/workouts', label: 'Treinos', icon: ClipboardList },
-    { href: '/personal/chat', label: 'Chat', icon: MessageCircle },
+    { href: '/personal/chat', label: 'Chat', icon: MessageCircle, badge: 'messages' },
     { href: '/personal/diets', label: 'Dietas', icon: Utensils },
     { href: '/personal/exercises', label: 'Exercícios', icon: Library },
-    { href: '/personal/notifications', label: 'Alertas', icon: Bell },
+    { href: '/personal/notifications', label: 'Alertas', icon: Bell, badge: 'notifications' },
     { href: '/personal/settings', label: 'Conta', icon: Settings },
 ];
 
-export default function PersonalLayout({ children }: { children: React.ReactNode }) {
+const isItemActive = (pathname: string, href: string) =>
+    pathname === href || (href !== '/personal/dashboard' && pathname.startsWith(href));
+
+const formatBadge = (count: number) => (count > 99 ? '99+' : String(count));
+
+function PageFallback() {
+    return (
+        <div className="flex min-h-[40vh] items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-[#F88022]" />
+        </div>
+    );
+}
+
+/** "G then <key>" navigation, e.g. G A opens the students CRM. */
+function useGoToShortcuts() {
+    const router = useRouter();
+    const pendingRef = useRef<number>(0);
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+            if (isTypingTarget(event.target) || isModalOpen()) return;
+            const key = event.key.toLowerCase();
+
+            if (pendingRef.current && Date.now() - pendingRef.current < 1200) {
+                pendingRef.current = 0;
+                const target = GO_TO_SHORTCUTS.find((item) => item.key === key);
+                if (target) {
+                    event.preventDefault();
+                    confirmNavigation().then((ok) => {
+                        if (ok) router.push(target.href);
+                    });
+                }
+                return;
+            }
+            if (key === 'g' && !event.shiftKey) pendingRef.current = Date.now();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [router]);
+}
+
+function PersonalShell({ children }: { children: React.ReactNode }) {
     const { data: session } = useSession();
     const pathname = usePathname();
-    const [unreadCount, setUnreadCount] = useState(0);
+    const { unreadMessages, unreadNotifications } = useNotifications();
     const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+    const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+    const [collapsed, setCollapsed] = useLocalStorageState('personal:sidebar-collapsed', false);
+
+    const badgeCount = (source?: BadgeSource) =>
+        source === 'messages' ? unreadMessages : source === 'notifications' ? unreadNotifications : 0;
 
     const mobilePrimaryItems = mobileNavItems.slice(0, 4);
     const mobileMoreItems = mobileNavItems.slice(4);
 
+    useGoToShortcuts();
+    useHotkey('?', () => setIsShortcutsOpen(true));
+    useHotkey('[', () => setCollapsed((current) => !current));
+
     useEffect(() => {
-        let active = true;
-        let intervalId: NodeJS.Timeout | null = null;
-
-        const fetchUnreadCount = async () => {
-            try {
-                const response = await fetch('/api/personal/notifications', { cache: 'no-store' });
-                const data = await response.json();
-
-                if (active && data?.success) {
-                    setUnreadCount(Number(data?.data?.unreadCount || 0));
-                }
-            } catch (error) {
-                console.error('Erro ao carregar notificações do personal:', error);
-            }
-        };
-
-        if (session?.user?.role === 'PERSONAL') {
-            fetchUnreadCount();
-            intervalId = setInterval(fetchUnreadCount, 20000);
-        }
-
-        return () => {
-            active = false;
-            if (intervalId) clearInterval(intervalId);
-        };
-    }, [session?.user?.role]);
+        const open = () => setIsShortcutsOpen(true);
+        window.addEventListener('personal:open-shortcuts', open);
+        return () => window.removeEventListener('personal:open-shortcuts', open);
+    }, []);
 
     useEffect(() => {
         setIsMoreMenuOpen(false);
     }, [pathname]);
 
     return (
-        <div className="min-h-dvh bg-background flex overflow-x-hidden">
+        <div className="min-h-dvh bg-background flex overflow-x-clip">
             {/* Desktop Sidebar */}
-            <aside className="hidden lg:flex w-64 flex-col fixed inset-y-0 left-0 bg-card border-r border-border z-40">
+            <aside
+                className={cn(
+                    'hidden lg:flex flex-col fixed inset-y-0 left-0 bg-card border-r border-border z-40 transition-[width] duration-200',
+                    collapsed ? 'w-[72px]' : 'w-64'
+                )}
+            >
                 {/* Logo & Brand Header */}
-                <div className="h-16 flex items-center gap-3 px-6 border-b border-border bg-card">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#F88022] to-amber-500 flex items-center justify-center shadow-xs">
+                <div className={cn('h-16 flex items-center gap-3 border-b border-border bg-card', collapsed ? 'justify-center px-2' : 'px-6')}>
+                    <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-tr from-[#F88022] to-amber-500 flex items-center justify-center shadow-xs">
                         <Dumbbell className="w-5 h-5 text-white" />
                     </div>
-                    <div>
-                        <div className="flex items-center gap-1.5">
-                            <h1 className="font-extrabold text-foreground tracking-tight text-sm">ADRIAN FIT</h1>
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-[#F88022]/15 text-[#F88022]">
-                                PRO
-                            </span>
+                    {!collapsed && (
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                                <h1 className="font-extrabold text-foreground tracking-tight text-sm">ADRIAN FIT</h1>
+                                <span className="text-xs font-bold px-1.5 rounded-md bg-[#F88022]/15 text-[#F88022]">PRO</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Consultoria & Treino</p>
                         </div>
-                        <p className="text-[11px] text-muted-foreground">Consultoria & Treino</p>
-                    </div>
+                    )}
                 </div>
 
                 {/* Grouped Navigation */}
-                <nav className="flex-1 py-5 px-3 space-y-5 overflow-y-auto">
+                <nav className={cn('flex-1 py-5 space-y-5 overflow-y-auto', collapsed ? 'px-2' : 'px-3')}>
                     {navGroups.map((group) => (
                         <div key={group.title} className="space-y-1">
-                            <p className="px-3 text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider">
-                                {group.title}
-                            </p>
+                            {collapsed ? (
+                                <div className="mx-auto mb-2 h-px w-8 bg-border" aria-hidden />
+                            ) : (
+                                <p className="px-3 text-xs font-bold text-muted-foreground/80 uppercase tracking-wider">
+                                    {group.title}
+                                </p>
+                            )}
                             <div className="space-y-0.5">
                                 {group.items.map((item) => {
-                                    const isActive =
-                                        pathname === item.href ||
-                                        (item.href !== '/personal/dashboard' && pathname.startsWith(item.href));
+                                    const isActive = isItemActive(pathname, item.href);
                                     const Icon = item.icon;
+                                    const count = badgeCount(item.badge);
 
                                     return (
                                         <Link
                                             key={item.href}
                                             href={item.href}
+                                            title={collapsed ? item.label : undefined}
+                                            aria-label={collapsed ? item.label : undefined}
                                             className={cn(
-                                                'flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150',
+                                                'relative flex items-center rounded-xl text-sm font-semibold transition-all duration-150',
+                                                collapsed ? 'h-10 justify-center' : 'justify-between px-3 py-2',
                                                 isActive
-                                                    ? 'bg-[#F88022]/10 text-[#F88022] border-l-2 border-[#F88022]'
+                                                    ? 'bg-[#F88022]/10 text-[#F88022]'
                                                     : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
                                             )}
                                         >
+                                            {isActive && !collapsed && (
+                                                <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-[#F88022]" aria-hidden />
+                                            )}
                                             <div className="flex items-center gap-2.5 min-w-0">
                                                 <Icon
                                                     className={cn(
@@ -167,14 +223,17 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
                                                         isActive ? 'text-[#F88022]' : 'text-muted-foreground'
                                                     )}
                                                 />
-                                                <span className="truncate">{item.label}</span>
+                                                {!collapsed && <span className="truncate">{item.label}</span>}
                                             </div>
 
-                                            {item.href === '/personal/notifications' && unreadCount > 0 && (
-                                                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#F88022] text-white text-[10px] font-bold flex items-center justify-center">
-                                                    {unreadCount > 99 ? '99+' : unreadCount}
-                                                </span>
-                                            )}
+                                            {count > 0 &&
+                                                (collapsed ? (
+                                                    <span className="absolute top-1.5 right-2.5 h-2 w-2 rounded-full bg-[#F88022]" aria-hidden />
+                                                ) : (
+                                                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#F88022] text-white text-xs font-bold flex items-center justify-center">
+                                                        {formatBadge(count)}
+                                                    </span>
+                                                ))}
                                         </Link>
                                     );
                                 })}
@@ -184,28 +243,52 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
                 </nav>
 
                 {/* Sidebar Footer */}
-                <div className="p-3 border-t border-border bg-muted/20">
-                    <div className="p-2.5 rounded-xl bg-card border border-border/80 shadow-xs flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <span className="relative flex h-2 w-2 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                            </span>
-                            <div className="min-w-0">
-                                <p className="text-xs font-bold text-foreground truncate">
-                                    {session?.user?.name || 'Personal'}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground">Consultoria Online</p>
-                            </div>
-                        </div>
+                <div className={cn('border-t border-border bg-muted/20', collapsed ? 'p-2 space-y-2' : 'p-3 space-y-2')}>
+                    {collapsed ? (
                         <button
                             onClick={() => signOut({ callbackUrl: '/login' })}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                            className="w-full h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
                             title="Sair"
+                            aria-label="Sair"
                         >
                             <LogOut className="w-4 h-4" />
                         </button>
-                    </div>
+                    ) : (
+                        <div className="p-2.5 rounded-xl bg-card border border-border/80 shadow-xs flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <span className="relative flex h-2 w-2 shrink-0">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-bold text-foreground truncate">
+                                        {session?.user?.name || 'Personal'}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">Consultoria Online</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => signOut({ callbackUrl: '/login' })}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                title="Sair"
+                            >
+                                <LogOut className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setCollapsed((current) => !current)}
+                        className={cn(
+                            'w-full flex items-center gap-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors',
+                            collapsed ? 'h-9 justify-center' : 'px-3 py-2'
+                        )}
+                        title={collapsed ? 'Expandir menu ( [ )' : 'Recolher menu ( [ )'}
+                        aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+                    >
+                        {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+                        {!collapsed && <span>Recolher menu</span>}
+                    </button>
                 </div>
             </aside>
 
@@ -217,18 +300,19 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
                     </div>
                     <div>
                         <span className="font-extrabold text-foreground text-sm tracking-tight">ADRIAN FIT</span>
-                        <p className="text-[10px] text-[#F88022] font-semibold">COACH PRO</p>
+                        <p className="text-xs text-[#F88022] font-semibold">COACH PRO</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <Link
                         href="/personal/notifications"
                         className="p-2 text-muted-foreground hover:text-foreground relative rounded-xl hover:bg-muted transition-colors"
+                        aria-label="Notificações"
                     >
                         <Bell className="w-5 h-5" />
-                        {unreadCount > 0 && (
+                        {unreadNotifications > 0 && (
                             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F88022] text-white text-[10px] font-bold flex items-center justify-center">
-                                {unreadCount > 99 ? '99+' : unreadCount}
+                                {formatBadge(unreadNotifications)}
                             </span>
                         )}
                     </Link>
@@ -237,11 +321,17 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
             </header>
 
             {/* Main Area with Desktop TopHeader */}
-            <div className="flex-1 lg:ml-64 flex flex-col min-h-dvh overflow-x-hidden">
+            <div
+                className={cn(
+                    // min-w-0: with overflow-x-clip (needed for sticky) the column must still be allowed to shrink
+                    'flex-1 min-w-0 flex flex-col min-h-dvh overflow-x-clip transition-[margin] duration-200',
+                    collapsed ? 'lg:ml-[72px]' : 'lg:ml-64'
+                )}
+            >
                 <TopHeader />
-                <main className="flex-1 pt-16 lg:pt-0 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-12 overflow-x-hidden">
-                    <div className="p-4 lg:p-8 w-full max-w-7xl mx-auto overflow-x-hidden">
-                        {children}
+                <main className="flex-1 pt-16 lg:pt-0 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-12 overflow-x-clip">
+                    <div className="p-4 lg:p-8 w-full max-w-[1600px] mx-auto overflow-x-clip">
+                        <Suspense fallback={<PageFallback />}>{children}</Suspense>
                     </div>
                 </main>
             </div>
@@ -249,18 +339,20 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
             {/* Mobile Bottom Navigation */}
             <nav className="lg:hidden fixed bottom-0 inset-x-0 h-16 bg-card border-t border-border flex items-center justify-around px-4 z-50">
                 {mobilePrimaryItems.map((item) => {
-                    const isActive = pathname === item.href || (item.href !== '/personal/dashboard' && pathname.startsWith(item.href));
+                    const isActive = isItemActive(pathname, item.href);
                     const Icon = item.icon;
+                    const count = badgeCount(item.badge);
                     return (
                         <Link
                             key={item.href}
                             href={item.href}
                             className={cn(
-                                'flex flex-col items-center gap-1 p-2 transition-colors',
+                                'relative flex flex-col items-center gap-1 p-2 transition-colors',
                                 isActive ? 'text-[#F88022]' : 'text-muted-foreground'
                             )}
                         >
                             <Icon className="w-5 h-5" />
+                            {count > 0 && <span className="absolute top-1 right-2 h-2 w-2 rounded-full bg-[#F88022]" aria-hidden />}
                             <span className="text-[11px] font-medium">{item.label}</span>
                         </Link>
                     );
@@ -315,7 +407,7 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
                                         onClick={() => setIsMoreMenuOpen(false)}
                                     >
                                         <Icon className="w-5 h-5" />
-                                        <span className="text-[11px] text-center font-medium leading-tight">
+                                        <span className="text-xs text-center font-medium leading-tight">
                                             {item.label}
                                         </span>
                                     </Link>
@@ -325,6 +417,18 @@ export default function PersonalLayout({ children }: { children: React.ReactNode
                     </div>
                 </div>
             )}
+
+            <ShortcutsHelpDialog open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen} />
         </div>
+    );
+}
+
+export default function PersonalLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <NotificationsProvider>
+            <PageMetaProvider>
+                <PersonalShell>{children}</PersonalShell>
+            </PageMetaProvider>
+        </NotificationsProvider>
     );
 }

@@ -80,3 +80,43 @@ export function hoursAgo(date: Date | string): number {
 export function daysAgo(date: Date | string): number {
     return Math.floor(hoursAgo(date) / 24);
 }
+
+/** Lowercase, trim and strip accents so "Tríceps" and "triceps" compare equal. */
+export function normalizeText(value: string | null | undefined): string {
+    return (value ?? '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+/**
+ * Accent- and case-insensitive search: every word typed in `query`
+ * must appear in at least one of the given fields.
+ */
+export function matchesSearch(query: string, ...fields: Array<string | null | undefined>): boolean {
+    const terms = normalizeText(query).split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return true;
+    const haystack = fields.map(normalizeText).join(' ');
+    return terms.every((term) => haystack.includes(term));
+}
+
+/**
+ * Parses a number typed the Brazilian way: "1.200" → 1200, "1.234,56" → 1234.56, "149,90" → 149.9,
+ * "72.5" → 72.5, "0.250" → 0.25. Returns null for empty input and NaN for anything that isn't a number
+ * (e.g. "R$ 150"), so forms can show an error instead of silently dropping the value.
+ */
+export function parseDecimalInput(value: unknown): number | null {
+    if (value === null || value === undefined) return null;
+    const text = String(value).trim().replace(/\s/g, '');
+    if (!text) return null;
+    let normalized: string;
+    if (/^[1-9]\d{0,2}(\.\d{3})+(,\d+)?$/.test(text)) {
+        normalized = text.replace(/\./g, '').replace(',', '.');
+    } else if (text.includes(',')) {
+        normalized = text.replace(/\./g, '').replace(',', '.');
+    } else {
+        normalized = text;
+    }
+    return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : NaN;
+}

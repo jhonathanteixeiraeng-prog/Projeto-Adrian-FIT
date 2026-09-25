@@ -8,3 +8,4 @@ export { Avatar } from './avatar';
 export * from './alert-dialog';
 export * from './dialog';
 export * from './toast';
+export * from './dialogs';

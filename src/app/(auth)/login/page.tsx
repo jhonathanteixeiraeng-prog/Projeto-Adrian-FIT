@@ -9,6 +9,21 @@ import { Dumbbell, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { Button, Input } from '@/components/ui';
 import { loginSchema, LoginInput } from '@/lib/validations';
 
+/** Page the user tried to open before being sent to login (set by the middleware), if it suits their role. */
+function getCallbackPath(role?: string): string | null {
+    try {
+        const raw = new URLSearchParams(window.location.search).get('callbackUrl');
+        if (!raw) return null;
+        const url = new URL(raw, window.location.origin);
+        if (url.origin !== window.location.origin) return null;
+        const area = role === 'PERSONAL' ? '/personal' : '/student';
+        if (!url.pathname.startsWith(area)) return null;
+        return url.pathname + url.search + url.hash;
+    } catch {
+        return null;
+    }
+}
+
 export default function LoginPage() {
     const router = useRouter();
     const [showPassword, setShowPassword] = useState(false);
@@ -40,12 +55,10 @@ export default function LoginPage() {
         const sessionResponse = await fetch('/api/auth/session');
         const session = await sessionResponse.json();
 
-        // Redirect based on role
-        if (session?.user?.role === 'PERSONAL') {
-            router.push('/personal/dashboard');
-        } else {
-            router.push('/student/home');
-        }
+        // Back to the page that required login, otherwise the role's home
+        const role = session?.user?.role;
+        const fallback = role === 'PERSONAL' ? '/personal/dashboard' : '/student/home';
+        router.push(getCallbackPath(role) ?? fallback);
         router.refresh();
     };
 

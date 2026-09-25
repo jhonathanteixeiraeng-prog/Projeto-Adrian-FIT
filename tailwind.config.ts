@@ -1,5 +1,12 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * Theme colors are CSS variables (hex values in globals.css). color-mix lets Tailwind's opacity
+ * modifiers work with them, e.g. bg-muted/60 or border-border/80.
+ */
+const withAlpha = (variable: string) =>
+    `color-mix(in srgb, var(${variable}) calc(<alpha-value> * 100%), transparent)`;
+
 const config: Config = {
     content: [
         "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -11,19 +18,19 @@ const config: Config = {
         extend: {
             colors: {
                 // Cores do sistema de design baseadas em variáveis CSS
-                background: 'var(--background)',
-                foreground: 'var(--foreground)',
+                background: withAlpha('--background'),
+                foreground: withAlpha('--foreground'),
                 card: {
-                    DEFAULT: 'var(--card)',
-                    foreground: 'var(--card-foreground)',
+                    DEFAULT: withAlpha('--card'),
+                    foreground: withAlpha('--card-foreground'),
                 },
                 popover: {
-                    DEFAULT: 'var(--popover)',
-                    foreground: 'var(--popover-foreground)',
+                    DEFAULT: withAlpha('--popover'),
+                    foreground: withAlpha('--popover-foreground'),
                 },
                 primary: {
-                    DEFAULT: 'var(--primary)',
-                    foreground: 'var(--primary-foreground)',
+                    DEFAULT: withAlpha('--primary'),
+                    foreground: withAlpha('--primary-foreground'),
                     50: '#E2E8F0',
                     100: '#CBD5E1',
                     200: '#94A3B8',
@@ -36,8 +43,8 @@ const config: Config = {
                     900: '#060A14',
                 },
                 secondary: {
-                    DEFAULT: 'var(--secondary)',
-                    foreground: 'var(--secondary-foreground)',
+                    DEFAULT: withAlpha('--secondary'),
+                    foreground: withAlpha('--secondary-foreground'),
                     50: '#DCFCE7',
                     100: '#BBF7D0',
                     200: '#86EFAC',
@@ -50,8 +57,8 @@ const config: Config = {
                     900: '#052E16',
                 },
                 accent: {
-                    DEFAULT: 'var(--accent)',
-                    foreground: 'var(--accent-foreground)',
+                    DEFAULT: withAlpha('--accent'),
+                    foreground: withAlpha('--accent-foreground'),
                     50: '#EFF6FF',
                     100: '#DBEAFE',
                     200: '#BFDBFE',
@@ -64,22 +71,22 @@ const config: Config = {
                     900: '#1E3A8A',
                 },
                 muted: {
-                    DEFAULT: 'var(--muted)',
-                    foreground: 'var(--muted-foreground)',
+                    DEFAULT: withAlpha('--muted'),
+                    foreground: withAlpha('--muted-foreground'),
                 },
                 destructive: {
-                    DEFAULT: 'var(--destructive)',
-                    foreground: 'var(--destructive-foreground)',
+                    DEFAULT: withAlpha('--destructive'),
+                    foreground: withAlpha('--destructive-foreground'),
                 },
-                border: 'var(--border)',
-                input: 'var(--input)',
-                ring: 'var(--ring)',
+                border: withAlpha('--border'),
+                input: withAlpha('--input'),
+                ring: withAlpha('--ring'),
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],
             },
             borderRadius: {
-                lg: 'var(--radius)',
+                lg: withAlpha('--radius'),
                 md: 'calc(var(--radius) - 2px)',
                 sm: 'calc(var(--radius) - 4px)',
             },

@@ -67,13 +67,14 @@ function ThemeProvider({ children }: { children: ReactNode }) {
 }
 
 import { ToastProvider } from '@/components/ui/toast';
+import { DialogsProvider } from '@/components/ui/dialogs';
 
 export function Providers({ children }: ProvidersProps) {
     return (
         <SessionProvider>
             <ThemeProvider>
                 <ToastProvider>
-                    {children}
+                    <DialogsProvider>{children}</DialogsProvider>
                 </ToastProvider>
             </ThemeProvider>
         </SessionProvider>

@@ -390,6 +390,7 @@ model Notification {
   type      String // WORKOUT_REMINDER | MEAL_REMINDER | CHECKIN_REMINDER | PLAN_UPDATED | LOW_ADHERENCE | NEW_MESSAGE
   title     String
   body      String
+  link      String? // In-app route opened when the notification is clicked (e.g. /personal/chat/<studentId>)
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 }

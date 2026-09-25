@@ -16,8 +16,17 @@ export const authOptions: NextAuthOptions = {
                     throw new Error('E-mail e senha são obrigatórios');
                 }
 
-                const user = await prisma.user.findUnique({
-                    where: { email: credentials.email },
+                // Accounts created on the web are stored in lowercase; older ones may keep their original casing.
+                const typedEmail = credentials.email.trim();
+                const normalizedEmail = typedEmail.toLowerCase();
+                const existing =
+                    (await prisma.user.findUnique({ where: { email: typedEmail }, select: { id: true } })) ??
+                    (normalizedEmail !== typedEmail
+                        ? await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } })
+                        : null);
+
+                const user = existing && await prisma.user.findUnique({
+                    where: { id: existing.id },
                     include: {
                         personal: true,
                         student: {
@@ -57,13 +66,24 @@ export const authOptions: NextAuthOptions = {
         }),
     ],
     callbacks: {
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger }) {
             if (user) {
                 token.id = user.id;
                 token.role = user.role;
                 token.personalId = user.personalId;
                 token.studentId = user.studentId;
                 token.personalTrainerName = user.personalTrainerName;
+            }
+            // useSession().update() after editing the profile: reload name/e-mail so the header shows them.
+            if (trigger === 'update' && token.id) {
+                const fresh = await prisma.user.findUnique({
+                    where: { id: token.id },
+                    select: { name: true, email: true },
+                });
+                if (fresh) {
+                    token.name = fresh.name;
+                    token.email = fresh.email;
+                }
             }
             return token;
         },
