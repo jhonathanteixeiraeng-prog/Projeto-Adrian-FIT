@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { normalizeLoadInput, normalizeRpeInput } from '@/lib/workout-load';
+import { findGroupIssues, normalizedGroupIds } from '@/lib/workout-groups';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { normalizeText } from '@/lib/utils';
@@ -104,6 +105,8 @@ const planItemFieldsSchema = z.object({
     // Omitted (undefined) = keep what is stored: the iOS app released before these fields doesn't send them.
     load: z.string({ invalid_type_error: 'Carga inválida' }).max(80, 'Carga: use no máximo 80 caracteres').nullish(),
     rpe: z.string({ invalid_type_error: 'RPE inválido' }).max(20, 'RPE: use no máximo 20 caracteres').nullish(),
+    // Superset (bi-set/tri-set): consecutive items of the day sharing an id. Omitted = keep (older app versions).
+    groupId: z.string({ invalid_type_error: 'Grupo inválido' }).trim().max(40, 'Grupo inválido').nullish(),
     order: z.number().optional(),
 });
 
@@ -145,7 +148,19 @@ export const planDayInputSchema = z.object({
             .max(6, 'Dia da semana deve estar entre domingo (0) e sábado (6)')
     ),
     items: z.array(planItemInputSchema, { invalid_type_error: 'Lista de exercícios inválida' }).default([]),
-});
+})
+    .superRefine((day, ctx) => {
+        // Only clients that send groups are validated; older ones get their kept groups repaired on save.
+        if (day.items.every((item) => item.groupId === undefined)) return;
+        findGroupIssues(day.items).forEach((issue) =>
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['items', issue.index, 'groupId'], message: issue.message })
+        );
+    })
+    .transform((day) => {
+        if (day.items.every((item) => item.groupId === undefined)) return day;
+        const ids = normalizedGroupIds(day.items);
+        return { ...day, items: day.items.map((item, index) => ({ ...item, groupId: ids[index] })) };
+    });
 
 const titleSchema = z
     .string({ required_error: 'Informe o título da ficha', invalid_type_error: 'Título inválido' })
@@ -276,6 +291,7 @@ const FIELD_LABELS: Record<string, string> = {
     restBySet: 'o descanso por série',
     load: 'a carga',
     rpe: 'o RPE',
+    groupId: 'o agrupamento (bi-set)',
     notes: 'as observações',
     active: 'o status',
     muscleGroup: 'o grupo muscular',
@@ -380,6 +396,7 @@ function itemData(item: PlanItemInput, order: number) {
         restBySet: item.restBySet ?? null,
         load: item.load ?? null,
         rpe: item.rpe ?? null,
+        groupId: item.groupId ?? null,
         notes: item.notes ?? '',
         order,
     };
@@ -507,6 +524,7 @@ export async function syncPlanDays(tx: Prisma.TransactionClient, planId: string,
             const updateData: Partial<typeof data> = { ...data };
             if (item.load === undefined) delete updateData.load;
             if (item.rpe === undefined) delete updateData.rpe;
+            if (item.groupId === undefined) delete updateData.groupId;
             const changed =
                 existing.workoutDayId !== data.workoutDayId ||
                 existing.exerciseId !== data.exerciseId ||
@@ -516,6 +534,7 @@ export async function syncPlanDays(tx: Prisma.TransactionClient, planId: string,
                 (existing.restBySet ?? null) !== data.restBySet ||
                 (item.load !== undefined && (existing.load ?? null) !== data.load) ||
                 (item.rpe !== undefined && (existing.rpe ?? null) !== data.rpe) ||
+                (item.groupId !== undefined && (existing.groupId ?? null) !== data.groupId) ||
                 (existing.notes ?? '') !== data.notes ||
                 existing.order !== data.order;
             if (changed) {
@@ -525,6 +544,21 @@ export async function syncPlanDays(tx: Prisma.TransactionClient, planId: string,
 
         if (toCreate.length) {
             await tx.workoutItem.createMany({ data: toCreate });
+        }
+
+        // Groups kept from a save that didn't send them may no longer be valid (items moved, sets changed):
+        // ungroup those instead of rejecting the save.
+        if (day.items.some((item) => item.groupId === undefined)) {
+            const saved = await tx.workoutItem.findMany({
+                where: { workoutDayId: dayId },
+                orderBy: { order: 'asc' },
+                select: { id: true, sets: true, groupId: true },
+            });
+            const repaired = normalizedGroupIds(saved, { repairInvalid: true });
+            const toUngroup = saved.filter((row, index) => (row.groupId ?? null) !== repaired[index]).map((row) => row.id);
+            if (toUngroup.length) {
+                await tx.workoutItem.updateMany({ where: { id: { in: toUngroup } }, data: { groupId: null } });
+            }
         }
     }
 

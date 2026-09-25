@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
                                     restBySet: item.restBySet,
                                     load: item.load,
                                     rpe: item.rpe,
+                                    groupId: item.groupId,
                                     notes: item.notes,
                                     order: itemIndex,
                                 })),

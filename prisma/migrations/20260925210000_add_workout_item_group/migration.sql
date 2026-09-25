@@ -1,0 +1,2 @@
+ALTER TABLE "WorkoutItem" ADD COLUMN IF NOT EXISTS "groupId" TEXT;
+ALTER TABLE "WorkoutTemplateItem" ADD COLUMN IF NOT EXISTS "groupId" TEXT;

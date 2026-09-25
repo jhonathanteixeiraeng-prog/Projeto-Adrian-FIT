@@ -173,6 +173,7 @@ export async function GET(request: NextRequest) {
                         rest: item.rest,
                         load: item.load,
                         rpe: item.rpe,
+                        groupId: item.groupId,
                         completed: false // TODO: Check completions
                     }))
                 };

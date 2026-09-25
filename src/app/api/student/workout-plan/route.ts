@@ -77,6 +77,7 @@ export async function GET(request: NextRequest) {
                     })(),
                     load: item.load,
                     rpe: item.rpe,
+                    groupId: item.groupId,
                     notes: item.notes,
                     videoUrl: item.exercise.videoUrl,
                     instructions: item.exercise.instructions,

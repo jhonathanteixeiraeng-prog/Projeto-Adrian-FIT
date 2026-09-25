@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
                                     rest: item.rest,
                                     load: item.load,
                                     rpe: item.rpe,
+                                    groupId: item.groupId,
                                     notes: item.notes || '',
                                     order: itemIndex,
                                 })),
