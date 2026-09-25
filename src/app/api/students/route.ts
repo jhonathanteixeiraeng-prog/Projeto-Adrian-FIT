@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/students - List students for personal
 export async function GET(request: NextRequest) {
     try {
@@ -45,6 +47,11 @@ export async function GET(request: NextRequest) {
                 workoutPlans: {
                     where: { active: true },
                     take: 1,
+                    include: {
+                        workoutDays: {
+                            select: { id: true, name: true }
+                        }
+                    }
                 },
                 dietPlans: {
                     where: { active: true },
@@ -53,6 +60,11 @@ export async function GET(request: NextRequest) {
                 checkins: {
                     orderBy: { date: 'desc' },
                     take: 1,
+                },
+                workoutSessions: {
+                    orderBy: { completedAt: 'desc' },
+                    take: 1,
+                    select: { completedAt: true, dayName: true },
                 },
             },
             orderBy: { createdAt: 'desc' },

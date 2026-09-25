@@ -21,9 +21,22 @@ import {
     ExternalLink,
     Sparkles,
     Bell,
-    Check
+    Check,
+    Activity
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Avatar, Button } from '@/components/ui';
+
+interface ActivityEvent {
+    id: string;
+    type: 'WORKOUT_COMPLETED' | 'CHECKIN_SUBMITTED' | 'FOOD_SUBSTITUTED' | 'MESSAGE_RECEIVED';
+    title: string;
+    description: string;
+    timestamp: string;
+    studentId: string;
+    studentName: string;
+    studentAvatar?: string | null;
+    meta?: Record<string, any>;
+}
 
 interface RadarStudent {
     id: string;
@@ -90,10 +103,74 @@ export default function PersonalDashboard() {
     const [stats, setStats] = useState<DashboardData>(defaultStats);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [activities, setActivities] = useState<ActivityEvent[]>([]);
+    const [loadingActivities, setLoadingActivities] = useState(false);
+    const [activityFilter, setActivityFilter] = useState<'ALL' | 'WORKOUT' | 'CHECKIN' | 'DIET'>('ALL');
 
     useEffect(() => {
         fetchDashboardStats();
+        fetchLiveFeed();
     }, []);
+
+    const fetchLiveFeed = async () => {
+        try {
+            setLoadingActivities(true);
+            const res = await fetch('/api/personal/feed');
+            const json = await res.json();
+            if (json.success) {
+                setActivities(json.data || []);
+            }
+        } catch (err) {
+            console.error('Erro ao carregar feed:', err);
+        } finally {
+            setLoadingActivities(false);
+        }
+    };
+
+    const handleRefreshAll = () => {
+        fetchDashboardStats();
+        fetchLiveFeed();
+    };
+
+    const formatRelativeTime = (dateString: string) => {
+        try {
+            const now = new Date();
+            const date = new Date(dateString);
+            const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+            if (diffInMinutes < 1) return 'Agora mesmo';
+            if (diffInMinutes < 60) return `Há ${diffInMinutes} min`;
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) return `Há ${diffInHours}h`;
+            const diffInDays = Math.floor(diffInHours / 24);
+            if (diffInDays === 1) return 'Ontem';
+            return `Há ${diffInDays} dias`;
+        } catch {
+            return '';
+        }
+    };
+
+    const getActivityIcon = (type: ActivityEvent['type']) => {
+        switch (type) {
+            case 'WORKOUT_COMPLETED':
+                return { icon: Dumbbell, color: 'text-[#F88022]', bg: 'bg-[#F88022]/15' };
+            case 'CHECKIN_SUBMITTED':
+                return { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/15' };
+            case 'FOOD_SUBSTITUTED':
+                return { icon: Utensils, color: 'text-blue-500', bg: 'bg-blue-500/15' };
+            case 'MESSAGE_RECEIVED':
+                return { icon: MessageCircle, color: 'text-purple-500', bg: 'bg-purple-500/15' };
+            default:
+                return { icon: Activity, color: 'text-[#F88022]', bg: 'bg-[#F88022]/15' };
+        }
+    };
+
+    const filteredActivities = activities.filter((act) => {
+        if (activityFilter === 'ALL') return true;
+        if (activityFilter === 'WORKOUT') return act.type === 'WORKOUT_COMPLETED';
+        if (activityFilter === 'CHECKIN') return act.type === 'CHECKIN_SUBMITTED';
+        if (activityFilter === 'DIET') return act.type === 'FOOD_SUBSTITUTED';
+        return true;
+    });
 
     const fetchDashboardStats = async () => {
         try {
@@ -211,7 +288,7 @@ export default function PersonalDashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={fetchDashboardStats}
+                        onClick={handleRefreshAll}
                         className="p-2.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors border border-border"
                         title="Atualizar dados"
                     >
@@ -425,6 +502,153 @@ export default function PersonalDashboard() {
                                                 >
                                                     Ficha
                                                     <ChevronRight className="w-3.5 h-3.5" />
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Live Activity Feed (Pulse em Tempo Real) */}
+            {stats.totalStudents > 0 && (
+                <Card className="border-border">
+                    <CardHeader className="border-b border-border pb-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[#F88022]/15 text-[#F88022] flex items-center justify-center">
+                                    <Activity className="w-5 h-5 animate-pulse" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <CardTitle className="text-lg">Feed de Atividades ao Vivo</CardTitle>
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                        </span>
+                                        <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                                            Pulse
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Acompanhe treinos concluídos, check-ins, substituições de dieta e mensagens em tempo real
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Filter tabs */}
+                            <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
+                                <button
+                                    type="button"
+                                    onClick={() => setActivityFilter('ALL')}
+                                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                                        activityFilter === 'ALL'
+                                            ? 'bg-card text-foreground shadow-sm font-semibold'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    Todos
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActivityFilter('WORKOUT')}
+                                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                                        activityFilter === 'WORKOUT'
+                                            ? 'bg-card text-foreground shadow-sm font-semibold'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    Treinos
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActivityFilter('CHECKIN')}
+                                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                                        activityFilter === 'CHECKIN'
+                                            ? 'bg-card text-foreground shadow-sm font-semibold'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    Check-ins
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActivityFilter('DIET')}
+                                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                                        activityFilter === 'DIET'
+                                            ? 'bg-card text-foreground shadow-sm font-semibold'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    Dietas
+                                </button>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                        {loadingActivities ? (
+                            <div className="py-12 flex items-center justify-center">
+                                <Loader2 className="w-6 h-6 animate-spin text-[#F88022]" />
+                            </div>
+                        ) : filteredActivities.length === 0 ? (
+                            <div className="py-8 text-center space-y-2">
+                                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+                                    <Activity className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-sm font-semibold text-foreground">
+                                    Nenhuma atividade encontrada
+                                </h3>
+                                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                                    Quando seus alunos completarem treinos, enviarem check-ins ou realizarem trocas de alimentos, as notificações aparecerão aqui.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-border">
+                                {filteredActivities.slice(0, 10).map((activity) => {
+                                    const iconConfig = getActivityIcon(activity.type);
+                                    const IconComponent = iconConfig.icon;
+
+                                    return (
+                                        <div
+                                            key={activity.id}
+                                            className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-4 group hover:bg-muted/40 px-2 rounded-xl transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconConfig.bg} ${iconConfig.color}`}>
+                                                    <IconComponent className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <Link
+                                                            href={`/personal/students/${activity.studentId}`}
+                                                            className="text-xs font-bold text-foreground hover:text-[#F88022] transition-colors truncate"
+                                                        >
+                                                            {activity.studentName}
+                                                        </Link>
+                                                        <span className="text-[11px] text-muted-foreground truncate">
+                                                            • {activity.title}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                                        {activity.description}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 flex-shrink-0">
+                                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" />
+                                                    {formatRelativeTime(activity.timestamp)}
+                                                </span>
+                                                <Link
+                                                    href={`/personal/students/${activity.studentId}`}
+                                                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                                    title="Ver Aluno"
+                                                >
+                                                    <ChevronRight className="w-4 h-4" />
                                                 </Link>
                                             </div>
                                         </div>

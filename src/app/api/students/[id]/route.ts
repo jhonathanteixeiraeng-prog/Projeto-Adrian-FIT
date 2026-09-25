@@ -141,7 +141,21 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { name, phone, birthDate, gender, height, weight, goal, status, anamnesis } = body;
+        const {
+            name,
+            phone,
+            birthDate,
+            gender,
+            height,
+            weight,
+            goal,
+            status,
+            anamnesis,
+            planType,
+            planValue,
+            planExpiresAt,
+            paymentStatus,
+        } = body;
 
         // Upsert da anamnese quando enviada (restrições alimentares, lesões etc.)
         if (anamnesis && typeof anamnesis === 'object') {
@@ -179,6 +193,10 @@ export async function PUT(
                 weight: weight || undefined,
                 goal: goal || undefined,
                 status: status || undefined,
+                planType: planType || undefined,
+                planValue: planValue !== undefined ? Number(planValue) : undefined,
+                planExpiresAt: planExpiresAt ? new Date(planExpiresAt) : undefined,
+                paymentStatus: paymentStatus || undefined,
                 user: {
                     update: {
                         name: name || undefined,

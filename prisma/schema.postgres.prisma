@@ -67,9 +67,13 @@ model Student {
   gender     String? // MALE | FEMALE | OTHER
   height     Float? // em cm
   weight     Float? // em kg
-  goal       String?
-  status     String    @default("ACTIVE") // ACTIVE | INACTIVE | PAUSED
-  createdAt  DateTime  @default(now())
+  goal           String?
+  status         String    @default("ACTIVE") // ACTIVE | INACTIVE | PAUSED
+  planType       String?   @default("MENSAL") // MENSAL | TRIMESTRAL | SEMESTRAL | ANUAL
+  planValue      Float?    @default(150.0) // Valor em R$
+  planExpiresAt  DateTime? // Data de vencimento da consultoria
+  paymentStatus  String?   @default("PAID") // PAID | PENDING | OVERDUE
+  createdAt      DateTime  @default(now())
 
   anamnesis         Anamnesis?
   workoutPlans      WorkoutPlan[]

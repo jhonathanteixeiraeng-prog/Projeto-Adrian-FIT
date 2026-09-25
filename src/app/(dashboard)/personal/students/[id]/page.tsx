@@ -21,7 +21,8 @@ import {
     Key,
     X,
     Camera,
-    FileText
+    FileText,
+    Sparkles
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge, Avatar, Button, Input } from '@/components/ui';
 
@@ -125,6 +126,56 @@ export default function StudentDetailPage() {
     const [cloneDietTitle, setCloneDietTitle] = useState('');
     const [copyingWorkoutTemplate, setCopyingWorkoutTemplate] = useState(false);
     const [copyingDietTemplate, setCopyingDietTemplate] = useState(false);
+
+    // Clone From Another Student State
+    const [showCloneStudentModal, setShowCloneStudentModal] = useState(false);
+    const [peerStudents, setPeerStudents] = useState<any[]>([]);
+    const [selectedSourceStudentId, setSelectedSourceStudentId] = useState('');
+    const [cloningFromStudent, setCloningFromStudent] = useState(false);
+
+    const fetchPeerStudents = async () => {
+        try {
+            const res = await fetch('/api/students');
+            const data = await res.json();
+            if (data.success) {
+                const list = (data.data || []).filter((s: any) => s.id !== params.id && s.workoutPlans?.length > 0);
+                setPeerStudents(list);
+                if (list.length > 0) setSelectedSourceStudentId(list[0].id);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar alunos para clonagem:', err);
+        }
+    };
+
+    const handleCloneFromStudent = async () => {
+        if (!selectedSourceStudentId) {
+            alert('Selecione um aluno de origem');
+            return;
+        }
+        try {
+            setCloningFromStudent(true);
+            const res = await fetch('/api/workout-plans/clone', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourceStudentId: selectedSourceStudentId,
+                    targetStudentId: params.id,
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message || 'Ficha clonada com sucesso!');
+                setShowCloneStudentModal(false);
+                fetchStudent();
+            } else {
+                alert(data.error || 'Erro ao clonar ficha');
+            }
+        } catch {
+            alert('Erro ao conectar com o servidor');
+        } finally {
+            setCloningFromStudent(false);
+        }
+    };
 
     useEffect(() => {
         if (params.id) {
@@ -760,6 +811,17 @@ export default function StudentDetailPage() {
                                 <Button
                                     variant="outline"
                                     onClick={() => {
+                                        fetchPeerStudents();
+                                        setShowCloneStudentModal(true);
+                                    }}
+                                    className="gap-1.5"
+                                >
+                                    <Sparkles className="w-4 h-4 text-[#F88022]" />
+                                    Clonar de Aluno
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
                                         setCloneTitle('');
                                         setCloneStartDate('');
                                         setCloneEndDate('');
@@ -1296,6 +1358,78 @@ export default function StudentDetailPage() {
                                     Atribuir Dieta
                                 </Button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Clonar Ficha de Outro Aluno */}
+            {showCloneStudentModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-card border border-border rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in">
+                        <div className="flex items-center justify-between border-b border-border pb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-[#F88022]/15 text-[#F88022] flex items-center justify-center">
+                                    <Sparkles className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-foreground">Clonar Ficha de Outro Aluno</h3>
+                                    <p className="text-xs text-muted-foreground">Copiar rotina ativa de exercícios</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowCloneStudentModal(false)}
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 text-xs">
+                            <p className="text-muted-foreground">
+                                Escolha de qual aluno você deseja copiar o plano de treino. Todos os dias, exercícios, séries, repetições e intervalos serão replicados para <strong>{student.user.name}</strong>.
+                            </p>
+
+                            {peerStudents.length === 0 ? (
+                                <div className="p-4 rounded-xl bg-muted/60 text-center text-muted-foreground">
+                                    Nenhum outro aluno possui ficha ativa para clonagem no momento.
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="font-semibold text-foreground block mb-1.5">
+                                        Selecionar Aluno Fonte
+                                    </label>
+                                    <select
+                                        value={selectedSourceStudentId}
+                                        onChange={(e) => setSelectedSourceStudentId(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-foreground text-xs"
+                                    >
+                                        {peerStudents.map((s) => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.user.name} — {s.workoutPlans?.[0]?.title} ({s.workoutPlans?.[0]?.workoutDays?.length || 0} dias)
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 pt-3 border-t border-border">
+                            <Button
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => setShowCloneStudentModal(false)}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                className="flex-1 bg-[#F88022] hover:bg-[#F88022]/90 text-white font-semibold"
+                                loading={cloningFromStudent}
+                                onClick={handleCloneFromStudent}
+                                disabled={peerStudents.length === 0 || !selectedSourceStudentId}
+                            >
+                                Clonar Ficha Agora
+                            </Button>
                         </div>
                     </div>
                 </div>
