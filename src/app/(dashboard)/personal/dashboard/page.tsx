@@ -7,6 +7,7 @@ import {
     Users,
     TrendingUp,
     AlertTriangle,
+    AlertOctagon,
     CheckCircle2,
     Clock,
     ChevronRight,
@@ -14,9 +15,31 @@ import {
     Dumbbell,
     Utensils,
     Loader2,
-    RefreshCw
+    RefreshCw,
+    Radio,
+    MessageCircle,
+    ExternalLink,
+    Sparkles,
+    Bell,
+    Check
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Avatar, Button } from '@/components/ui';
+
+interface RadarStudent {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    avatar: string | null;
+    riskLevel: 'CRITICAL' | 'WARNING';
+    daysSinceLastWorkout: number | null;
+    lastWorkoutDate: string | null;
+    workoutAdherence: number | null;
+    dietAdherence: number | null;
+    daysSinceLastCheckin: number | null;
+    reasons: string[];
+    whatsappUrl: string | null;
+}
 
 interface DashboardData {
     totalStudents: number;
@@ -35,7 +58,14 @@ interface DashboardData {
     studentsWithoutWorkout72hList: Array<{
         id: string;
         name: string;
+        daysInactive?: number | null;
     }>;
+    retentionRadar?: {
+        criticalCount: number;
+        warningCount: number;
+        totalAtRisk: number;
+        students: RadarStudent[];
+    };
 }
 
 const defaultStats: DashboardData = {
@@ -47,6 +77,12 @@ const defaultStats: DashboardData = {
     pendingCheckins: 0,
     lowAdherenceStudents: [],
     studentsWithoutWorkout72hList: [],
+    retentionRadar: {
+        criticalCount: 0,
+        warningCount: 0,
+        totalAtRisk: 0,
+        students: [],
+    },
 };
 
 export default function PersonalDashboard() {
@@ -78,6 +114,46 @@ export default function PersonalDashboard() {
         }
     };
 
+    const radar = stats.retentionRadar || {
+        criticalCount: 0,
+        warningCount: 0,
+        totalAtRisk: 0,
+        students: [],
+    };
+
+    const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
+    const [sentReminders, setSentReminders] = useState<Record<string, boolean>>({});
+    const [reminderFeedback, setReminderFeedback] = useState<string | null>(null);
+
+    const handleSendReminder = async (studentId: string, type: 'WORKOUT_REMINDER' | 'CHECKIN_REMINDER' = 'WORKOUT_REMINDER') => {
+        try {
+            setSendingReminderId(studentId);
+            const res = await fetch('/api/personal/reminders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ studentId, type }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (studentId === 'ALL_AT_RISK') {
+                    const allMap: Record<string, boolean> = {};
+                    (radar.students || []).forEach(s => { allMap[s.id] = true; });
+                    setSentReminders(prev => ({ ...prev, ...allMap }));
+                } else {
+                    setSentReminders(prev => ({ ...prev, [studentId]: true }));
+                }
+                setReminderFeedback(data.message || 'Lembrete enviado com sucesso!');
+                setTimeout(() => setReminderFeedback(null), 4000);
+            } else {
+                alert(data.error || 'Erro ao enviar lembrete');
+            }
+        } catch {
+            alert('Erro ao conectar com o servidor');
+        } finally {
+            setSendingReminderId(null);
+        }
+    };
+
     const statCards = [
         {
             title: 'Total de Alunos',
@@ -88,28 +164,28 @@ export default function PersonalDashboard() {
             bgColor: 'bg-blue-500/10',
         },
         {
-            title: 'Adesão Média Treino',
+            title: 'Adesão Treino',
             value: `${stats.averageWorkoutAdherence}%`,
-            subtitle: 'Últimos 7 dias',
+            subtitle: 'Média últimos 7 dias',
             icon: Dumbbell,
             color: 'text-[#F88022]',
             bgColor: 'bg-[#F88022]/10',
         },
         {
-            title: 'Adesão Média Dieta',
+            title: 'Adesão Dieta',
             value: `${stats.averageDietAdherence}%`,
-            subtitle: 'Últimos 7 dias',
+            subtitle: 'Média últimos 7 dias',
             icon: Utensils,
             color: 'text-green-500',
             bgColor: 'bg-green-500/10',
         },
         {
-            title: 'Alertas',
-            value: stats.studentsWithoutWorkout72h,
-            subtitle: 'Alunos sem treinar 72h',
-            icon: AlertTriangle,
-            color: 'text-yellow-500',
-            bgColor: 'bg-yellow-500/10',
+            title: 'Radar de Retenção',
+            value: radar.totalAtRisk,
+            subtitle: radar.totalAtRisk > 0 ? `${radar.criticalCount} críticos / ${radar.warningCount} alertas` : 'Nenhum aluno em risco',
+            icon: Radio,
+            color: radar.criticalCount > 0 ? 'text-red-500' : radar.warningCount > 0 ? 'text-yellow-500' : 'text-emerald-500',
+            bgColor: radar.criticalCount > 0 ? 'bg-red-500/10' : radar.warningCount > 0 ? 'bg-yellow-500/10' : 'bg-emerald-500/10',
         },
     ];
 
@@ -130,20 +206,20 @@ export default function PersonalDashboard() {
                         Olá, {session?.user?.name?.split(' ')[0] || 'Personal'}! 👋
                     </h1>
                     <p className="text-muted-foreground mt-1">
-                        Confira o resumo dos seus alunos hoje
+                        Acompanhe o engajamento e a evolução dos seus alunos em tempo real
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
                         onClick={fetchDashboardStats}
-                        className="p-2 rounded-xl hover:bg-muted transition-colors"
+                        className="p-2.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors border border-border"
                         title="Atualizar dados"
                     >
-                        <RefreshCw className="w-5 h-5 text-muted-foreground" />
+                        <RefreshCw className="w-5 h-5" />
                     </button>
                     <Link
                         href="/personal/students/new"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#F88022] text-white rounded-xl font-medium hover:bg-[#F88022]/90 transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#F88022] text-white rounded-xl font-medium hover:bg-[#F88022]/90 transition-colors shadow-sm"
                     >
                         <UserPlus className="w-5 h-5" />
                         Novo Aluno
@@ -162,8 +238,16 @@ export default function PersonalDashboard() {
                 {statCards.map((stat, index) => (
                     <Card key={index} className="relative overflow-hidden">
                         <CardContent className="p-4 lg:p-6">
-                            <div className={`w-10 h-10 rounded-xl ${stat.bgColor} flex items-center justify-center mb-3`}>
-                                <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                            <div className="flex items-center justify-between mb-3">
+                                <div className={`w-10 h-10 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+                                    <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                                </div>
+                                {stat.title === 'Radar de Retenção' && radar.totalAtRisk > 0 && (
+                                    <span className="relative flex h-2.5 w-2.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                    </span>
+                                )}
                             </div>
                             <p className="text-2xl lg:text-3xl font-bold text-foreground">{stat.value}</p>
                             <p className="text-sm font-medium text-foreground mt-1">{stat.title}</p>
@@ -172,6 +256,185 @@ export default function PersonalDashboard() {
                     </Card>
                 ))}
             </div>
+
+            {/* Radar de Retenção & Alunos em Risco (Churn Alert) */}
+            {stats.totalStudents > 0 && (
+                <Card className="border-border">
+                    <CardHeader className="border-b border-border pb-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${radar.totalAtRisk > 0 ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                                    <Radio className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        Radar de Retenção & Alerta de Churn
+                                        {radar.totalAtRisk > 0 && (
+                                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">
+                                                {radar.totalAtRisk} {radar.totalAtRisk === 1 ? 'aluno em risco' : 'alunos em risco'}
+                                            </span>
+                                        )}
+                                    </CardTitle>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Detecção proativa de inatividade, baixa adesão e check-ins pendentes para evitar cancelamentos
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {radar.totalAtRisk > 0 && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-xs h-8 border-border text-foreground hover:bg-muted"
+                                        onClick={() => handleSendReminder('ALL_AT_RISK')}
+                                        disabled={sendingReminderId === 'ALL_AT_RISK'}
+                                    >
+                                        {sendingReminderId === 'ALL_AT_RISK' ? (
+                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                        ) : (
+                                            <Bell className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+                                        )}
+                                        Lembrar Todos
+                                    </Button>
+                                )}
+                                {radar.criticalCount > 0 && (
+                                    <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-red-500/15 text-red-500 border border-red-500/30 flex items-center gap-1.5">
+                                        <AlertOctagon className="w-3.5 h-3.5" />
+                                        {radar.criticalCount} Crítico
+                                    </span>
+                                )}
+                                {radar.warningCount > 0 && (
+                                    <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30 flex items-center gap-1.5">
+                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                        {radar.warningCount} Alerta
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                        {reminderFeedback && (
+                            <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 animate-in">
+                                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                                <span>{reminderFeedback}</span>
+                            </div>
+                        )}
+                        {radar.students.length === 0 ? (
+                            <div className="py-8 text-center space-y-2">
+                                <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
+                                    <CheckCircle2 className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-base font-semibold text-foreground">
+                                    Parabéns! Sua retenção está em 100%
+                                </h3>
+                                <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                                    Nenhum aluno ativo apresenta inatividade prolongada ou queda crítica de adesão esta semana.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-border">
+                                {radar.students.map((student) => {
+                                    const isCritical = student.riskLevel === 'CRITICAL';
+                                    return (
+                                        <div
+                                            key={student.id}
+                                            className="py-4 first:pt-0 last:pb-0 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                                        >
+                                            <div className="flex items-start sm:items-center gap-3 min-w-0">
+                                                <Avatar name={student.name} size="md" />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <Link
+                                                            href={`/personal/students/${student.id}`}
+                                                            className="font-semibold text-foreground hover:text-[#F88022] transition-colors truncate"
+                                                        >
+                                                            {student.name}
+                                                        </Link>
+                                                        <span
+                                                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                                                isCritical
+                                                                    ? 'bg-red-500/15 text-red-500 border border-red-500/30'
+                                                                    : 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30'
+                                                            }`}
+                                                        >
+                                                            {isCritical ? 'Risco Alto' : 'Alerta'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground truncate">{student.email}</p>
+                                                    {/* Reasons Chips */}
+                                                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                                                        {student.reasons.map((reason, idx) => (
+                                                            <span
+                                                                key={idx}
+                                                                className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-foreground/90 font-medium"
+                                                            >
+                                                                • {reason}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="flex items-center gap-2 self-end md:self-center flex-wrap">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSendReminder(
+                                                        student.id,
+                                                        student.reasons.some(r => r.toLowerCase().includes('check-in')) ? 'CHECKIN_REMINDER' : 'WORKOUT_REMINDER'
+                                                    )}
+                                                    disabled={sentReminders[student.id] || sendingReminderId === student.id}
+                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${
+                                                        sentReminders[student.id]
+                                                            ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
+                                                            : 'bg-muted hover:bg-muted/80 text-foreground border-border'
+                                                    }`}
+                                                    title="Enviar notificação no app do aluno"
+                                                >
+                                                    {sendingReminderId === student.id ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    ) : sentReminders[student.id] ? (
+                                                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                                    ) : (
+                                                        <Bell className="w-3.5 h-3.5 text-amber-500" />
+                                                    )}
+                                                    {sentReminders[student.id] ? 'Notificado' : 'Notificar'}
+                                                </button>
+                                                {student.whatsappUrl && (
+                                                    <a
+                                                        href={student.whatsappUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 transition-colors text-xs font-medium border border-emerald-500/30"
+                                                        title="Enviar mensagem no WhatsApp"
+                                                    >
+                                                        <MessageCircle className="w-3.5 h-3.5" />
+                                                        WhatsApp
+                                                    </a>
+                                                )}
+                                                <Link
+                                                    href={`/personal/chat/${student.id}`}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground transition-colors text-xs font-medium border border-border"
+                                                >
+                                                    <MessageCircle className="w-3.5 h-3.5 text-[#F88022]" />
+                                                    Chat
+                                                </Link>
+                                                <Link
+                                                    href={`/personal/students/${student.id}`}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#F88022]/10 hover:bg-[#F88022]/20 text-[#F88022] transition-colors text-xs font-medium"
+                                                >
+                                                    Ficha
+                                                    <ChevronRight className="w-3.5 h-3.5" />
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Empty State */}
             {stats.totalStudents === 0 && (
@@ -263,7 +526,9 @@ export default function PersonalDashboard() {
                                         <div className="flex-1">
                                             <p className="font-medium text-foreground">{student.name}</p>
                                             <p className="text-xs text-muted-foreground">
-                                                Último treino há mais de 72h
+                                                {student.daysInactive != null
+                                                    ? `Último treino há ${student.daysInactive} dias`
+                                                    : 'Nenhum treino registrado'}
                                             </p>
                                         </div>
                                         <Badge variant="warning">Inativo</Badge>
@@ -272,7 +537,7 @@ export default function PersonalDashboard() {
                                 {stats.studentsWithoutWorkout72h === 0 && (
                                     <div className="text-center py-6 text-muted-foreground">
                                         <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-green-500" />
-                                        <p>Todos os alunos estão treinando!</p>
+                                        <p>Todos os alunos estão treinando regularmente!</p>
                                     </div>
                                 )}
                             </div>

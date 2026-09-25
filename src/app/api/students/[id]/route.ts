@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/students/[id] - Get student details
 export async function GET(
     request: NextRequest,
@@ -28,6 +30,17 @@ export async function GET(
                         email: true,
                         phone: true,
                         avatar: true,
+                    },
+                },
+                personal: {
+                    include: {
+                        user: {
+                            select: {
+                                name: true,
+                                email: true,
+                                phone: true,
+                            },
+                        },
                     },
                 },
                 anamnesis: true,

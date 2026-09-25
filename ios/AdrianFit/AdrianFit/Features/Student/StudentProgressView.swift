@@ -37,6 +37,16 @@ struct CheckinFull: Codable, Identifiable, Sendable {
     }
 }
 
+struct AdherenceMetric: Codable, Sendable {
+    let adherence: Int
+    let summary: String
+}
+
+struct AdherenceData: Codable, Sendable {
+    let workout: AdherenceMetric
+    let diet: AdherenceMetric
+}
+
 // MARK: - Progresso
 
 struct StudentProgressView: View {
@@ -333,6 +343,7 @@ struct CheckinFormView: View {
     @State private var notes = ""
     @State private var sending = false
     @State private var error: String?
+    @State private var autoAdherence: AdherenceData?
 
     var body: some View {
         NavigationStack {
@@ -419,6 +430,25 @@ struct CheckinFormView: View {
                 .listRowBackground(FitTheme.surface)
 
                 Section("Adesão ao plano") {
+                    if let auto = autoAdherence {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(FitTheme.orange)
+                                Text("Calculada automaticamente (últimos 7 dias)")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(FitTheme.orange)
+                            }
+                            Text("• Treino: \(auto.workout.summary)")
+                                .font(.caption2)
+                                .foregroundStyle(FitTheme.secondaryText)
+                            Text("• Dieta: \(auto.diet.summary)")
+                                .font(.caption2)
+                                .foregroundStyle(FitTheme.secondaryText)
+                        }
+                        .padding(.vertical, 2)
+                    }
+
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Label("Treinos", systemImage: "dumbbell")
@@ -456,6 +486,9 @@ struct CheckinFormView: View {
             .fitScreen()
             .navigationTitle("Check-in semanal")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                await loadAutoAdherence()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -464,6 +497,17 @@ struct CheckinFormView: View {
                         .fontWeight(.semibold)
                 }
             }
+        }
+    }
+
+    private func loadAutoAdherence() async {
+        do {
+            let data: AdherenceData = try await api.get("/api/student/adherence")
+            autoAdherence = data
+            workoutAdherence = Double(data.workout.adherence)
+            dietAdherence = Double(data.diet.adherence)
+        } catch {
+            // Mantém os valores padrão caso não consiga calcular
         }
     }
 

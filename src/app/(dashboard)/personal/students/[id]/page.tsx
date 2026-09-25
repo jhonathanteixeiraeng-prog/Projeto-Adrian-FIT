@@ -20,7 +20,8 @@ import {
     Loader2,
     Key,
     X,
-    Camera
+    Camera,
+    FileText
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, Badge, Avatar, Button, Input } from '@/components/ui';
 
@@ -501,6 +502,12 @@ export default function StudentDetailPage() {
                         </div>
                     </div>
                     <div className="flex gap-2">
+                        <Link href={`/personal/students/${student.id}/report`}>
+                            <Button variant="outline" className="gap-1.5">
+                                <FileText className="w-4 h-4 text-[#F88022]" />
+                                Relatório PDF
+                            </Button>
+                        </Link>
                         <Button
                             variant="outline"
                             onClick={() => setShowResetPasswordModal(true)}

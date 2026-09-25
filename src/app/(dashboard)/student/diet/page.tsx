@@ -9,11 +9,14 @@ import {
     Clock,
     ChevronDown,
     ChevronUp,
-    Flame
+    Flame,
+    Droplets,
+    Plus,
+    Minus,
+    RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { FoodSubstitutionModal } from '@/components/diet/FoodSubstitutionModal';
-import { RefreshCw } from 'lucide-react';
 
 export default function DietPage() {
     const searchParams = useSearchParams();
@@ -23,6 +26,27 @@ export default function DietPage() {
     const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
     const [substitutionModalOpen, setSubstitutionModalOpen] = useState(false);
     const [substitutionTarget, setSubstitutionTarget] = useState<any>(null); // { mealId, food, index }
+
+    const todayKey = useMemo(() => {
+        const d = new Date();
+        return `water-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }, []);
+    const [waterCups, setWaterCups] = useState<number>(0);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(todayKey);
+            if (saved) setWaterCups(Number(saved) || 0);
+        }
+    }, [todayKey]);
+
+    const updateWater = (newCount: number) => {
+        const clamped = Math.max(0, Math.min(16, newCount));
+        setWaterCups(clamped);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(todayKey, String(clamped));
+        }
+    };
 
     useEffect(() => {
         const fetchDiet = async () => {
@@ -335,6 +359,70 @@ export default function DietPage() {
                             <p className="text-lg font-bold text-red-500 number-pop">{normalizedDiet.fat || 0}g</p>
                             <p className="text-[11px] text-muted-foreground font-medium">Gordura</p>
                         </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Hidratação / Water Tracker */}
+            <Card className="border-blue-500/20 bg-blue-500/5">
+                <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-500 flex items-center justify-center">
+                                <Droplets className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-foreground">Hidratação do Dia</h3>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Meta diária: 8 copos (2.0L) · {(waterCups * 0.25).toFixed(2)}L bebidos
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-lg"
+                                onClick={() => updateWater(waterCups - 1)}
+                                disabled={waterCups === 0}
+                            >
+                                <Minus className="w-3.5 h-3.5" />
+                            </Button>
+                            <span className="text-sm font-black px-2 text-blue-600 dark:text-blue-400">
+                                {waterCups} / 8
+                            </span>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-lg bg-blue-500 text-white hover:bg-blue-600 border-none"
+                                onClick={() => updateWater(waterCups + 1)}
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Visual 8 Cups interactive bar */}
+                    <div className="grid grid-cols-8 gap-1.5 pt-1">
+                        {Array.from({ length: 8 }).map((_, index) => {
+                            const isFilled = index < waterCups;
+                            return (
+                                <button
+                                    key={index}
+                                    type="button"
+                                    onClick={() => updateWater(index + 1 === waterCups ? index : index + 1)}
+                                    className={`h-11 rounded-xl flex flex-col items-center justify-center transition-all ${
+                                        isFilled
+                                            ? 'bg-blue-500 text-white shadow-sm scale-100'
+                                            : 'bg-muted/80 text-muted-foreground hover:bg-blue-500/20'
+                                    }`}
+                                    title={`Copo ${index + 1} (250ml)`}
+                                >
+                                    <Droplets className={`w-4 h-4 ${isFilled ? 'fill-current' : ''}`} />
+                                    <span className="text-[9px] font-semibold mt-0.5">250ml</span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </CardContent>
             </Card>

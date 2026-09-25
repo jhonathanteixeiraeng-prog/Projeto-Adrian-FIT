@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -36,6 +36,10 @@ export default function CheckinPage() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [showMeasurements, setShowMeasurements] = useState(false);
+    const [adherenceData, setAdherenceData] = useState<{
+        workout: { adherence: number; summary: string };
+        diet: { adherence: number; summary: string };
+    } | null>(null);
 
     const [photos, setPhotos] = useState<PhotoSlot[]>([
         { angle: 'FRONT', label: 'Frente', url: null, uploading: false },
@@ -71,6 +75,24 @@ export default function CheckinPage() {
         calfLeft: '',
         bodyFatPercentage: '',
     });
+
+    useEffect(() => {
+        fetch('/api/student/adherence')
+            .then(res => res.json())
+            .then(json => {
+                if (json?.success && json?.data) {
+                    setAdherenceData(json.data);
+                    setFormData(prev => ({
+                        ...prev,
+                        workoutAdherence: json.data.workout.adherence,
+                        dietAdherence: json.data.diet.adherence,
+                    }));
+                }
+            })
+            .catch(err => {
+                console.warn('Não foi possível calcular adesão automaticamente:', err);
+            });
+    }, []);
 
     const handleFileUpload = async (angle: 'FRONT' | 'SIDE' | 'BACK', file: File) => {
         setPhotos(prev => prev.map(p => p.angle === angle ? { ...p, uploading: true } : p));
@@ -532,9 +554,29 @@ export default function CheckinPage() {
                 {/* Adherence */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-base">Adesão ao Planejado</CardTitle>
+                        <CardTitle className="text-base flex items-center justify-between">
+                            <span>Adesão ao Planejado</span>
+                            {adherenceData && (
+                                <span className="text-xs font-normal text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full flex items-center gap-1 border border-emerald-500/20">
+                                    <Sparkles className="w-3.5 h-3.5" /> Calculada automaticamente
+                                </span>
+                            )}
+                        </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
+                        {adherenceData && (
+                            <div className="p-3 bg-muted/60 rounded-xl text-xs space-y-1 text-muted-foreground border border-border">
+                                <p className="text-foreground font-medium flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-[#F88022]" />
+                                    Baseado no seu histórico real dos últimos 7 dias:
+                                </p>
+                                <p>• <strong>Treino:</strong> {adherenceData.workout.summary}</p>
+                                <p>• <strong>Dieta:</strong> {adherenceData.diet.summary}</p>
+                                <p className="text-[11px] text-muted-foreground/80 mt-1">
+                                    Você pode ajustar as porcentagens abaixo se desejar.
+                                </p>
+                            </div>
+                        )}
                         <PercentageSlider
                             value={formData.workoutAdherence}
                             onChange={(v) => setFormData({ ...formData, workoutAdherence: v })}

@@ -16,7 +16,8 @@ import {
     Split,
     Trash2,
     Loader2,
-    SlidersHorizontal
+    SlidersHorizontal,
+    FileText
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
 
@@ -285,12 +286,20 @@ export default function ProgressPage() {
                         <p className="text-sm text-muted-foreground">Métricas, fotos e adesão semana a semana</p>
                     </div>
                 </div>
-                <Link href="/student/checkin">
-                    <Button variant="secondary" size="sm" className="bg-[#F88022] hover:bg-[#e06b10] text-white">
-                        <Plus className="w-4 h-4 mr-1" />
-                        Novo Check-in
-                    </Button>
-                </Link>
+                <div className="flex items-center gap-2">
+                    <Link href="/student/report">
+                        <Button variant="outline" size="sm" className="gap-1.5 border-border">
+                            <FileText className="w-4 h-4 text-[#F88022]" />
+                            Relatório PDF
+                        </Button>
+                    </Link>
+                    <Link href="/student/checkin">
+                        <Button variant="secondary" size="sm" className="bg-[#F88022] hover:bg-[#e06b10] text-white">
+                            <Plus className="w-4 h-4 mr-1" />
+                            Novo Check-in
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
             {error && (
