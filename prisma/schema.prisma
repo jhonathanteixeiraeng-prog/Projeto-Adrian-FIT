@@ -69,6 +69,8 @@ model Student {
   height     Float? // em cm
   weight     Float? // em kg
   goal           String?
+  // Trainer's opinion on the evolution report (printed and sent in the report PDF).
+  reportOpinion  String?
   status         String    @default("ACTIVE") // ACTIVE | INACTIVE | PAUSED
   planType       String?   @default("MENSAL") // MENSAL | TRIMESTRAL | SEMESTRAL | ANUAL
   planValue      Float?    @default(150.0) // Valor em R$

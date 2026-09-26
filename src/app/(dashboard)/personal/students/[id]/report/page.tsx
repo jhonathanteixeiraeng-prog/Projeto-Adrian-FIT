@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, Calendar, Camera, ClipboardList, Dumbbell, Percent, Printer, RefreshCw, Ruler, Scale, TrendingUp, Utensils } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Calendar, Camera, ClipboardList, Dumbbell, Percent, Printer, RefreshCw, Ruler, Scale, Send, TrendingUp, Utensils } from 'lucide-react';
 import { usePageMeta } from '@/components/personal/page-meta';
-import { crmHref, formatDate, formatDelta, formatNumber, PHOTO_ANGLE_LABELS, reportKey } from '@/components/personal/students/lib';
+import { ExportReportDialog } from '@/components/personal/pdf/export-report-dialog';
+import type { ReportPdfModel } from '@/components/personal/pdf/report-model';
+import { crmHref, formatDate, formatDelta, formatNumber, PHOTO_ANGLE_LABELS, reportKey, requestJson } from '@/components/personal/students/lib';
 import { MEASURES } from '@/components/personal/students/progress-section';
 import type { Checkin, ProgressPhoto, StudentReport } from '@/components/personal/students/types';
 import { primarySmallButtonClass, smallButtonClass, textareaClass } from '@/components/personal/students/ui';
 import { useInstantUrlValue } from '@/components/personal/students/use-instant-url-value';
-import { useApi } from '@/hooks/use-api';
-import { useLocalStorageState } from '@/hooks/use-local-storage';
+import { setApiData, useApi } from '@/hooks/use-api';
 import { useUrlState } from '@/hooks/use-url-state';
 import { evolutionRecords, type EvolutionRecord } from '@/lib/evolution';
 import { STUDENTS_USE_APP } from '@/lib/features';
@@ -83,7 +84,14 @@ export default function StudentEvolutionReportPage() {
     const [urlPeriod, setUrlPeriod] = useUrlState('period', 'all');
     const [periodValue, setPeriod] = useInstantUrlValue(urlPeriod, setUrlPeriod);
     const period = (PERIODS.some((item) => item.id === periodValue) ? periodValue : 'all') as PeriodId;
-    const [opinion, setOpinion] = useLocalStorageState<string>(`personal:report-opinion:${id}`, '');
+    // Trainer's opinion: saved on the student (it used to stay in this browser's localStorage).
+    const legacyOpinionKey = `personal:report-opinion:${id}`;
+    const [opinion, setOpinion] = useState('');
+    const [opinionStatus, setOpinionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const opinionLoadedRef = useRef(false);
+    const savedOpinionRef = useRef('');
+    const saveSeqRef = useRef(0);
+    const [pdfModel, setPdfModel] = useState<ReportPdfModel | null>(null);
 
     const [backHref, setBackHref] = useState('/personal/students');
     useEffect(() => setBackHref(crmHref()), []);
@@ -92,6 +100,55 @@ export default function StudentEvolutionReportPage() {
         title: student ? `${student.user.name} · Relatório` : 'Relatório',
         breadcrumbs: [{ label: 'Alunos', href: backHref }, { label: name, href: `/personal/students/${id}` }, { label: 'Relatório' }],
     });
+
+    // First load: the saved opinion, or the text this browser kept before it was saved on the student.
+    useEffect(() => {
+        if (!student || opinionLoadedRef.current) return;
+        opinionLoadedRef.current = true;
+        let legacy = '';
+        try {
+            const raw = window.localStorage.getItem(legacyOpinionKey);
+            const parsed: unknown = raw ? JSON.parse(raw) : '';
+            legacy = typeof parsed === 'string' ? parsed : '';
+        } catch {
+            // Blocked storage or invalid JSON: nothing to bring over.
+        }
+        savedOpinionRef.current = student.reportOpinion ?? '';
+        setOpinion(student.reportOpinion || legacy);
+    }, [student, legacyOpinionKey]);
+
+    const saveOpinion = useCallback(
+        async (text: string) => {
+            const seq = ++saveSeqRef.current;
+            setOpinionStatus('saving');
+            try {
+                const result = await requestJson<{ data: { reportOpinion: string | null } }>(`/api/students/${id}/report-opinion`, {
+                    method: 'PUT',
+                    body: { opinion: text },
+                });
+                if (seq !== saveSeqRef.current) return; // A newer save is on its way.
+                savedOpinionRef.current = result.data.reportOpinion ?? '';
+                setApiData<StudentReport>(reportKey(id), (current) => (current ? { ...current, reportOpinion: result.data.reportOpinion } : current));
+                try {
+                    window.localStorage.removeItem(legacyOpinionKey);
+                } catch {
+                    // The browser copy is only a leftover now.
+                }
+                setOpinionStatus('saved');
+            } catch {
+                if (seq === saveSeqRef.current) setOpinionStatus('error');
+            }
+        },
+        [id, legacyOpinionKey]
+    );
+
+    // Saved a moment after typing stops, and right away when the field loses focus.
+    useEffect(() => {
+        if (!opinionLoadedRef.current || opinion.trim() === savedOpinionRef.current.trim()) return;
+        setOpinionStatus('saving');
+        const timer = window.setTimeout(() => void saveOpinion(opinion), 800);
+        return () => window.clearTimeout(timer);
+    }, [opinion, saveOpinion]);
 
     const report = useMemo(() => {
         if (!student) return null;
@@ -207,6 +264,149 @@ export default function StudentEvolutionReportPage() {
     const noRecords = report.inPeriod.length === 0;
     const weightChanged = Boolean(report.weightBaseline && report.weightLatest && report.weightBaseline.id !== report.weightLatest.id);
 
+    // The same figures feed the page and the PDF sent to the student.
+    const kpis: Array<{ icon: React.ReactNode; label: string; value: string; delta: string | null; detail: string }> = [
+        {
+            icon: <Scale className="h-3.5 w-3.5 text-blue-600" />,
+            label: 'Peso corporal',
+            value: formatNumber(report.currentWeight, ' kg'),
+            delta: weightChanged ? weightDelta : null,
+            detail: report.weightBaseline
+                ? `Inicial: ${formatNumber(report.initialWeight, ' kg')} em ${formatDate(report.weightBaseline.date)}`
+                : 'Sem registro inicial',
+        },
+        {
+            icon: <TrendingUp className="h-3.5 w-3.5 text-purple-600" />,
+            label: 'IMC',
+            value: formatNumber(report.currentBmi),
+            delta: weightChanged ? bmiDelta : null,
+            detail: student.height ? `Inicial: ${formatNumber(report.initialBmi)}` : 'Altura não informada',
+        },
+        // Adherence is the student's self-report in the app check-in.
+        ...(STUDENTS_USE_APP
+            ? [
+                  {
+                      icon: <Dumbbell className="h-3.5 w-3.5 text-brand" />,
+                      label: 'Adesão média ao treino',
+                      value: report.avgWorkout === null ? '—' : `${report.avgWorkout}%`,
+                      delta: null,
+                      detail: `${report.checkinsInPeriod.length} ${report.checkinsInPeriod.length === 1 ? 'check-in' : 'check-ins'} no período`,
+                  },
+                  {
+                      icon: <Utensils className="h-3.5 w-3.5 text-emerald-600" />,
+                      label: 'Adesão média à dieta',
+                      value: report.avgDiet === null ? '—' : `${report.avgDiet}%`,
+                      delta: null,
+                      detail: 'Cumprimento do plano alimentar',
+                  },
+              ]
+            : [
+                  {
+                      icon: <Percent className="h-3.5 w-3.5 text-orange-600" />,
+                      label: '% de gordura',
+                      value: formatNumber(report.bodyFat?.current, '%'),
+                      delta:
+                          report.bodyFat?.initial != null && report.bodyFat.current != null && report.bodyFat.initial !== report.bodyFat.current
+                              ? formatDelta(report.bodyFat.current, report.bodyFat.initial, ' p.p.')
+                              : null,
+                      detail: report.bodyFat?.initial != null ? `Inicial: ${formatNumber(report.bodyFat.initial, '%')}` : 'Sem medição',
+                  },
+                  {
+                      icon: <ClipboardList className="h-3.5 w-3.5 text-blue-600" />,
+                      label: 'Avaliações',
+                      value: String(report.assessmentCount),
+                      delta: null,
+                      detail: report.assessmentCount === 1 ? 'avaliação no período' : 'avaliações no período',
+                  },
+              ]),
+    ];
+    const measureRows = report.measurements.map((row) => {
+        const percent = row.unit.trim() === '%';
+        const unit = percent ? '%' : ' cm';
+        return {
+            key: row.key,
+            label: row.label,
+            initial: formatNumber(row.initial, unit),
+            current: formatNumber(row.current, unit),
+            delta: formatDelta(row.current, row.initial, percent ? ' p.p.' : ' cm') ?? '—',
+        };
+    });
+
+    /** What the page shows right now, for the PDF sent to the student. */
+    const buildPdfModel = (): ReportPdfModel => {
+        const now = new Date();
+        const tables: ReportPdfModel['tables'] = [];
+        if (report.assessmentHistory.length > 0) {
+            tables.push({
+                title: 'Avaliações do período',
+                note: report.assessmentCount > HISTORY_ROWS ? `(últimas ${HISTORY_ROWS} de ${report.assessmentCount})` : null,
+                columns: [
+                    { label: 'Data', width: 64 },
+                    { label: 'Peso', width: 64, align: 'center' },
+                    { label: '% de gordura', width: 72, align: 'center' },
+                    { label: 'Cintura', width: 64, align: 'center' },
+                    { label: 'Observações' },
+                ],
+                rows: report.assessmentHistory.map((record) => [
+                    formatDate(record.date),
+                    formatNumber(record.weight, ' kg'),
+                    formatNumber(record.bodyFatPercentage, '%'),
+                    formatNumber(record.waist, ' cm'),
+                    record.notes || '—',
+                ]),
+            });
+        }
+        if (report.history.length > 0) {
+            tables.push({
+                title: 'Check-ins do período',
+                note: report.checkinsInPeriod.length > HISTORY_ROWS ? `(últimos ${HISTORY_ROWS} de ${report.checkinsInPeriod.length})` : null,
+                columns: [
+                    { label: 'Data', width: 64 },
+                    { label: 'Peso', width: 56, align: 'center' },
+                    { label: 'Sono', width: 48, align: 'center' },
+                    { label: 'Treino', width: 52, align: 'center' },
+                    { label: 'Dieta', width: 52, align: 'center' },
+                    { label: 'Observações do aluno' },
+                ],
+                rows: report.history.map((checkin) => [
+                    formatDate(checkin.date),
+                    formatNumber(checkin.weight, ' kg'),
+                    formatNumber(checkin.sleepHours, ' h'),
+                    `${checkin.workoutAdherence}%`,
+                    `${checkin.dietAdherence}%`,
+                    checkin.notes || '—',
+                ]),
+            });
+        }
+        return {
+            header: {
+                identity: { brand, coach, coachPhone: formatPhone(student.personal?.user?.phone) },
+                documentTitle: 'Relatório de evolução',
+                planTitle: `Período: ${periodLabel}`,
+                studentName: student.user.name,
+                goal: student.goal,
+                period: periodLabel,
+                issuedAt: formatDate(now),
+            },
+            info: [
+                { label: 'Aluno', value: student.user.name },
+                { label: 'Objetivo', value: student.goal },
+                { label: 'Altura', value: formatNumber(student.height, ' cm') },
+                { label: 'Início do acompanhamento', value: formatDate(student.createdAt) },
+            ],
+            kpis: kpis.map(({ label, value, delta, detail }) => ({ label, value, delta, detail })),
+            measures: measureRows.map(({ label, initial, current, delta }) => ({ label, initial, current, delta })),
+            photos: report.photoPairs.map((pair) => ({
+                angle: PHOTO_ANGLE_LABELS[pair.angle] ?? pair.angle,
+                before: { date: formatDate(pair.before!.createdAt), src: pair.before!.url },
+                after: pair.after ? { date: formatDate(pair.after.createdAt), src: pair.after.url } : null,
+            })),
+            tables,
+            opinion: opinion.trim(),
+            generatedNote: `${brand} · relatório gerado em ${now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
+        };
+    };
+
     return (
         <div className="mx-auto max-w-5xl space-y-4 pb-16">
             <style>{REPORT_STYLES}</style>
@@ -232,9 +432,18 @@ export default function StudentEvolutionReportPage() {
                             </option>
                         ))}
                     </select>
-                    <button type="button" onClick={() => window.print()} className={primarySmallButtonClass}>
+                    <button type="button" onClick={() => window.print()} className={smallButtonClass}>
                         <Printer className="h-3.5 w-3.5" />
-                        Imprimir / salvar PDF
+                        Imprimir
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setPdfModel(buildPdfModel())}
+                        className={primarySmallButtonClass}
+                        title="Gerar o PDF do relatório e enviar pelo WhatsApp"
+                    >
+                        <Send className="h-3.5 w-3.5" />
+                        Enviar ao aluno
                     </button>
                 </div>
             </div>
@@ -289,65 +498,13 @@ export default function StudentEvolutionReportPage() {
 
                 {/* KPIs */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <Kpi
-                        icon={<Scale className="h-3.5 w-3.5 text-blue-600" />}
-                        label="Peso corporal"
-                        value={formatNumber(report.currentWeight, ' kg')}
-                        delta={weightChanged ? weightDelta : null}
-                        detail={
-                            report.weightBaseline
-                                ? `Inicial: ${formatNumber(report.initialWeight, ' kg')} em ${formatDate(report.weightBaseline.date)}`
-                                : 'Sem registro inicial'
-                        }
-                    />
-                    <Kpi
-                        icon={<TrendingUp className="h-3.5 w-3.5 text-purple-600" />}
-                        label="IMC"
-                        value={formatNumber(report.currentBmi)}
-                        delta={weightChanged ? bmiDelta : null}
-                        detail={student.height ? `Inicial: ${formatNumber(report.initialBmi)}` : 'Altura não informada'}
-                    />
-                    {/* Adherence is the student's self-report in the app check-in. */}
-                    {STUDENTS_USE_APP ? (
-                        <>
-                            <Kpi
-                                icon={<Dumbbell className="h-3.5 w-3.5 text-brand" />}
-                                label="Adesão média ao treino"
-                                value={report.avgWorkout === null ? '—' : `${report.avgWorkout}%`}
-                                detail={`${report.checkinsInPeriod.length} ${report.checkinsInPeriod.length === 1 ? 'check-in' : 'check-ins'} no período`}
-                            />
-                            <Kpi
-                                icon={<Utensils className="h-3.5 w-3.5 text-emerald-600" />}
-                                label="Adesão média à dieta"
-                                value={report.avgDiet === null ? '—' : `${report.avgDiet}%`}
-                                detail="Cumprimento do plano alimentar"
-                            />
-                        </>
-                    ) : (
-                        <>
-                            <Kpi
-                                icon={<Percent className="h-3.5 w-3.5 text-orange-600" />}
-                                label="% de gordura"
-                                value={formatNumber(report.bodyFat?.current, '%')}
-                                delta={
-                                    report.bodyFat?.initial != null && report.bodyFat.current != null && report.bodyFat.initial !== report.bodyFat.current
-                                        ? formatDelta(report.bodyFat.current, report.bodyFat.initial, ' p.p.')
-                                        : null
-                                }
-                                detail={report.bodyFat?.initial != null ? `Inicial: ${formatNumber(report.bodyFat.initial, '%')}` : 'Sem medição'}
-                            />
-                            <Kpi
-                                icon={<ClipboardList className="h-3.5 w-3.5 text-blue-600" />}
-                                label="Avaliações"
-                                value={String(report.assessmentCount)}
-                                detail={report.assessmentCount === 1 ? 'avaliação no período' : 'avaliações no período'}
-                            />
-                        </>
-                    )}
+                    {kpis.map((kpi) => (
+                        <Kpi key={kpi.label} {...kpi} />
+                    ))}
                 </div>
 
                 {/* Measurements */}
-                {report.measurements.length > 0 && (
+                {measureRows.length > 0 && (
                     <section className="report-avoid-break space-y-3">
                         <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
                             <Ruler className="h-4 w-4 text-emerald-600" />
@@ -364,18 +521,14 @@ export default function StudentEvolutionReportPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                    {report.measurements.map((row) => {
-                                        const unit = row.unit.trim() === '%' ? '%' : ' cm';
-                                        const delta = formatDelta(row.current, row.initial, row.unit.trim() === '%' ? ' p.p.' : ' cm');
-                                        return (
-                                            <tr key={row.key}>
-                                                <td className="p-3 font-medium text-foreground">{row.label}</td>
-                                                <td className="p-3 text-center text-muted-foreground">{formatNumber(row.initial, unit)}</td>
-                                                <td className="p-3 text-center font-semibold text-foreground">{formatNumber(row.current, unit)}</td>
-                                                <td className="p-3 text-right font-semibold text-foreground">{delta ?? '—'}</td>
-                                            </tr>
-                                        );
-                                    })}
+                                    {measureRows.map((row) => (
+                                        <tr key={row.key}>
+                                            <td className="p-3 font-medium text-foreground">{row.label}</td>
+                                            <td className="p-3 text-center text-muted-foreground">{row.initial}</td>
+                                            <td className="p-3 text-center font-semibold text-foreground">{row.current}</td>
+                                            <td className="p-3 text-right font-semibold text-foreground">{row.delta}</td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
@@ -503,11 +656,23 @@ export default function StudentEvolutionReportPage() {
                             id="report-opinion"
                             value={opinion}
                             onChange={(event) => setOpinion(event.target.value)}
+                            onBlur={() => {
+                                if (opinion.trim() !== savedOpinionRef.current.trim()) void saveOpinion(opinion);
+                            }}
                             rows={5}
-                            placeholder="Escreva sua análise do período: pontos fortes, o que ajustar e os próximos passos. O texto fica salvo neste navegador para este aluno e aparece na impressão."
+                            maxLength={4000}
+                            placeholder="Escreva sua análise do período: pontos fortes, o que ajustar e os próximos passos. O texto fica salvo na ficha do aluno e vai na impressão e no PDF enviado."
                             className={cn(textareaClass, 'bg-white text-sm print:hidden')}
                         />
-                        <p className="text-xs text-muted-foreground print:hidden">Salvo automaticamente neste navegador.</p>
+                        <p className={cn('text-xs print:hidden', opinionStatus === 'error' ? 'text-red-600' : 'text-muted-foreground')} aria-live="polite">
+                            {opinionStatus === 'saving'
+                                ? 'Salvando…'
+                                : opinionStatus === 'error'
+                                  ? 'Não foi possível salvar o parecer. Confira a conexão: tentamos de novo quando você sair do campo.'
+                                  : opinionStatus === 'saved'
+                                    ? 'Parecer salvo na ficha do aluno.'
+                                    : 'Salvo automaticamente na ficha do aluno.'}
+                        </p>
                         <div className="hidden min-h-[96px] whitespace-pre-wrap rounded-xl border border-border p-4 text-sm text-foreground print:block">
                             {opinion.trim()}
                         </div>
@@ -526,6 +691,14 @@ export default function StudentEvolutionReportPage() {
                     </div>
                 </section>
             </article>
+
+            <ExportReportDialog
+                model={pdfModel}
+                phone={student.user.phone ?? null}
+                onOpenChange={(open) => {
+                    if (!open) setPdfModel(null);
+                }}
+            />
         </div>
     );
 }

@@ -259,6 +259,8 @@ export interface StudentReport {
     progressPhotos: ProgressPhoto[];
     assessments?: Assessment[];
     firstCheckin: Checkin | null;
+    /** Trainer's opinion on the report (PUT /api/students/[id]/report-opinion). */
+    reportOpinion?: string | null;
 }
 
 export interface AnamnesisInput {

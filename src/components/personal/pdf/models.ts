@@ -339,15 +339,18 @@ export function buildDietPdfModel(
 // File name and WhatsApp message
 // ---------------------------------------------------------------------------
 
+/** Text that is safe inside a file name on every system (no slashes, colons, quotes…). */
+export function fileNamePart(text: string): string {
+    return text
+        .replace(/[\\/:*?"<>|#%{}^~[\]`]+/g, ' ')
+        .replace(/[—–]/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 /** "Treino - João Silva - Hipertrofia fase 1.pdf": what the student sees in the WhatsApp chat. */
 export function pdfFileName(kind: PdfKind, studentName: string, planTitle: string): string {
-    const clean = (text: string) =>
-        text
-            .replace(/[\\/:*?"<>|#%{}^~[\]`]+/g, ' ')
-            .replace(/[—–]/g, '-')
-            .replace(/\s+/g, ' ')
-            .trim();
-    const parts = [kind === 'workout' ? 'Treino' : 'Dieta', clean(studentName), clean(planTitle)].filter(Boolean);
+    const parts = [kind === 'workout' ? 'Treino' : 'Dieta', fileNamePart(studentName), fileNamePart(planTitle)].filter(Boolean);
     const name = parts.join(' - ').slice(0, 120).trim();
     return `${name}.pdf`;
 }

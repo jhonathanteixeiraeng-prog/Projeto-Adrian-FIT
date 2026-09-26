@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Download, Loader2, MessageCircle, RefreshCw, Share2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, useToast } from '@/components/ui';
 import { firstName } from '@/components/personal/students/lib';
 import { invalidateApi } from '@/hooks/use-api';
@@ -18,6 +17,7 @@ import {
     type PdfKind,
     type WorkoutPlanForPdf,
 } from './models';
+import { PdfHandoffActions, PdfPreview, type PdfPreviewState, type ReadyPdf } from './pdf-handoff';
 
 export interface PdfExportTarget {
     kind: PdfKind;
@@ -44,7 +44,6 @@ interface ReadyExport {
     studentName: string;
     message: string;
     whatsapp: string | null;
-    canShare: boolean;
     /** Version rendered in this PDF (what gets recorded as sent). */
     version: number | null;
     send: SendFields;
@@ -96,20 +95,6 @@ async function recordPlanSent(target: PdfExportTarget, version: number | null): 
     invalidateApi('/api/dashboard');
     return body.data as SentInfo;
 }
-
-function saveFile(url: string, fileName: string) {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-}
-
-const buttonClass =
-    'inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60';
-const primaryButtonClass =
-    'inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-60';
 
 /**
  * Builds the PDF of a saved workout plan or diet, shows a preview and hands it off: download,
@@ -168,7 +153,6 @@ export function ExportPdfDialog({
                 studentName: model.header.studentName,
                 message,
                 whatsapp: whatsappLink(data.phone, message),
-                canShare: typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] }),
                 version: data.version,
                 send: data.send,
             });
@@ -198,8 +182,16 @@ export function ExportPdfDialog({
 
     const ready = state.status === 'ready' ? state : null;
     const name = ready ? firstName(ready.studentName) : 'o aluno';
-    const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
-    const shareFirst = Boolean(ready?.canShare && touch);
+    // Same object while the PDF doesn't change (recording the send updates `ready`, not the file).
+    const readyUrl = ready?.url ?? null;
+    const readyFile = ready?.file ?? null;
+    const readyMessage = ready?.message ?? '';
+    const readyWhatsapp = ready?.whatsapp ?? null;
+    const readyPdf = useMemo<ReadyPdf | null>(
+        () => (readyUrl && readyFile ? { url: readyUrl, file: readyFile, message: readyMessage, whatsapp: readyWhatsapp } : null),
+        [readyUrl, readyFile, readyMessage, readyWhatsapp]
+    );
+    const preview: PdfPreviewState = ready ? { status: 'ready', url: ready.url } : state.status === 'error' ? state : { status: 'loading' };
 
     /** Best effort: the PDF already reached the trainer, so a failure here is only logged. */
     const recordSent = async (): Promise<SentInfo | null> => {
@@ -218,32 +210,6 @@ export function ExportPdfDialog({
         } catch (error) {
             console.error('Could not record the plan as sent:', error);
             return null;
-        }
-    };
-
-    const download = () => {
-        if (!ready) return;
-        saveFile(ready.url, ready.file.name);
-        void recordSent();
-        toast.success('PDF baixado', ready.file.name);
-    };
-
-    const openWhatsapp = () => {
-        if (!ready?.whatsapp) return;
-        saveFile(ready.url, ready.file.name);
-        window.open(ready.whatsapp, '_blank', 'noopener,noreferrer');
-        void recordSent();
-        toast.info('PDF baixado', `Anexe o arquivo na conversa com ${name} que abriu no WhatsApp.`);
-    };
-
-    const share = async () => {
-        if (!ready) return;
-        try {
-            await navigator.share({ files: [ready.file], title: ready.file.name.replace(/\.pdf$/i, ''), text: ready.message });
-            void recordSent();
-        } catch (error) {
-            if ((error as DOMException)?.name === 'AbortError') return;
-            toast.error('Não foi possível compartilhar', 'Baixe o PDF e envie pelo WhatsApp.');
         }
     };
 
@@ -269,14 +235,6 @@ export function ExportPdfDialog({
             ? `PDF de ${ready.studentName}. O plano mudou depois do envio de ${formatSentDate(ready.send.sentAt!)}.`
             : `PDF de ${ready.studentName}, pronto para enviar.`;
 
-    const hint = !ready
-        ? null
-        : shareFirst
-          ? `Toque em Compartilhar e escolha o WhatsApp de ${name}.`
-          : ready.whatsapp
-            ? `O PDF é baixado e a conversa com ${name} abre no WhatsApp. É só anexar o arquivo.`
-            : `Cadastre o WhatsApp de ${name} na ficha do aluno para abrir a conversa direto daqui.`;
-
     return (
         <Dialog open={Boolean(target)} onOpenChange={onOpenChange}>
             <DialogContent className="flex max-h-[94dvh] max-w-3xl flex-col gap-3 p-4 sm:p-5">
@@ -296,26 +254,7 @@ export function ExportPdfDialog({
                     )}
                 </DialogHeader>
 
-                <div className="relative flex h-[58dvh] min-h-[280px] items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/40">
-                    {state.status === 'loading' && (
-                        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Gerando o PDF…
-                        </span>
-                    )}
-                    {state.status === 'error' && (
-                        <div className="max-w-sm space-y-3 px-4 text-center">
-                            <AlertTriangle className="mx-auto h-6 w-6 text-amber-500" />
-                            <p className="text-sm text-foreground">Não foi possível gerar o PDF.</p>
-                            <p className="text-xs text-muted-foreground">{state.message}</p>
-                            <button type="button" onClick={() => setAttempt((value) => value + 1)} className={buttonClass}>
-                                <RefreshCw className="h-4 w-4" />
-                                Tentar de novo
-                            </button>
-                        </div>
-                    )}
-                    {ready && <iframe title="Prévia do PDF" src={`${ready.url}#navpanes=0&view=FitH`} className="h-full w-full bg-white" />}
-                </div>
+                <PdfPreview state={preview} onRetry={() => setAttempt((value) => value + 1)} />
 
                 {kind === 'diet' && (
                     <label className="inline-flex cursor-pointer select-none items-center gap-2 text-sm text-foreground">
@@ -329,37 +268,7 @@ export function ExportPdfDialog({
                     </label>
                 )}
 
-                <div className="flex flex-wrap items-center gap-2">
-                    <p className="min-w-[200px] flex-1 text-xs text-muted-foreground">{hint}</p>
-                    {ready?.canShare && !shareFirst && (
-                        <button type="button" onClick={() => void share()} className={buttonClass}>
-                            <Share2 className="h-4 w-4" />
-                            Compartilhar
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={download}
-                        disabled={!ready}
-                        className={shareFirst || ready?.whatsapp || !ready ? buttonClass : primaryButtonClass}
-                    >
-                        <Download className="h-4 w-4" />
-                        Baixar PDF
-                    </button>
-                    {shareFirst ? (
-                        <button type="button" onClick={() => void share()} className={primaryButtonClass}>
-                            <Share2 className="h-4 w-4" />
-                            Compartilhar
-                        </button>
-                    ) : (
-                        ready?.whatsapp && (
-                            <button type="button" onClick={openWhatsapp} className={primaryButtonClass}>
-                                <MessageCircle className="h-4 w-4" />
-                                Baixar e abrir WhatsApp
-                            </button>
-                        )
-                    )}
-                </div>
+                <PdfHandoffActions pdf={readyPdf} studentName={ready?.studentName ?? null} onHandedOff={() => void recordSent()} />
             </DialogContent>
         </Dialog>
     );
