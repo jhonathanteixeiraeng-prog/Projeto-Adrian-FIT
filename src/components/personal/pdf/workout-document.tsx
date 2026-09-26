@@ -156,7 +156,7 @@ export function WorkoutPlanDocument({ model }: { model: WorkoutPdfModel }) {
                         { label: 'Aluno', value: header.studentName },
                         ...(header.goal ? [{ label: 'Objetivo', value: header.goal }] : []),
                         { label: 'Período', value: header.period },
-                        { label: 'Divisão', value: `${model.days.length} ${model.days.length === 1 ? 'treino' : 'treinos'} · ${exercises} exercícios` },
+                        { label: 'Divisão', value: `${model.days.length} ${model.days.length === 1 ? 'treino' : 'treinos'} · ${exercises} ${exercises === 1 ? 'exercício' : 'exercícios'}` },
                     ]}
                 />
                 {model.days.length === 0 ? (

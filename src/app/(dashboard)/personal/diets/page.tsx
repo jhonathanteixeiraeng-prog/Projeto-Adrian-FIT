@@ -26,6 +26,7 @@ import {
 import { Avatar, useDialogs, useToast } from '@/components/ui';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
+import { PlanSendBadge } from '@/components/personal/pdf/send-badge';
 import { AssignTemplateDialog, type AssignableTemplate } from '@/components/personal/diet-editor/assign-template-dialog';
 import { DropdownMenu, type MenuEntry } from '@/components/personal/diet-editor/menu';
 import { dateInputFromDate, dateInputFromIso, formatDateBR } from '@/components/personal/diet-editor/model';
@@ -47,6 +48,9 @@ interface PlanRow {
     active: boolean;
     startDate: string | null;
     endDate: string | null;
+    version?: number;
+    sentAt?: string | null;
+    sentVersion?: number | null;
     createdAt: string;
     studentId: string;
     student: {
@@ -552,6 +556,7 @@ export default function DietsPage() {
                                                     >
                                                         {plan.active ? 'Ativa' : 'Inativa'}
                                                     </span>
+                                                    {plan.active && <PlanSendBadge plan={plan} endDate={plan.endDate} compact />}
                                                     {days !== null && days < 0 && (
                                                         <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
                                                             Vencida há {Math.abs(days)} {Math.abs(days) === 1 ? 'dia' : 'dias'}

@@ -14,9 +14,12 @@ import {
     Dumbbell,
     Eye,
     EyeOff,
+    FileDown,
+    FileWarning,
     Loader2,
     MessageCircle,
     Phone,
+    Send,
     TrendingDown,
     User,
     Utensils,
@@ -32,6 +35,7 @@ import { dayKey, formatRelativeShort, formatShortDate } from '@/components/perso
 import { firstNameOf } from '@/components/personal/chat/preferences';
 import { studentPaths, whatsappHref } from '@/components/personal/chat/contact';
 import { STUDENTS_USE_APP } from '@/lib/features';
+import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
 import {
     ATTENTION_CATEGORIES,
     attentionCategories,
@@ -63,6 +67,10 @@ const REASON_ICON: Partial<Record<AttentionReason['key'], LucideIcon>> = {
     NO_DIET_PLAN: Utensils,
     DIET_PLAN_ENDING: Utensils,
     DIET_PLAN_ENDED: Utensils,
+    WORKOUT_NOT_SENT: Send,
+    DIET_NOT_SENT: Send,
+    WORKOUT_CHANGED_SINCE_SENT: FileWarning,
+    DIET_CHANGED_SINCE_SENT: FileWarning,
 };
 
 const SEVERITY_CHIP: Record<AttentionSeverity, string> = {
@@ -181,6 +189,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
     const [remindedIds, setRemindedIds] = useState<Set<string>>(() => new Set());
     const [busyId, setBusyId] = useState<string | null>(null);
     const [focusedId, setFocusedId] = useState<string | null>(null);
+    const [pdfTarget, setPdfTarget] = useState<PdfExportTarget | null>(null);
 
     const today = dayKey(new Date());
     const all = useMemo(() => items ?? [], [items]);
@@ -542,6 +551,28 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                                                 Dieta
                                             </Link>
                                         )}
+                                        {item.workoutPlan && hasReason(item, 'WORKOUT_NOT_SENT', 'WORKOUT_CHANGED_SINCE_SENT') && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPdfTarget({ kind: 'workout', planId: item.workoutPlan!.id })}
+                                                className={actionClass}
+                                                title="Gerar o PDF do treino e enviar pelo WhatsApp"
+                                            >
+                                                <FileDown className="h-3.5 w-3.5 text-primary" />
+                                                Enviar treino
+                                            </button>
+                                        )}
+                                        {item.dietPlan && hasReason(item, 'DIET_NOT_SENT', 'DIET_CHANGED_SINCE_SENT') && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPdfTarget({ kind: 'diet', planId: item.dietPlan!.id })}
+                                                className={actionClass}
+                                                title="Gerar o PDF da dieta e enviar pelo WhatsApp"
+                                            >
+                                                <FileDown className="h-3.5 w-3.5 text-emerald-500" />
+                                                Enviar dieta
+                                            </button>
+                                        )}
                                         {whatsapp && (
                                             <a
                                                 href={whatsapp}
@@ -605,6 +636,9 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                     )}
                 </div>
             )}
+
+            {/* Recording the send refreshes the dashboard, which drops the reason. */}
+            <ExportPdfDialog target={pdfTarget} onOpenChange={(open) => !open && setPdfTarget(null)} />
 
             <ReminderDialog
                 open={isReminderOpen}

@@ -350,16 +350,50 @@ export interface DietPlanUpdate {
     meals?: PreparedMeal[];
 }
 
+type DietContent = Pick<DietPlanUpdate, 'title' | 'calories' | 'protein' | 'carbs' | 'fat' | 'startDate' | 'endDate'>;
+
+/** What the student receives in the PDF; when it changes the plan gets a new version (see plan-send). */
+function dietContentSignature(plan: DietContent, meals: Array<Omit<PreparedMeal, 'id'>>) {
+    return JSON.stringify([
+        plan.title ?? null,
+        plan.calories ?? null,
+        plan.protein ?? null,
+        plan.carbs ?? null,
+        plan.fat ?? null,
+        plan.startDate?.toISOString() ?? null,
+        plan.endDate?.toISOString() ?? null,
+        [...meals].sort((a, b) => a.order - b.order).map((meal) => [meal.name, meal.time, meal.notes ?? null, meal.foods]),
+    ]);
+}
+
 /**
  * Atualiza um plano numa transação. Refeições enviadas com id existente são atualizadas no lugar
  * (preservando as marcações de "refeição feita" do aluno); as demais são criadas e as ausentes removidas.
- * Ativar o plano desativa os outros planos ativos do aluno.
+ * Ativar o plano desativa os outros planos ativos do aluno. Mudanças de conteúdo aumentam a versão.
  */
 export function updateDietPlan(planId: string, studentId: string, update: DietPlanUpdate) {
     return prisma.$transaction(async (tx) => {
         if (update.active === true) {
             await deactivateOtherDietPlans(tx, studentId, planId);
         }
+
+        // Activating or deactivating isn't a content change: only title, targets, dates and meals are.
+        const before = await tx.dietPlan.findUniqueOrThrow({ where: { id: planId }, include: { meals: true } });
+        const keep = <T,>(next: T | undefined, current: T) => (next === undefined ? current : next);
+        const contentChanged =
+            dietContentSignature(before, before.meals) !==
+            dietContentSignature(
+                {
+                    title: keep(update.title, before.title),
+                    calories: keep(update.calories, before.calories),
+                    protein: keep(update.protein, before.protein),
+                    carbs: keep(update.carbs, before.carbs),
+                    fat: keep(update.fat, before.fat),
+                    startDate: keep(update.startDate, before.startDate),
+                    endDate: keep(update.endDate, before.endDate),
+                },
+                update.meals ?? before.meals
+            );
 
         if (update.meals) {
             const existingMeals = await tx.dietMeal.findMany({
@@ -402,6 +436,7 @@ export function updateDietPlan(planId: string, studentId: string, update: DietPl
                 active: update.active,
                 startDate: update.startDate,
                 endDate: update.endDate,
+                version: contentChanged ? { increment: 1 } : undefined,
             },
             include: {
                 meals: { orderBy: { order: 'asc' } },

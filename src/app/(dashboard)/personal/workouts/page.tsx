@@ -33,6 +33,7 @@ import { isModalOpen, useHotkey } from '@/hooks/use-hotkey';
 import { useUrlStateGroup } from '@/hooks/use-url-state';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
+import { PlanSendBadge } from '@/components/personal/pdf/send-badge';
 import { ActionMenu, type ActionMenuEntry } from '@/components/personal/workout-editor/action-menu';
 import { AssignTemplateDialog } from '@/components/personal/workout-editor/assign-template-dialog';
 import { daysUntilPlanEnd, formatPlanDate } from '@/components/personal/workout-editor/plan-dates';
@@ -47,6 +48,8 @@ interface PlanListItem {
     endDate: string;
     active: boolean;
     version: number;
+    sentAt?: string | null;
+    sentVersion?: number | null;
     createdAt: string;
     updatedAt: string;
     student?: { user?: { name?: string | null; avatar?: string | null } | null } | null;
@@ -648,8 +651,9 @@ export default function WorkoutsPage() {
                                             >
                                                 {plan.title}
                                             </Link>
-                                            <span className="text-xs text-muted-foreground">
+                                            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                                                 v{plan.version} · atualizada {formatPlanDate(plan.updatedAt, { day: '2-digit', month: '2-digit' })}
+                                                {plan.active && <PlanSendBadge plan={plan} endDate={plan.endDate} compact className="py-0" />}
                                             </span>
                                         </div>
                                         <div className="relative z-10 col-start-2 row-start-1 flex justify-end md:hidden">

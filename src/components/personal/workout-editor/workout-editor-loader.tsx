@@ -98,6 +98,7 @@ async function loadPlan(planId: string, context: 'workouts' | 'student'): Promis
         version: plan.version,
         active: plan.active,
         updatedAt: plan.updatedAt ?? null,
+        sent: { sentAt: plan.sentAt ?? null, sentVersion: plan.sentVersion ?? null },
         studentLocked: true,
         studentName: plan.student?.user?.name ?? null,
         draftKey,

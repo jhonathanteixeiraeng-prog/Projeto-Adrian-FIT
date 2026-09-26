@@ -31,6 +31,7 @@ import { useDialogs, useToast } from '@/components/ui';
 import { usePageMeta, type PageMeta } from '@/components/personal/page-meta';
 import { rememberRecentStudent } from '@/components/personal/command-palette';
 import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
+import { PlanSendBadge } from '@/components/personal/pdf/send-badge';
 import { invalidateApi, useApi } from '@/hooks/use-api';
 import { isModalOpen, modKeyLabel, useHotkey } from '@/hooks/use-hotkey';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
@@ -38,6 +39,7 @@ import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes';
 import { cn } from '@/lib/utils';
 import { STUDENTS_USE_APP } from '@/lib/features';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
+import { sendFieldsOf, type SendFields } from '@/lib/plan-send';
 import { contactEmail } from '@/lib/student-access';
 import { CustomFoodDialog } from './custom-food-dialog';
 import type { MealRef } from './food-row';
@@ -163,6 +165,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
     const [generateMode, setGenerateMode] = useState<DraftSource | null>(null);
     const [customFood, setCustomFood] = useState<{ mealUid: string; name: string } | null>(null);
     const [pdfTarget, setPdfTarget] = useState<PdfExportTarget | null>(null);
+    const [send, setSend] = useState<SendFields | null>(null);
 
     const stateRef = useRef(state);
     stateRef.current = state;
@@ -198,6 +201,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             setOrigin(loaded.origin ?? null);
             setDatesSuggested(Boolean(loaded.datesSuggested));
             setLastSavedAt(loaded.savedAt ?? null);
+            setSend(loaded.send ?? null);
             setShowErrors(false);
             setDraft(null);
             autoTargetsRef.current = Boolean(loaded.autoTargets);
@@ -589,6 +593,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
         try {
             const values = resolvedTargets(current.targets, planTotals(current.meals));
             let createdId: string | null = null;
+            let createdSend: SendFields | null = null;
             let responseMeals: Array<{ id: string }> = [];
 
             if (kind === 'template') {
@@ -610,6 +615,8 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                     meals: toApiMeals(current.meals, 'foods', true),
                 });
                 responseMeals = result.data?.meals ?? [];
+                // Content changes bump the version, which may make the sent PDF outdated.
+                if (result.data) setSend(sendFieldsOf(result.data));
             } else {
                 const result = await sendJson('/api/diet-plans', 'POST', {
                     title: current.title.trim(),
@@ -626,6 +633,8 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 });
                 createdId = result.id ?? null;
                 responseMeals = result.meals ?? [];
+                createdSend = sendFieldsOf(result);
+                setSend(createdSend);
             }
 
             baselineRef.current = currentSnapshot;
@@ -707,6 +716,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                             stored: null,
                             focusId: focusedId,
                             savedAt,
+                            send: createdSend,
                         });
                         router.replace(`/personal/diets/${createdId}`);
                     }
@@ -981,6 +991,9 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                         Gerar rascunho
                         <ChevronDown className="h-4 w-4 opacity-70" />
                     </DropdownMenu>
+                    {kind === 'plan' && planId && send && state.active && (
+                        <PlanSendBadge plan={send} compact className="hidden py-1 sm:inline-flex" />
+                    )}
                     {kind === 'plan' && planId && (
                         <button
                             type="button"
@@ -1187,6 +1200,9 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 target={pdfTarget}
                 onOpenChange={(open) => {
                     if (!open) setPdfTarget(null);
+                }}
+                onSent={(info, exported) => {
+                    if (exported.planId === planIdRef.current) setSend(info);
                 }}
             />
         </div>

@@ -3,9 +3,11 @@
 import React, { useMemo } from 'react';
 import { AlertTriangle, Clock, Dumbbell, Utensils } from 'lucide-react';
 import { describeFoodAmount } from '@/components/personal/diet-editor/units';
+import { PlanSendBadge } from '@/components/personal/pdf/send-badge';
 import { groupChipLabel, groupPositionLabel, groupRestHint, groupTone } from '@/components/personal/workout-editor/group-ui';
 import { normalizeDietFood, type NormalizedDietFood } from '@/lib/diet-normalizer';
 import { formatIntensity, formatRest, formatSubstitution, formatVolume } from '@/lib/plan-format';
+import type { SendFields } from '@/lib/plan-send';
 import { cn, getDayOfWeekName } from '@/lib/utils';
 import { describeGroups } from '@/lib/workout-groups';
 import { formatDate, formatNumber, planEndInfo, toneText } from './lib';
@@ -17,18 +19,23 @@ function PlanHeader({
     endDate,
     activeCount,
     kind,
+    send,
 }: {
     title: string;
     startDate?: string | null;
     endDate?: string | null;
     activeCount: number;
     kind: 'treino' | 'dieta';
+    send: SendFields;
 }) {
     const end = planEndInfo(endDate);
     return (
         <div className="space-y-2">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+                    <PlanSendBadge plan={send} endDate={endDate} />
+                </div>
                 <p className="text-sm text-muted-foreground">
                     {formatDate(startDate)} – {formatDate(endDate)}
                     {end && <span className={cn('ml-2 font-semibold', toneText[end.tone])}>{end.label}</span>}
@@ -53,9 +60,9 @@ export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; 
 
     return (
         <div className="space-y-4">
-            <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="treino" />
+            <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="treino" send={plan} />
             <p className="text-sm text-muted-foreground">
-                {days.length} {days.length === 1 ? 'dia' : 'dias'} de treino · {totalExercises} exercícios
+                {days.length} {days.length === 1 ? 'dia' : 'dias'} de treino · {totalExercises} {totalExercises === 1 ? 'exercício' : 'exercícios'}
             </p>
             {days.length === 0 && (
                 <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
@@ -77,7 +84,7 @@ export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; 
                                     {day.name}
                                 </h4>
                                 <span className="shrink-0 text-xs text-muted-foreground">
-                                    {day.items.length} exercícios · {sets} séries
+                                    {day.items.length} {day.items.length === 1 ? 'exercício' : 'exercícios'} · {sets} {sets === 1 ? 'série' : 'séries'}
                                 </span>
                             </header>
                             {day.items.length === 0 ? (
@@ -218,7 +225,7 @@ export function DietPlanView({ plan, activeCount }: { plan: DietPlanFull; active
 
     return (
         <div className="space-y-4">
-            <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="dieta" />
+            <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="dieta" send={plan} />
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
                     { label: 'Calorias', value: `${formatNumber(totals.calories)} kcal`, className: 'text-primary' },

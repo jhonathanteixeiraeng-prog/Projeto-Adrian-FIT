@@ -112,6 +112,9 @@ export interface ApiPlan {
     endDate: string;
     active: boolean;
     version: number;
+    /** Last PDF sent to the student and its version (see src/lib/plan-send.ts). */
+    sentAt?: string | null;
+    sentVersion?: number | null;
     updatedAt?: string;
     student?: { id?: string; user?: { name?: string | null } | null } | null;
     workoutDays: ApiPlanDay[];

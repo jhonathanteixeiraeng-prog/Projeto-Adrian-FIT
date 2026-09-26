@@ -31,6 +31,7 @@ import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { rememberRecentStudent } from '@/components/personal/command-palette';
 import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
+import { PlanSendBadge } from '@/components/personal/pdf/send-badge';
 import { ExerciseFormDialog } from '@/components/personal/exercises/exercise-form-dialog';
 import {
     apiDaysToEditor,
@@ -77,6 +78,8 @@ export interface WorkoutPlanEditorProps {
     version: number | null;
     active: boolean;
     updatedAt: string | null;
+    /** Last PDF sent to the student; absent for new plans (never sent). */
+    sent?: { sentAt: string | null; sentVersion: number | null } | null;
     /** Student fixed by the route or by the plan being edited. */
     studentLocked: boolean;
     studentName: string | null;
@@ -137,6 +140,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
     const [version, setVersion] = useState(props.version);
     const versionRef = useRef(props.version);
     const [active, setActive] = useState(props.active);
+    const [sent, setSent] = useState(props.sent ?? null);
     const [activating, setActivating] = useState(false);
     const [saving, setSaving] = useState(false);
     const savingRef = useRef(false);
@@ -1141,6 +1145,13 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                             <span className="hidden sm:inline">Salvar como modelo</span>
                         </button>
                     )}
+                    {mode === 'plan' && entityId && active && (
+                        <PlanSendBadge
+                            plan={{ version, sentAt: sent?.sentAt, sentVersion: sent?.sentVersion }}
+                            compact
+                            className="hidden py-1 lg:inline-flex"
+                        />
+                    )}
                     {mode === 'plan' && entityId && (
                         <button
                             type="button"
@@ -1394,6 +1405,9 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                 target={pdfTarget}
                 onOpenChange={(open) => {
                     if (!open) setPdfTarget(null);
+                }}
+                onSent={(info, exported) => {
+                    if (exported.planId === entityIdRef.current) setSent({ sentAt: info.sentAt, sentVersion: info.sentVersion });
                 }}
             />
 

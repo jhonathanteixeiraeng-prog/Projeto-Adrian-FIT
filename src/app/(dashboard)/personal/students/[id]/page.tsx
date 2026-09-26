@@ -30,6 +30,7 @@ import { Avatar, useDialogs, useToast } from '@/components/ui';
 import { rememberRecentStudent } from '@/components/personal/command-palette';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
+import { PlanSendBadge } from '@/components/personal/pdf/send-badge';
 import { ContractDialog } from '@/components/personal/students/contract-form';
 import {
     GENDER_LABELS,
@@ -656,7 +657,10 @@ export default function StudentProfilePage() {
                             >
                                 {workout ? (
                                     <div className="space-y-2">
-                                        <p className="font-semibold text-foreground">{workout.title}</p>
+                                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-foreground">
+                                            {workout.title}
+                                            <PlanSendBadge plan={workout} endDate={workout.endDate} compact />
+                                        </p>
                                         <p className="text-xs text-muted-foreground">
                                             {formatDate(workout.startDate)} – {formatDate(workout.endDate)}
                                             {workoutEnd && <span className={cn('ml-1.5 font-semibold', toneText[workoutEnd.tone])}>{workoutEnd.label}</span>}
@@ -665,7 +669,9 @@ export default function StudentProfilePage() {
                                             {workout.workoutDays.map((day) => (
                                                 <li key={day.id} className="flex items-center justify-between gap-2">
                                                     <span className="truncate text-foreground">{day.name}</span>
-                                                    <span className="shrink-0 text-xs text-muted-foreground">{day.items.length} exercícios</span>
+                                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                                        {day.items.length} {day.items.length === 1 ? 'exercício' : 'exercícios'}
+                                                    </span>
                                                 </li>
                                             ))}
                                         </ul>
@@ -687,7 +693,10 @@ export default function StudentProfilePage() {
                             >
                                 {diet ? (
                                     <div className="space-y-2">
-                                        <p className="font-semibold text-foreground">{diet.title}</p>
+                                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-foreground">
+                                            {diet.title}
+                                            <PlanSendBadge plan={diet} endDate={diet.endDate} compact />
+                                        </p>
                                         <div className="grid grid-cols-4 gap-2 text-center">
                                             {[
                                                 { label: 'kcal', value: diet.calories },

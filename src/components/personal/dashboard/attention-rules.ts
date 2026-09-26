@@ -5,6 +5,7 @@
  * and the dashboard UI, so the queue, its counters and "lembrar todos em risco" always agree.
  * Thresholds come from '@/lib/student-status' so the CRM and the profile classify students the same way.
  */
+import { sendState, type SendFields } from '@/lib/plan-send';
 import {
     CHECKIN_EXPECTED_DAYS,
     INACTIVITY_ALERT_DAYS,
@@ -31,7 +32,11 @@ export type AttentionReasonKey =
     | 'WORKOUT_PLAN_ENDED'
     | 'NO_DIET_PLAN'
     | 'DIET_PLAN_ENDING'
-    | 'DIET_PLAN_ENDED';
+    | 'DIET_PLAN_ENDED'
+    | 'WORKOUT_NOT_SENT'
+    | 'WORKOUT_CHANGED_SINCE_SENT'
+    | 'DIET_NOT_SENT'
+    | 'DIET_CHANGED_SINCE_SENT';
 
 export interface AttentionReason {
     key: AttentionReasonKey;
@@ -86,10 +91,10 @@ export interface AttentionSignals {
     paymentStatus?: string | null;
     lastWorkoutAt?: Date | string | null;
     lastCheckin?: { date: Date | string; workoutAdherence: number; dietAdherence: number } | null;
-    /** Active workout plan (null when there is none). */
-    workoutPlan?: { startDate?: Date | string | null; endDate?: Date | string | null } | null;
-    /** Active diet plan (null when there is none). */
-    dietPlan?: { startDate?: Date | string | null; endDate?: Date | string | null } | null;
+    /** Active workout plan (null when there is none), with its PDF send record. */
+    workoutPlan?: ({ startDate?: Date | string | null; endDate?: Date | string | null } & SendFields) | null;
+    /** Active diet plan (null when there is none), with its PDF send record. */
+    dietPlan?: ({ startDate?: Date | string | null; endDate?: Date | string | null } & SendFields) | null;
     /** Whether this trainer prescribes diets at all; otherwise "sem dieta ativa" would be noise. */
     expectsDiet?: boolean;
     /** Date of the conversation's last message, when that message was sent by the student. */
@@ -270,6 +275,39 @@ function planEndReason(
     };
 }
 
+/**
+ * Without the app the PDF is how the student gets the plan: one that was never sent, or that
+ * changed after the last PDF, is work. A plan that is already over needs renewing instead.
+ */
+function planSendReason(
+    kind: 'WORKOUT' | 'DIET',
+    plan: { endDate?: Date | string | null } & SendFields,
+    options: AttentionOptions
+): AttentionReason | null {
+    if (plan.endDate) {
+        const days = calendarDaysUntil(plan.endDate, options);
+        if (days !== null && days < 0) return null;
+    }
+    const state = sendState(plan);
+    if (state === 'SENT') return null;
+    const workout = kind === 'WORKOUT';
+    if (state === 'NOT_SENT') {
+        return {
+            key: workout ? 'WORKOUT_NOT_SENT' : 'DIET_NOT_SENT',
+            category: 'PLANS',
+            severity: 'WARNING',
+            label: workout ? 'Treino não enviado' : 'Dieta não enviada',
+        };
+    }
+    return {
+        key: workout ? 'WORKOUT_CHANGED_SINCE_SENT' : 'DIET_CHANGED_SINCE_SENT',
+        category: 'PLANS',
+        severity: 'WARNING',
+        label: workout ? 'Treino alterado depois do envio' : 'Dieta alterada depois do envio',
+        since: toIso(plan.sentAt),
+    };
+}
+
 /** Every reason, most severe first. Empty when the student needs nothing today. */
 export function attentionReasons(signals: AttentionSignals, options: AttentionOptions = {}): AttentionReason[] {
     const now = options.now ?? new Date();
@@ -309,11 +347,15 @@ export function attentionReasons(signals: AttentionSignals, options: AttentionOp
     } else {
         const reason = planEndReason('WORKOUT', signals.workoutPlan.endDate, { ...options, now });
         if (reason) reasons.push(reason);
+        const send = appSignals ? null : planSendReason('WORKOUT', signals.workoutPlan, { ...options, now });
+        if (send) reasons.push(send);
     }
 
     if (signals.dietPlan) {
         const reason = planEndReason('DIET', signals.dietPlan.endDate, { ...options, now });
         if (reason) reasons.push(reason);
+        const send = appSignals ? null : planSendReason('DIET', signals.dietPlan, { ...options, now });
+        if (send) reasons.push(send);
     } else if (signals.expectsDiet) {
         reasons.push({ key: 'NO_DIET_PLAN', category: 'PLANS', severity: 'INFO', label: 'Sem dieta ativa' });
     }

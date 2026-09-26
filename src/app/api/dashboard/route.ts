@@ -78,7 +78,8 @@ export async function GET(request: NextRequest) {
                         where: { active: true },
                         orderBy: { createdAt: 'desc' },
                         take: 1,
-                        select: { id: true, title: true, startDate: true, endDate: true },
+                        // version/sent*: whether the student has the current PDF (see src/lib/plan-send.ts).
+                        select: { id: true, title: true, startDate: true, endDate: true, version: true, sentAt: true, sentVersion: true },
                     },
                 },
             }),

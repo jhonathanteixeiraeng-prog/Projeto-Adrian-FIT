@@ -1,4 +1,5 @@
 /** Shapes returned by /api/students and /api/students/[id] (dates arrive as ISO strings). */
+import type { SendFields } from '@/lib/plan-send';
 
 export interface StudentUser {
     id: string;
@@ -147,7 +148,7 @@ export interface WorkoutDay {
     items: WorkoutItem[];
 }
 
-export interface WorkoutPlanFull {
+export interface WorkoutPlanFull extends SendFields {
     id: string;
     title: string;
     startDate: string;
@@ -166,7 +167,7 @@ export interface DietMeal {
     order: number;
 }
 
-export interface DietPlanFull {
+export interface DietPlanFull extends SendFields {
     id: string;
     title: string;
     startDate?: string | null;

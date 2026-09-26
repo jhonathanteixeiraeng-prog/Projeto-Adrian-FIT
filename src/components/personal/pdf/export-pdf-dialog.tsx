@@ -4,7 +4,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Download, Loader2, MessageCircle, RefreshCw, Share2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, useToast } from '@/components/ui';
 import { firstName } from '@/components/personal/students/lib';
+import { invalidateApi } from '@/hooks/use-api';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
+import { formatSentDate, sendFieldsOf, sendState, type SendFields, type SentInfo } from '@/lib/plan-send';
 import { formatPhone, whatsappLink } from '@/lib/whatsapp';
 import {
     buildDietPdfModel,
@@ -29,6 +31,10 @@ interface LoadedData {
     plan: WorkoutPlanForPdf | DietPlanForPdf;
     identity: PdfIdentity;
     phone: string | null;
+    /** Plan version the PDF shows. */
+    version: number | null;
+    /** When a PDF of the plan was last sent, and of which version. */
+    send: SendFields;
 }
 
 interface ReadyExport {
@@ -39,6 +45,9 @@ interface ReadyExport {
     message: string;
     whatsapp: string | null;
     canShare: boolean;
+    /** Version rendered in this PDF (what gets recorded as sent). */
+    version: number | null;
+    send: SendFields;
 }
 
 type ExportState = { status: 'loading' } | { status: 'error'; message: string } | ReadyExport;
@@ -54,7 +63,7 @@ async function loadData(target: PdfExportTarget, key: string): Promise<LoadedDat
     const planUrl = target.kind === 'workout' ? `/api/workout-plans/${target.planId}` : `/api/diets/${target.planId}`;
     const [planBody, profileBody] = await Promise.all([getJson(planUrl), getJson('/api/profile')]);
     // Workout plans come raw; diets come as { success, data }.
-    const plan = (target.kind === 'workout' ? planBody : planBody?.data) as WorkoutPlanForPdf | DietPlanForPdf;
+    const plan = (target.kind === 'workout' ? planBody : planBody?.data) as (WorkoutPlanForPdf | DietPlanForPdf) & SendFields;
     if (!plan) throw new Error('Plano não encontrado.');
     const profile = profileBody?.data ?? {};
     return {
@@ -66,7 +75,26 @@ async function loadData(target: PdfExportTarget, key: string): Promise<LoadedDat
             coachPhone: formatPhone(profile.phone),
         },
         phone: plan.student?.user?.phone ?? null,
+        version: plan.version ?? null,
+        send: sendFieldsOf(plan),
     };
+}
+
+/** Records that the student got this version of the plan (see src/lib/plan-send.ts). */
+async function recordPlanSent(target: PdfExportTarget, version: number | null): Promise<SentInfo> {
+    const base = target.kind === 'workout' ? '/api/workout-plans' : '/api/diets';
+    const response = await fetch(`${base}/${target.planId}/sent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(version ? { version } : {}),
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !body?.data) throw new Error(body?.error || 'Não foi possível registrar o envio.');
+    // Lists, the student profile and the dashboard queue all show the send status.
+    invalidateApi(base);
+    invalidateApi('/api/students');
+    invalidateApi('/api/dashboard');
+    return body.data as SentInfo;
 }
 
 function saveFile(url: string, fileName: string) {
@@ -86,12 +114,22 @@ const primaryButtonClass =
 /**
  * Builds the PDF of a saved workout plan or diet, shows a preview and hands it off: download,
  * the system share sheet (phones, Safari) or download + the student's WhatsApp chat.
+ * Each hand-off records the plan as sent; `onSent` lets the opener update what it shows.
  */
-export function ExportPdfDialog({ target, onOpenChange }: { target: PdfExportTarget | null; onOpenChange: (open: boolean) => void }) {
+export function ExportPdfDialog({
+    target,
+    onOpenChange,
+    onSent,
+}: {
+    target: PdfExportTarget | null;
+    onOpenChange: (open: boolean) => void;
+    onSent?: (info: SentInfo, target: PdfExportTarget) => void;
+}) {
     const { toast } = useToast();
     const [showCalories, setShowCalories] = useLocalStorageState('pdf-export:diet-calories', true);
     const [state, setState] = useState<ExportState>({ status: 'loading' });
     const [attempt, setAttempt] = useState(0);
+    const [marking, setMarking] = useState(false);
     const dataRef = useRef<LoadedData | null>(null);
     const urlRef = useRef<string | null>(null);
 
@@ -131,6 +169,8 @@ export function ExportPdfDialog({ target, onOpenChange }: { target: PdfExportTar
                 message,
                 whatsapp: whatsappLink(data.phone, message),
                 canShare: typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] }),
+                version: data.version,
+                send: data.send,
             });
         })().catch((error) => {
             if (cancelled) return;
@@ -161,9 +201,30 @@ export function ExportPdfDialog({ target, onOpenChange }: { target: PdfExportTar
     const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
     const shareFirst = Boolean(ready?.canShare && touch);
 
+    /** Best effort: the PDF already reached the trainer, so a failure here is only logged. */
+    const recordSent = async (): Promise<SentInfo | null> => {
+        if (!ready || !planId) return null;
+        const exported: PdfExportTarget = { kind, planId };
+        const key = dataRef.current?.key;
+        try {
+            const info = await recordPlanSent(exported, ready.version);
+            // The dialog may show another plan by now.
+            if (dataRef.current && dataRef.current.key === key) {
+                dataRef.current = { ...dataRef.current, send: info };
+                setState((current) => (current.status === 'ready' ? { ...current, send: info } : current));
+            }
+            onSent?.(info, exported);
+            return info;
+        } catch (error) {
+            console.error('Could not record the plan as sent:', error);
+            return null;
+        }
+    };
+
     const download = () => {
         if (!ready) return;
         saveFile(ready.url, ready.file.name);
+        void recordSent();
         toast.success('PDF baixado', ready.file.name);
     };
 
@@ -171,6 +232,7 @@ export function ExportPdfDialog({ target, onOpenChange }: { target: PdfExportTar
         if (!ready?.whatsapp) return;
         saveFile(ready.url, ready.file.name);
         window.open(ready.whatsapp, '_blank', 'noopener,noreferrer');
+        void recordSent();
         toast.info('PDF baixado', `Anexe o arquivo na conversa com ${name} que abriu no WhatsApp.`);
     };
 
@@ -178,11 +240,34 @@ export function ExportPdfDialog({ target, onOpenChange }: { target: PdfExportTar
         if (!ready) return;
         try {
             await navigator.share({ files: [ready.file], title: ready.file.name.replace(/\.pdf$/i, ''), text: ready.message });
+            void recordSent();
         } catch (error) {
             if ((error as DOMException)?.name === 'AbortError') return;
             toast.error('Não foi possível compartilhar', 'Baixe o PDF e envie pelo WhatsApp.');
         }
     };
+
+    /** For a PDF sent some other way (before this record existed, printed…). */
+    const markAsSent = async () => {
+        setMarking(true);
+        const info = await recordSent();
+        setMarking(false);
+        if (!info) {
+            toast.error('Não foi possível registrar o envio', 'Tente novamente.');
+            return;
+        }
+        toast.success('Envio registrado', `O PDF consta como enviado para ${name}.`);
+        onOpenChange(false);
+    };
+
+    const sent = ready ? sendState(ready.send) : null;
+    const description = !ready
+        ? 'O PDF usa a versão salva do plano.'
+        : sent === 'SENT'
+          ? `PDF de ${ready.studentName}. Esta versão foi enviada em ${formatSentDate(ready.send.sentAt!)}.`
+          : sent === 'CHANGED'
+            ? `PDF de ${ready.studentName}. O plano mudou depois do envio de ${formatSentDate(ready.send.sentAt!)}.`
+            : `PDF de ${ready.studentName}, pronto para enviar.`;
 
     const hint = !ready
         ? null
@@ -197,9 +282,18 @@ export function ExportPdfDialog({ target, onOpenChange }: { target: PdfExportTar
             <DialogContent className="flex max-h-[94dvh] max-w-3xl flex-col gap-3 p-4 sm:p-5">
                 <DialogHeader>
                     <DialogTitle>{kind === 'workout' ? 'Exportar ficha de treino' : 'Exportar plano alimentar'}</DialogTitle>
-                    <DialogDescription>
-                        {ready ? `PDF de ${ready.studentName}, pronto para enviar.` : 'O PDF usa a versão salva do plano.'}
-                    </DialogDescription>
+                    <DialogDescription>{description}</DialogDescription>
+                    {ready && sent !== 'SENT' && (
+                        <button
+                            type="button"
+                            onClick={() => void markAsSent()}
+                            disabled={marking}
+                            title="Registra o envio sem baixar o PDF de novo"
+                            className="self-center text-xs font-semibold text-primary hover:underline disabled:opacity-60 sm:self-start"
+                        >
+                            {marking ? 'Registrando…' : 'Já enviei esta versão'}
+                        </button>
+                    )}
                 </DialogHeader>
 
                 <div className="relative flex h-[58dvh] min-h-[280px] items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/40">

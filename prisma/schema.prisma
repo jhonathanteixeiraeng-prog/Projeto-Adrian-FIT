@@ -117,6 +117,9 @@ model WorkoutPlan {
   endDate    DateTime
   version    Int      @default(1)
   active     Boolean  @default(true)
+  // Last PDF the trainer sent (exported) and the plan version it had; version > sentVersion = changed since.
+  sentAt      DateTime?
+  sentVersion Int?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -271,6 +274,9 @@ model DietPlan {
   fat        Int? // gramas
   version    Int       @default(1)
   active     Boolean   @default(true)
+  // Last PDF the trainer sent (exported) and the plan version it had; version > sentVersion = changed since.
+  sentAt      DateTime?
+  sentVersion Int?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

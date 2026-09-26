@@ -1,5 +1,6 @@
 /** Carregamento dos dados do editor de dieta para cada tipo de rota. */
 import { apiFetcher } from '@/hooks/use-api';
+import { sendFieldsOf, type SendFields } from '@/lib/plan-send';
 import { contactEmail } from '@/lib/student-access';
 import {
     cloneMealsForNewPlan,
@@ -59,6 +60,8 @@ export interface Loaded {
     plansLoaded?: boolean;
     /** Plano antigo sem período: datas preenchidas a partir da criação (salvas no próximo salvamento). */
     datesSuggested?: boolean;
+    /** Versão do plano e último PDF enviado ao aluno (planos salvos). */
+    send?: SendFields | null;
 }
 
 // Estado entregue à tela de edição logo após criar (evita recarregar e piscar a tela).
@@ -130,6 +133,7 @@ export async function loadRoute(route: DietEditorRoute): Promise<Loaded> {
                 plans: [],
                 stored: storedTotals(plan),
                 baseline,
+                send: sendFieldsOf(plan),
             };
         }
         case 'student': {
@@ -149,6 +153,7 @@ export async function loadRoute(route: DietEditorRoute): Promise<Loaded> {
                     stored: storedTotals(context.plan),
                     notice,
                     baseline,
+                    send: sendFieldsOf(context.plan),
                 };
             }
             if (context.requestedPlanMissing) {
