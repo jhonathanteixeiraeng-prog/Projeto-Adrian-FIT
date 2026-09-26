@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { personalLinks } from '@/lib/notifications';
+import { isOwnPhotoUrl } from '@/lib/photo-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,6 +130,12 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Photos must be files this student sent to POST /api/upload (private, see src/lib/photo-url.ts).
+        const photoList: Array<{ url: unknown; angle?: unknown }> = Array.isArray(photos) ? photos.filter((photo) => photo?.url) : [];
+        if (photoList.some((photo) => !isOwnPhotoUrl(String(photo.url).trim(), session.user.id))) {
+            return NextResponse.json({ success: false, error: 'Foto inválida: envie a imagem de novo' }, { status: 400 });
+        }
+
         const parsedWeight = parseFloat(String(weight).replace(',', '.'));
         const parsedSleepHours = parseFloat(String(sleepHours).replace(',', '.'));
 
@@ -159,22 +166,18 @@ export async function POST(request: NextRequest) {
             });
 
             // Se fotos foram enviadas com o check-in, cadastra e associa
-            if (Array.isArray(photos) && photos.length > 0) {
-                for (const photo of photos) {
-                    if (photo?.url) {
-                        const rawAngle = String(photo.angle || 'FRONT').toUpperCase();
-                        const angle = ['FRONT', 'SIDE', 'BACK', 'OTHER'].includes(rawAngle) ? rawAngle : 'FRONT';
-                        await tx.progressPhoto.create({
-                            data: {
-                                studentId: session.user.studentId!,
-                                checkinId: created.id,
-                                url: String(photo.url).trim(),
-                                angle,
-                                weight: parsedWeight,
-                            },
-                        });
-                    }
-                }
+            for (const photo of photoList) {
+                const rawAngle = String(photo.angle || 'FRONT').toUpperCase();
+                const angle = ['FRONT', 'SIDE', 'BACK', 'OTHER'].includes(rawAngle) ? rawAngle : 'FRONT';
+                await tx.progressPhoto.create({
+                    data: {
+                        studentId: session.user.studentId!,
+                        checkinId: created.id,
+                        url: String(photo.url).trim(),
+                        angle,
+                        weight: parsedWeight,
+                    },
+                });
             }
 
             // Atualiza peso do aluno

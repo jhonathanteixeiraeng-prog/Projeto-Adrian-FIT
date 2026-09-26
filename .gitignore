@@ -40,6 +40,10 @@ prisma/*.db
 prisma/*.db-*
 .vercel
 
+# Progress photos stored locally in development (src/lib/photo-storage.ts) and the old public folder
+/.data/
+/public/uploads/
+
 # iOS build outputs
 ios/**/build/
 ios/**/DerivedData/

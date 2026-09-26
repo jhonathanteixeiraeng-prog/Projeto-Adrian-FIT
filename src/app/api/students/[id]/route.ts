@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { assessmentInclude } from '@/lib/assessments-server';
+import { deleteUnusedPhotoFiles } from '@/lib/photo-storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -487,9 +488,12 @@ export async function DELETE(
             );
         }
 
+        // Photos go with the student (cascade); their files are removed right after.
+        const photos = await prisma.progressPhoto.findMany({ where: { studentId: student.id }, select: { url: true } });
         await prisma.student.delete({
             where: { id: params.id },
         });
+        await deleteUnusedPhotoFiles(photos.map((photo) => photo.url));
 
         return NextResponse.json({
             success: true,

@@ -120,6 +120,9 @@ export default function CheckinPage() {
     };
 
     const removePhoto = (angle: 'FRONT' | 'SIDE' | 'BACK') => {
+        // Not sent with the check-in yet: the private upload is discarded (DELETE /api/photos/<name>).
+        const url = photos.find(p => p.angle === angle)?.url;
+        if (url) void fetch(url, { method: 'DELETE' }).catch(() => undefined);
         setPhotos(prev => prev.map(p => p.angle === angle ? { ...p, url: null } : p));
     };
 

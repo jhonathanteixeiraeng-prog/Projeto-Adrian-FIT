@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { deleteUnusedPhotoFiles } from '@/lib/photo-storage';
 import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,7 @@ export async function DELETE(
         await prisma.progressPhoto.delete({
             where: { id: photoId },
         });
+        await deleteUnusedPhotoFiles([photo.url]);
 
         return NextResponse.json({ success: true, message: 'Foto excluída com sucesso' });
     } catch (error) {

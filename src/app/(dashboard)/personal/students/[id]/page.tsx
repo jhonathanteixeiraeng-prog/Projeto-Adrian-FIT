@@ -272,7 +272,10 @@ export default function StudentProfilePage() {
         const photos = assessment.photos?.length ?? 0;
         const ok = await confirm({
             title: `Excluir a avaliação de ${formatDate(assessment.date)}?`,
-            description: photos > 0 ? `As ${photos} fotos dela também serão removidas. Esta ação não pode ser desfeita.` : 'Esta ação não pode ser desfeita.',
+            description:
+                photos === 0
+                    ? 'Esta ação não pode ser desfeita.'
+                    : `${photos === 1 ? 'A foto dela também será removida' : `As ${photos} fotos dela também serão removidas`}. Esta ação não pode ser desfeita.`,
             confirmText: 'Excluir',
             variant: 'danger',
         });

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, us
 import { ASSESSMENT_MEASURES, type AssessmentMeasureKey } from '@/lib/assessments';
 import { cn, parseDecimalInput } from '@/lib/utils';
 import { PHOTO_ANGLE_LABELS, errorMessage, requestJson, toDateInputValue, todayInput } from './lib';
-import { uploadProgressPhoto } from './photo-upload';
+import { discardUploadedPhoto, uploadProgressPhoto } from './photo-upload';
 import { MEASURES } from './progress-section';
 import type { Assessment } from './types';
 import { Field, inputClass, primarySmallButtonClass, smallButtonClass, textareaClass } from './ui';
@@ -153,16 +153,20 @@ export function AssessmentDialog({
     const setValue = (key: AssessmentMeasureKey) => (event: React.ChangeEvent<HTMLInputElement>) =>
         setValues((current) => ({ ...current, [key]: event.target.value }));
 
-    const removePhoto = (slot: Slot) => {
-        const savedId = slots[slot].savedId;
+    // A saved photo is removed when the assessment is saved; an upload from this dialog goes right away.
+    const dropSlot = (slot: Slot) => {
+        const { savedId, url, isNew } = slots[slot];
         if (savedId) setRemovedIds((current) => [...current, savedId]);
+        if (isNew && url) discardUploadedPhoto(url);
+    };
+
+    const removePhoto = (slot: Slot) => {
+        dropSlot(slot);
         setSlots((current) => ({ ...current, [slot]: {} }));
     };
 
     const pickPhoto = async (slot: Slot, file: File) => {
-        // Replacing a saved photo removes it when the assessment is saved.
-        const savedId = slots[slot].savedId;
-        if (savedId) setRemovedIds((current) => [...current, savedId]);
+        dropSlot(slot);
         setSlots((current) => ({ ...current, [slot]: { uploading: true } }));
         try {
             const url = await uploadProgressPhoto(file);
@@ -222,6 +226,15 @@ export function AssessmentDialog({
         }
     };
 
+    /** Closing without saving throws away the photos uploaded in this dialog. */
+    const cancel = () => {
+        for (const slot of PHOTO_SLOTS) {
+            const { url, isNew } = slots[slot];
+            if (isNew && url) discardUploadedPhoto(url);
+        }
+        onOpenChange(false);
+    };
+
     const measureField = (key: AssessmentMeasureKey, label: string, placeholder?: string) => (
         <Field key={key} label={label} htmlFor={`assessment-${key}`} error={errors[key]}>
             <input
@@ -238,7 +251,7 @@ export function AssessmentDialog({
     );
 
     return (
-        <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
+        <Dialog open={open} onOpenChange={(next) => !busy && (next ? onOpenChange(true) : cancel())}>
             <DialogContent className="flex max-h-[92dvh] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0">
                 <DialogHeader className="border-b border-border px-5 py-4 text-left">
                     <DialogTitle className="text-base font-bold">{assessment ? 'Editar avaliação' : 'Nova avaliação'}</DialogTitle>
@@ -298,7 +311,7 @@ export function AssessmentDialog({
                         <FormError message={formError} />
                     </div>
                     <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
-                        <button type="button" onClick={() => onOpenChange(false)} className={smallButtonClass} disabled={busy}>
+                        <button type="button" onClick={cancel} className={smallButtonClass} disabled={busy}>
                             Cancelar
                         </button>
                         <button type="submit" className={primarySmallButtonClass} disabled={busy}>

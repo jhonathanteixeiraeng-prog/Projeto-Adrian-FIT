@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { isOwnPhotoUrl } from '@/lib/photo-url';
 import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +98,10 @@ export async function POST(request: NextRequest) {
 
         if (!url || !studentId) {
             return NextResponse.json({ success: false, error: 'URL da foto e identificador de aluno são obrigatórios' }, { status: 400 });
+        }
+        // Only a file this user sent to POST /api/upload: it stays private and can't be someone else's photo.
+        if (!isOwnPhotoUrl(url, session.user.id)) {
+            return NextResponse.json({ success: false, error: 'Foto inválida: envie a imagem de novo' }, { status: 400 });
         }
 
         // The check-in must be the same student's, so a photo never shows up in someone else's check-in.

@@ -2,6 +2,7 @@
  * Physical assessments the trainer records (Assessment model): weight, body fat, circumferences,
  * notes and photos. Pure helpers shared by the API (validation) and the screens (labels, ranges).
  */
+import { isOwnPhotoUrl } from './photo-url';
 
 export const ASSESSMENT_MEASURES = [
     { key: 'weight', label: 'Peso', unit: 'kg', min: 20, max: 400 },
@@ -39,8 +40,6 @@ export interface AssessmentPayload {
 }
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
-// Files come from POST /api/upload: Vercel Blob (https) or the local fallback (/uploads/photos/...).
-const PHOTO_URL = /^(https:\/\/\S+|\/uploads\/photos\/[\w.-]+)$/;
 const MAX_NOTES = 2000;
 const MAX_PHOTOS = 8;
 
@@ -67,7 +66,8 @@ function parseNumber(value: unknown): number | null | 'invalid' {
  * Validates a create (`partial: false`) or update body. Unknown keys are ignored; on update, a
  * missing key keeps the stored value and null clears it.
  */
-export function parseAssessmentBody(body: unknown, options: { partial: boolean; now?: Date }): Parsed {
+/** `uploaderId`: new photos must be files this user sent to POST /api/upload (see src/lib/photo-url.ts). */
+export function parseAssessmentBody(body: unknown, options: { partial: boolean; uploaderId: string; now?: Date }): Parsed {
     if (!body || typeof body !== 'object') return { ok: false, error: 'Dados da avaliação inválidos' };
     const input = body as Record<string, unknown>;
     const now = options.now ?? new Date();
@@ -98,7 +98,9 @@ export function parseAssessmentBody(body: unknown, options: { partial: boolean; 
     for (const raw of rawPhotos) {
         const url = typeof raw?.url === 'string' ? raw.url.trim() : '';
         const angle = String(raw?.angle ?? '').toUpperCase() as PhotoAngle;
-        if (!PHOTO_URL.test(url) || !PHOTO_ANGLES.includes(angle)) return { ok: false, error: 'Foto inválida: envie a imagem de novo' };
+        if (!isOwnPhotoUrl(url, options.uploaderId) || !PHOTO_ANGLES.includes(angle)) {
+            return { ok: false, error: 'Foto inválida: envie a imagem de novo' };
+        }
         addPhotos.push({ url, angle });
     }
 

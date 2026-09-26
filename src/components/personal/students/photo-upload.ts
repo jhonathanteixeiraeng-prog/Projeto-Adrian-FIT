@@ -27,7 +27,7 @@ async function shrink(file: File): Promise<Blob> {
     return file;
 }
 
-/** Uploads one photo and returns its URL (to send in the assessment's `photos`). */
+/** Uploads one photo and returns its private /api/photos/<name> URL (to send in the assessment's `photos`). */
 export async function uploadProgressPhoto(file: File): Promise<string> {
     if (!file.type.startsWith('image/')) throw new Error('Escolha um arquivo de imagem (JPG ou PNG).');
     const blob = await shrink(file);
@@ -38,7 +38,10 @@ export async function uploadProgressPhoto(file: File): Promise<string> {
     if (!response.ok || !body?.success || typeof body.url !== 'string') {
         throw new Error(body?.error || 'Não foi possível enviar a foto. Tente de novo.');
     }
-    // The route's last resort is an inline data URL, which the assessment API doesn't store.
-    if (body.url.startsWith('data:')) throw new Error('O armazenamento de fotos não está disponível agora. Tente mais tarde.');
     return body.url;
+}
+
+/** Deletes an upload that won't be saved (replaced, removed or the dialog was cancelled). Best effort. */
+export function discardUploadedPhoto(url: string) {
+    void fetch(url, { method: 'DELETE' }).catch(() => undefined);
 }

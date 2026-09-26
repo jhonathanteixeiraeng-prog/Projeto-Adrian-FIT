@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { parseAssessmentBody } from '@/lib/assessments';
 import { assessmentInclude, findOwnedStudent, syncStudentWeight } from '@/lib/assessments-server';
+import { deleteUnusedPhotoFiles } from '@/lib/photo-storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,17 +29,20 @@ export async function PUT(request: NextRequest, { params }: Params) {
         const assessment = await findAssessment(params, session.user.personalId);
         if (!assessment) return NextResponse.json(NOT_FOUND, { status: 404 });
 
-        const parsed = parseAssessmentBody(await request.json().catch(() => null), { partial: true });
+        const parsed = parseAssessmentBody(await request.json().catch(() => null), { partial: true, uploaderId: session.user.id });
         if (!parsed.ok) return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
         const { date, measures, notes, addPhotos, removePhotoIds } = parsed.data;
 
+        let removedUrls: string[] = [];
         const updated = await prisma.$transaction(async (tx) => {
             const saved = await tx.assessment.update({
                 where: { id: assessment.id },
                 data: { ...(date ? { date } : {}), ...measures, ...(notes !== undefined ? { notes } : {}) },
             });
             if (removePhotoIds.length > 0) {
-                await tx.progressPhoto.deleteMany({ where: { id: { in: removePhotoIds }, assessmentId: saved.id } });
+                const removed = { id: { in: removePhotoIds }, assessmentId: saved.id };
+                removedUrls = (await tx.progressPhoto.findMany({ where: removed, select: { url: true } })).map((photo) => photo.url);
+                await tx.progressPhoto.deleteMany({ where: removed });
             }
             // The assessment's photos follow its date and weight.
             await tx.progressPhoto.updateMany({
@@ -60,6 +64,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
             await syncStudentWeight(tx, saved.studentId);
             return tx.assessment.findUniqueOrThrow({ where: { id: saved.id }, include: assessmentInclude });
         });
+        await deleteUnusedPhotoFiles(removedUrls);
 
         return NextResponse.json({ success: true, data: updated });
     } catch (error) {
@@ -78,11 +83,14 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
         const assessment = await findAssessment(params, session.user.personalId);
         if (!assessment) return NextResponse.json(NOT_FOUND, { status: 404 });
 
-        await prisma.$transaction(async (tx) => {
+        const removedUrls = await prisma.$transaction(async (tx) => {
+            const photos = await tx.progressPhoto.findMany({ where: { assessmentId: assessment.id }, select: { url: true } });
             await tx.progressPhoto.deleteMany({ where: { assessmentId: assessment.id } });
             await tx.assessment.delete({ where: { id: assessment.id } });
             await syncStudentWeight(tx, assessment.studentId);
+            return photos.map((photo) => photo.url);
         });
+        await deleteUnusedPhotoFiles(removedUrls);
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error deleting assessment:', error);

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         const student = await findOwnedStudent(params.id, session.user.personalId);
         if (!student) return NextResponse.json(NOT_FOUND, { status: 404 });
 
-        const parsed = parseAssessmentBody(await request.json().catch(() => null), { partial: false });
+        const parsed = parseAssessmentBody(await request.json().catch(() => null), { partial: false, uploaderId: session.user.id });
         if (!parsed.ok) return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
         const { date, measures, notes, addPhotos } = parsed.data;
 
