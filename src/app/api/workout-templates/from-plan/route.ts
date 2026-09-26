@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
                                 sets: item.sets,
                                 reps: item.reps,
                                 rest: item.rest,
+                                restBySet: item.restBySet,
                                 load: item.load,
                                 rpe: item.rpe,
                                 groupId: item.groupId,

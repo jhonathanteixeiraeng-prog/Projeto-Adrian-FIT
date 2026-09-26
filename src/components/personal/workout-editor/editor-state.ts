@@ -697,8 +697,6 @@ export function validateEditor(
                 push({ ...base, id: issueId.item(item.key, 'rest'), field: 'rest', message: `${where}: informe o descanso em segundos` });
             } else if (!parseRestInput(item.rest, Number.isInteger(sets) ? sets : 0)) {
                 push({ ...base, id: issueId.item(item.key, 'rest'), field: 'rest', message: `${where}: Descanso: use até 600 s (10 min)` });
-            } else if (options.mode === 'template' && parsePerSetReps(item.rest).length > 1) {
-                push({ ...base, id: issueId.item(item.key, 'rest'), field: 'rest', message: `${where}: Modelos guardam um único descanso; use um valor (ex.: 90)` });
             }
             if (item.notes.length > 1000) {
                 push({ ...base, id: issueId.item(item.key, 'notes'), field: 'notes', message: `${where}: observações com no máximo 1000 caracteres` });

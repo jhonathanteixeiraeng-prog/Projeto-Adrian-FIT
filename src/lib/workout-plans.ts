@@ -417,19 +417,9 @@ export function buildDaysCreateInput(days: PlanDayInput[]) {
     }));
 }
 
-/** Nested `create` input for template days (templates have no rest-by-set column). */
+/** Nested `create` input for template days (template items have the same fields as plan items). */
 export function buildTemplateDaysCreateInput(days: PlanDayInput[]) {
-    return days.map((day, dayIndex) => ({
-        name: day.name,
-        dayOfWeek: day.dayOfWeek,
-        order: dayIndex,
-        items: {
-            create: day.items.map((item, itemIndex) => {
-                const { restBySet: _restBySet, ...data } = itemData(item, itemIndex);
-                return data;
-            }),
-        },
-    }));
+    return buildDaysCreateInput(days);
 }
 
 /**

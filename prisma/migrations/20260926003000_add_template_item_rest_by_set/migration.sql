@@ -1,0 +1,1 @@
+ALTER TABLE "WorkoutTemplateItem" ADD COLUMN IF NOT EXISTS "restBySet" TEXT;

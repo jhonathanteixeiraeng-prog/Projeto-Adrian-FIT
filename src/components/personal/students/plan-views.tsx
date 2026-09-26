@@ -7,11 +7,15 @@ import { normalizeDietFood, type NormalizedDietFood } from '@/lib/diet-normalize
 import { cn, getDayOfWeekName } from '@/lib/utils';
 import { describeGroups } from '@/lib/workout-groups';
 import { formatLoad, formatRpe } from '@/lib/workout-load';
-import { parsePerSetReps } from '@/lib/workout-reps';
+import { parsePerSetReps, parseRestBySetJson } from '@/lib/workout-reps';
 import { formatDate, formatNumber, planEndInfo, toneText } from './lib';
 import type { DietPlanFull, WorkoutItem, WorkoutPlanFull } from './types';
 
-function formatRest(seconds: number | null | undefined): string {
+/** "1 min 30 s", or the rest of each set ("60/90/120 s") when they differ. */
+function formatRest(item: WorkoutItem): string {
+    const perSet = parseRestBySetJson(item.restBySet);
+    if (perSet && perSet.some((value) => value !== perSet[0])) return `${perSet.join('/')} s`;
+    const seconds = item.rest;
     if (!seconds) return '—';
     if (seconds < 60) return `${seconds} s`;
     const minutes = Math.floor(seconds / 60);
@@ -181,7 +185,7 @@ export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; 
                                                             </span>
                                                         ) : (
                                                             <>
-                                                                {formatRest(item.rest)}
+                                                                {formatRest(item)}
                                                                 {group && <span className="block text-xs">após a volta</span>}
                                                             </>
                                                         )}

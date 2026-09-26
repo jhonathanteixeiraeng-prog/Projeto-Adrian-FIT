@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { cn } from '@/lib/utils';
 import { describeGroups } from '@/lib/workout-groups';
 import { formatLoad, formatRpe } from '@/lib/workout-load';
+import { formatRestInput, parseRestBySetJson } from '@/lib/workout-reps';
 import { WEEKDAY_OPTIONS, type ApiPlanDay } from './editor-state';
 import { groupChipLabel, groupPositionLabel, groupRestHint, groupTone } from './group-ui';
 
@@ -29,8 +30,8 @@ const weekday = (value: number) => WEEKDAY_OPTIONS.find((option) => option.value
 /** Exercises of a day; supersets get a bracket, A1/A2 before the names and their rest after the round. */
 function DayItems({ items }: { items: ApiPlanDay['items'] }) {
     const groups = describeGroups(items.map((item) => ({ groupId: item.groupId, sets: item.sets })));
-    // Room for "após a volta" only on days with groups.
-    const restWidth = groups.some(Boolean) ? 'w-20' : 'w-14';
+    // Room for "após a volta" only on days with groups; rests per set ("60/90/120s") may widen it.
+    const restWidth = groups.some(Boolean) ? 'min-w-20' : 'min-w-14';
     return (
         <ol className="divide-y divide-border/60">
             {items.map((item, itemIndex) => {
@@ -88,9 +89,9 @@ function DayItems({ items }: { items: ApiPlanDay['items'] }) {
                             </span>
                         ) : (
                             <span className={cn(restWidth, 'shrink-0 text-right text-xs text-muted-foreground')}>
-                                <span className="inline-flex items-center justify-end gap-1">
+                                <span className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
                                     <Clock className="h-3 w-3" />
-                                    {item.rest}s
+                                    {formatRestInput(item.rest, parseRestBySetJson(item.restBySet))}s
                                 </span>
                                 {group && <span className="block whitespace-nowrap">após a volta</span>}
                             </span>

@@ -354,6 +354,7 @@ export default function WorkoutsPage() {
                             sets: item.sets,
                             reps: item.reps,
                             rest: item.rest,
+                            restBySet: item.restBySet ?? null,
                             load: item.load ?? null,
                             rpe: item.rpe ?? null,
                             groupId: item.groupId ?? null,
