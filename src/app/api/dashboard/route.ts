@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { CHECKIN_EXPECTED_DAYS, monthlyValue } from '@/lib/student-status';
+import { parseTzOffset } from '@/lib/viewer-time';
 import { getConversationSummaries } from '@/app/api/personal/conversations/summary';
 import {
     attentionReasons,
@@ -34,8 +35,7 @@ export async function GET(request: NextRequest) {
         }
 
         const personalId = session.user.personalId;
-        const tzParam = Number.parseInt(new URL(request.url).searchParams.get('tz') || '', 10);
-        const tzOffset = Number.isFinite(tzParam) && Math.abs(tzParam) <= 14 * 60 ? tzParam : null;
+        const tzOffset = parseTzOffset(new URL(request.url).searchParams.get('tz'));
 
         const now = new Date();
         const sevenDaysAgo = new Date(now.getTime() - CHECKIN_EXPECTED_DAYS * DAY_MS);

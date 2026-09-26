@@ -65,7 +65,7 @@ export default function StudentNotificationsPage() {
 
     const loadNotifications = async () => {
         try {
-            const response = await fetch('/api/student/notifications', { cache: 'no-store' });
+            const response = await fetch(`/api/student/notifications?tz=${new Date().getTimezoneOffset()}`, { cache: 'no-store' });
             const data = await response.json();
 
             if (!data?.success) {

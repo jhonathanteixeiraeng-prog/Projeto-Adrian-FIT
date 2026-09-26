@@ -61,7 +61,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
         const fetchUnreadCount = async () => {
             try {
-                const response = await fetch('/api/student/notifications', { cache: 'no-store' });
+                const response = await fetch(`/api/student/notifications?tz=${new Date().getTimezoneOffset()}`, { cache: 'no-store' });
                 const data = await response.json();
 
                 if (active && data?.success) {

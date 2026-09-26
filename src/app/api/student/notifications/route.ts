@@ -1,12 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { studentLinkFor } from '@/lib/notifications';
+import { parseTzOffset, viewerClock } from '@/lib/viewer-time';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/student/notifications - List student notifications and unread count
+/**
+ * Creates an automated reminder once per student, type and day. The web layout and page (and the app)
+ * call this GET at the same time, and all of them pass the "none in the last 24 hours" check: the fixed
+ * id makes the concurrent inserts create a single reminder.
+ */
+async function createDailyReminder(userId: string, day: string, reminder: { type: string; title: string; body: string }) {
+    try {
+        await prisma.notification.create({
+            data: {
+                id: `reminder-${reminder.type}-${userId}-${day}`,
+                userId,
+                ...reminder,
+                link: studentLinkFor(reminder.type),
+                read: false,
+            },
+        });
+    } catch (error) {
+        // Another request created it first.
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
+    }
+}
+
+// GET /api/student/notifications?tz=<Date#getTimezoneOffset()> - List student notifications and unread count
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -23,78 +47,71 @@ export async function GET(request: NextRequest) {
         const now = new Date();
         const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        // The student's hour and day, not the server's (UTC).
+        const clock = viewerClock(now, parseTzOffset(request.nextUrl.searchParams.get('tz')));
 
-        // Intelligent Automated Reminders Generator
+        // Intelligent Automated Reminders Generator (best effort: the list loads even if a reminder fails)
         if (studentId) {
-            // Check if there was any workout reminder in the last 24 hours
-            const recentWorkoutReminder = await prisma.notification.findFirst({
-                where: {
-                    userId,
-                    type: 'WORKOUT_REMINDER',
-                    createdAt: { gte: oneDayAgo },
-                },
-            });
+            try {
+                // Check if there was any workout reminder in the last 24 hours
+                const recentWorkoutReminder = await prisma.notification.findFirst({
+                    where: {
+                        userId,
+                        type: 'WORKOUT_REMINDER',
+                        createdAt: { gte: oneDayAgo },
+                    },
+                });
 
-            if (!recentWorkoutReminder) {
-                // Check if student has active workout plan and has not trained today
-                const [activePlan, todaySession] = await Promise.all([
-                    prisma.workoutPlan.findFirst({
-                        where: { studentId, active: true },
-                        include: { workoutDays: true },
-                    }),
-                    prisma.workoutSession.findFirst({
-                        where: {
-                            studentId,
-                            completedAt: { gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) },
-                        },
-                    }),
-                ]);
-
-                if (activePlan && activePlan.workoutDays.length > 0 && !todaySession) {
-                    const currentHour = now.getHours();
-                    // Send nudge if it's afternoon/evening (>= 12h)
-                    if (currentHour >= 12) {
-                        await prisma.notification.create({
-                            data: {
-                                userId,
-                                type: 'WORKOUT_REMINDER',
-                                link: studentLinkFor('WORKOUT_REMINDER'),
-                                title: 'Hora de Treinar! 💪',
-                                body: 'Seu treino do dia está te esperando no app. Vamos manter o ritmo hoje?',
-                                read: false,
+                if (!recentWorkoutReminder) {
+                    // Check if student has active workout plan and has not trained today
+                    const [activePlan, todaySession] = await Promise.all([
+                        prisma.workoutPlan.findFirst({
+                            where: { studentId, active: true },
+                            include: { workoutDays: true },
+                        }),
+                        prisma.workoutSession.findFirst({
+                            where: {
+                                studentId,
+                                completedAt: { gte: clock.startOfDay },
                             },
+                        }),
+                    ]);
+
+                    // Send nudge if it's afternoon/evening (>= 12h) for the student
+                    if (activePlan && activePlan.workoutDays.length > 0 && !todaySession && clock.hour >= 12) {
+                        await createDailyReminder(userId, clock.day, {
+                            type: 'WORKOUT_REMINDER',
+                            title: 'Hora de Treinar! 💪',
+                            body: 'Seu treino do dia está te esperando no app. Vamos manter o ritmo hoje?',
                         });
                     }
                 }
-            }
 
-            // Check if checkin is due (>7 days)
-            const recentCheckinReminder = await prisma.notification.findFirst({
-                where: {
-                    userId,
-                    type: 'CHECKIN_REMINDER',
-                    createdAt: { gte: oneDayAgo },
-                },
-            });
-
-            if (!recentCheckinReminder) {
-                const latestCheckin = await prisma.checkin.findFirst({
-                    where: { studentId },
-                    orderBy: { date: 'desc' },
+                // Check if checkin is due (>7 days)
+                const recentCheckinReminder = await prisma.notification.findFirst({
+                    where: {
+                        userId,
+                        type: 'CHECKIN_REMINDER',
+                        createdAt: { gte: oneDayAgo },
+                    },
                 });
 
-                if (!latestCheckin || new Date(latestCheckin.date) < sevenDaysAgo) {
-                    await prisma.notification.create({
-                        data: {
-                            userId,
+                if (!recentCheckinReminder) {
+                    const latestCheckin = await prisma.checkin.findFirst({
+                        where: { studentId },
+                        orderBy: { date: 'desc' },
+                    });
+
+                    if (!latestCheckin || new Date(latestCheckin.date) < sevenDaysAgo) {
+                        await createDailyReminder(userId, clock.day, {
                             type: 'CHECKIN_REMINDER',
-                            link: studentLinkFor('CHECKIN_REMINDER'),
                             title: 'Check-in Semanal Pendente 📋',
                             body: 'Atualize seu peso, medidas e fotos para seu personal acompanhar sua evolução!',
-                            read: false,
-                        },
-                    });
+                        });
+                    }
                 }
+            } catch (error) {
+                console.error('Error generating student reminders:', error);
             }
         }
 
