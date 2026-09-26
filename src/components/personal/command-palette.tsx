@@ -32,6 +32,7 @@ import { useApi } from '@/hooks/use-api';
 import { confirmNavigation } from '@/hooks/use-unsaved-changes';
 import { whatsappHref } from '@/components/personal/chat/contact';
 import { STUDENTS_USE_APP } from '@/lib/features';
+import { contactEmail } from '@/lib/student-access';
 
 interface StudentItem {
     id: string;
@@ -168,7 +169,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             (Array.isArray(rawStudents) ? rawStudents : []).map((s: any) => ({
                 id: s.id,
                 name: s.user?.name || 'Aluno',
-                email: s.user?.email || '',
+                email: contactEmail(s.user?.email) ?? '',
                 phone: s.user?.phone || null,
                 status: s.status,
             })),

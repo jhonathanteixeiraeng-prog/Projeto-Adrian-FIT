@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { whatsappNumber } from './whatsapp';
 
 export const loginSchema = z.object({
     email: z.string().email('E-mail inválido'),
@@ -9,11 +10,20 @@ const ACTIVITY_LEVELS = ['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIV
 const longText = z.string().max(2000, 'Use no máximo 2000 caracteres');
 
 // Number fields come from inputs registered with setValueAs (empty → undefined), so NaN means "not a number".
+/** Empty, or a number wa.me can open (DDD + número, or +country code). */
+export const whatsappPhoneField = z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || whatsappNumber(value) !== null, 'Use DDD + número, ex.: (92) 99999-9999');
+
 export const studentSchema = z.object({
     name: z.string().trim().min(2, 'Informe o nome completo do aluno'),
-    email: z.string().trim().min(1, 'Informe o e-mail de acesso').email('E-mail inválido'),
-    password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-    phone: z.string().trim().optional(),
+    // Both empty = student without app access (plans go as PDF over WhatsApp); the form requires
+    // them only when the trainer chooses to create the access.
+    email: z.string().trim().email('E-mail inválido').or(z.literal('')).optional(),
+    password: z.string().optional(),
+    phone: whatsappPhoneField,
     birthDate: z.string().optional(),
     gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
     height: z

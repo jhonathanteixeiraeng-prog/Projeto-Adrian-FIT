@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useDialogs, useToast } from '@/components/ui';
 import { STUDENTS_USE_APP } from '@/lib/features';
+import { contactEmail, hasAppAccess } from '@/lib/student-access';
 import { getBillingInfo, renewedExpiry } from '@/lib/student-status';
 import { cn } from '@/lib/utils';
 import {
@@ -47,6 +48,7 @@ const editButtonClass =
 export function ContactCard({ student }: { student: StudentProfile }) {
     const { toast } = useToast();
     const whatsapp = whatsappUrl(student.user.phone);
+    const email = contactEmail(student.user.email);
     const copy = async (value: string, label: string) => {
         try {
             await navigator.clipboard.writeText(value);
@@ -60,12 +62,18 @@ export function ContactCard({ student }: { student: StudentProfile }) {
             <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <a href={`mailto:${student.user.email}`} className="min-w-0 flex-1 truncate text-foreground hover:text-primary">
-                        {student.user.email}
-                    </a>
-                    <button type="button" onClick={() => copy(student.user.email, 'E-mail')} className="rounded p-1 text-muted-foreground hover:text-foreground" aria-label="Copiar e-mail">
-                        <Copy className="h-3.5 w-3.5" />
-                    </button>
+                    {email ? (
+                        <>
+                            <a href={`mailto:${email}`} className="min-w-0 flex-1 truncate text-foreground hover:text-primary">
+                                {email}
+                            </a>
+                            <button type="button" onClick={() => copy(email, 'E-mail')} className="rounded p-1 text-muted-foreground hover:text-foreground" aria-label="Copiar e-mail">
+                                <Copy className="h-3.5 w-3.5" />
+                            </button>
+                        </>
+                    ) : (
+                        <span className="text-muted-foreground">Sem acesso ao app</span>
+                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -319,10 +327,13 @@ export function QuickActionsCard({
                         Lembrete
                     </button>
                 )}
-                <button type="button" onClick={onResetPassword} className={actionClass}>
-                    <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
-                    Redefinir senha
-                </button>
+                {/* A student registered without e-mail has no login to reset. */}
+                {hasAppAccess(student.user.email) && (
+                    <button type="button" onClick={onResetPassword} className={actionClass}>
+                        <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                        Redefinir senha
+                    </button>
+                )}
                 <button type="button" onClick={onDelete} className={cn(actionClass, 'text-red-600 hover:bg-red-500/10 dark:text-red-400')}>
                     <Trash2 className="h-3.5 w-3.5" />
                     Excluir aluno

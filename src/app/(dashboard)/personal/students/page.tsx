@@ -1124,8 +1124,8 @@ export default function StudentsPage() {
                                                         >
                                                             {row.name}
                                                         </Link>
-                                                        <p className="truncate text-xs text-muted-foreground" title={row.email}>
-                                                            {row.phone || row.email}
+                                                        <p className="truncate text-xs text-muted-foreground" title={row.email || undefined}>
+                                                            {row.phone || row.email || 'Sem telefone'}
                                                         </p>
                                                     </div>
                                                 </div>

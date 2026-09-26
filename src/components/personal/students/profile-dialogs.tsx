@@ -5,6 +5,7 @@ import { Check, Copy, Eye, EyeOff, KeyRound, Loader2, Phone, Wand2 } from 'lucid
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, useToast } from '@/components/ui';
 import { anamnesisSchema } from '@/lib/validations';
 import { cn } from '@/lib/utils';
+import { whatsappNumber } from '@/lib/whatsapp';
 import {
     ACTIVITY_LEVEL_OPTIONS,
     GENDER_OPTIONS,
@@ -92,6 +93,10 @@ export function PersonalInfoDialog({
         const height = parseMeasure(values.height);
         const weight = parseMeasure(values.weight);
         if (values.name.trim().length < 2) nextErrors.name = 'Informe o nome completo';
+        // Only when changed: an old number typed some other way stays as it is until edited.
+        if (values.phone.trim() !== infoValues(student).phone && values.phone.trim() && !whatsappNumber(values.phone)) {
+            nextErrors.phone = 'Use DDD + número, ex.: (92) 99999-9999';
+        }
         if (height !== null && (!Number.isFinite(height) || height < 50 || height > 260)) nextErrors.height = 'Altura em centímetros (ex.: 175)';
         if (weight !== null && (!Number.isFinite(weight) || weight < 20 || weight > 400)) nextErrors.weight = 'Peso em quilos (ex.: 72,5)';
         setErrors(nextErrors);
@@ -136,7 +141,7 @@ export function PersonalInfoDialog({
                         <input id="info-name" value={values.name} onChange={set('name')} className={inputClass} autoComplete="off" />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
-                        <Field label="Telefone / WhatsApp" htmlFor="info-phone">
+                        <Field label="Telefone / WhatsApp" htmlFor="info-phone" error={errors.phone}>
                             <input
                                 id="info-phone"
                                 type="tel"

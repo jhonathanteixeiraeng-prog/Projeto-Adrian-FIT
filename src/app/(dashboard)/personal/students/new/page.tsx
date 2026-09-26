@@ -43,6 +43,8 @@ import type { StudentListItem } from '@/components/personal/students/types';
 import { Field, inputClass, primarySmallButtonClass, selectClass, smallButtonClass, textareaClass } from '@/components/personal/students/ui';
 import { useHotkey } from '@/hooks/use-hotkey';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes';
+import { STUDENTS_USE_APP } from '@/lib/features';
+import { contactEmail } from '@/lib/student-access';
 import { renewedExpiry } from '@/lib/student-status';
 import { cn, parseDecimalInput } from '@/lib/utils';
 import { studentSchema, type StudentInput } from '@/lib/validations';
@@ -54,6 +56,8 @@ interface CreatedStudent {
     password: string;
     phone: string | null;
     reusedAccount: boolean;
+    /** False when registered without e-mail: plans go as PDF over WhatsApp. */
+    appAccess: boolean;
 }
 
 // Empty stays undefined (optional); text that isn't a number becomes NaN so zod shows the field error.
@@ -103,6 +107,8 @@ export default function NewStudentPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [withContract, setWithContract] = useState(true);
     const [withAnamnesis, setWithAnamnesis] = useState(false);
+    // App login (e-mail + password) is optional while students get their plans over WhatsApp.
+    const [withAccess, setWithAccess] = useState(STUDENTS_USE_APP);
     const [copied, setCopied] = useState<'email' | 'password' | 'all' | null>(null);
 
     const {
@@ -112,6 +118,7 @@ export default function NewStudentPage() {
         watch,
         reset,
         setFocus,
+        setError,
         formState: { errors, isDirty, isSubmitting, dirtyFields },
     } = useForm<StudentInput>({
         resolver: zodResolver(studentSchema),
@@ -134,6 +141,18 @@ export default function NewStudentPage() {
 
     const onSubmit = async (values: StudentInput) => {
         setServerError(null);
+        const email = (values.email ?? '').trim().toLowerCase();
+        const password = values.password ?? '';
+        if (withAccess) {
+            if (!email) {
+                setError('email', { message: 'Informe o e-mail de acesso' }, { shouldFocus: true });
+                return;
+            }
+            if (password.length < 6) {
+                setError('password', { message: 'Senha deve ter no mínimo 6 caracteres' }, { shouldFocus: true });
+                return;
+            }
+        }
         const anamnesis = values.anamnesis;
         const hasAnamnesis =
             withAnamnesis &&
@@ -146,8 +165,7 @@ export default function NewStudentPage() {
             );
         const body = {
             name: values.name.trim(),
-            email: values.email.trim().toLowerCase(),
-            password: values.password,
+            ...(withAccess ? { email, password } : {}),
             phone: values.phone?.trim() || undefined,
             birthDate: values.birthDate || undefined,
             gender: values.gender || undefined,
@@ -196,11 +214,12 @@ export default function NewStudentPage() {
         setCreated({
             id: student.id,
             name: body.name,
-            email: json.data?.user?.email || body.email,
+            email: contactEmail(json.data?.user?.email) ?? email,
             // Only show a password the server confirms it saved.
-            password: json.passwordSet === true ? values.password : '',
+            password: json.passwordSet === true ? password : '',
             phone: body.phone ?? null,
             reusedAccount: Boolean(json.reusedAccount),
+            appAccess: json.appAccess !== false,
         });
     };
 
@@ -241,49 +260,64 @@ export default function NewStudentPage() {
                         </div>
                         <div className="min-w-0">
                             <h1 className="text-xl font-semibold text-foreground">{created.name} foi cadastrado</h1>
-                            <p className="mt-0.5 text-sm text-muted-foreground">Envie o acesso ao aluno e já prescreva o treino e a dieta.</p>
+                            <p className="mt-0.5 text-sm text-muted-foreground">
+                                {created.appAccess
+                                    ? 'Envie o acesso ao aluno e já prescreva o treino e a dieta.'
+                                    : 'Agora prescreva o treino e a dieta e envie o PDF pelo WhatsApp.'}
+                            </p>
                         </div>
                     </div>
 
-                    {created.reusedAccount && (
+                    {!created.appAccess && (
+                        <p className="mt-4 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                            Cadastrado sem acesso ao app: {firstName(created.name)} recebe os planos em PDF
+                            {created.phone ? ' pelo WhatsApp' : '. Cadastre o WhatsApp na ficha para enviar direto pelo sistema'}.
+                        </p>
+                    )}
+
+                    {created.appAccess && created.reusedAccount && (
                         <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                             Este e-mail já possuía uma conta de acesso. A conta foi reaproveitada e a senha abaixo passou a valer.
                         </p>
                     )}
 
-                    <dl className="mt-4 divide-y divide-border rounded-xl border border-border bg-muted/40">
-                        <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-                            <div className="min-w-0">
-                                <dt className="text-xs text-muted-foreground">E-mail de acesso</dt>
-                                <dd className="truncate font-mono text-sm text-foreground">{created.email}</dd>
-                            </div>
-                            <button type="button" onClick={() => copy(created.email, 'email')} className={smallButtonClass} aria-label="Copiar e-mail">
-                                {copied === 'email' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                            </button>
-                        </div>
-                        {created.password && (
-                            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-                                <div className="min-w-0">
-                                    <dt className="text-xs text-muted-foreground">Senha</dt>
-                                    <dd className="font-mono text-sm text-foreground">{created.password}</dd>
+                    {created.appAccess && (
+                        <>
+                            <dl className="mt-4 divide-y divide-border rounded-xl border border-border bg-muted/40">
+                                <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                                    <div className="min-w-0">
+                                        <dt className="text-xs text-muted-foreground">E-mail de acesso</dt>
+                                        <dd className="truncate font-mono text-sm text-foreground">{created.email}</dd>
+                                    </div>
+                                    <button type="button" onClick={() => copy(created.email, 'email')} className={smallButtonClass} aria-label="Copiar e-mail">
+                                        {copied === 'email' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                    </button>
                                 </div>
-                                <button type="button" onClick={() => copy(created.password, 'password')} className={smallButtonClass} aria-label="Copiar senha">
-                                    {copied === 'password' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                {created.password && (
+                                    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-muted-foreground">Senha</dt>
+                                            <dd className="font-mono text-sm text-foreground">{created.password}</dd>
+                                        </div>
+                                        <button type="button" onClick={() => copy(created.password, 'password')} className={smallButtonClass} aria-label="Copiar senha">
+                                            {copied === 'password' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                        </button>
+                                    </div>
+                                )}
+                            </dl>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={cn(primarySmallButtonClass, 'bg-emerald-600 hover:bg-emerald-600/90')}>
+                                    <Phone className="h-3.5 w-3.5" />
+                                    Enviar acesso pelo WhatsApp
+                                </a>
+                                <button type="button" onClick={() => copy(accessText, 'all')} className={smallButtonClass}>
+                                    {copied === 'all' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                    {copied === 'all' ? 'Copiado' : 'Copiar acesso'}
                                 </button>
                             </div>
-                        )}
-                    </dl>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                        <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={cn(primarySmallButtonClass, 'bg-emerald-600 hover:bg-emerald-600/90')}>
-                            <Phone className="h-3.5 w-3.5" />
-                            Enviar acesso pelo WhatsApp
-                        </a>
-                        <button type="button" onClick={() => copy(accessText, 'all')} className={smallButtonClass}>
-                            {copied === 'all' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                            {copied === 'all' ? 'Copiado' : 'Copiar acesso'}
-                        </button>
-                    </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -339,7 +373,7 @@ export default function NewStudentPage() {
                     </Link>
                     <div>
                         <h1 className="text-2xl font-semibold text-foreground">Novo aluno</h1>
-                        <p className="text-sm text-muted-foreground">Dados, acesso ao app, contrato e anamnese em uma só tela.</p>
+                        <p className="text-sm text-muted-foreground">Dados, contrato e anamnese em uma só tela. O acesso ao app é opcional.</p>
                     </div>
                 </div>
             </div>
@@ -361,7 +395,12 @@ export default function NewStudentPage() {
                         <input id="student-name" autoComplete="off" className={inputClass} {...register('name')} />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
-                        <Field label="Telefone / WhatsApp" htmlFor="student-phone" error={errors.phone?.message}>
+                        <Field
+                            label="Telefone / WhatsApp"
+                            htmlFor="student-phone"
+                            error={errors.phone?.message}
+                            hint={errors.phone ? undefined : 'Para enviar treinos e dietas pelo WhatsApp.'}
+                        >
                             <input id="student-phone" type="tel" placeholder="(11) 98888-7777" className={inputClass} {...register('phone')} />
                         </Field>
                         <Field label="Data de nascimento" htmlFor="student-birth" error={errors.birthDate?.message}>
@@ -398,43 +437,65 @@ export default function NewStudentPage() {
                 </Panel>
 
                 <div className="space-y-4">
-                    <Panel title="Acesso ao app" icon={<KeyRound className="h-4 w-4 text-primary" />}>
-                        <Field label="E-mail de acesso *" htmlFor="student-email" error={errors.email?.message}>
-                            <input id="student-email" type="email" autoComplete="off" placeholder="aluno@email.com" className={inputClass} {...register('email')} />
-                        </Field>
-                        <Field label="Senha *" htmlFor="student-password" error={errors.password?.message} hint="O aluno entra com este e-mail e senha no app.">
-                            <div className="flex gap-1.5">
-                                <div className="relative flex-1">
-                                    <input
-                                        id="student-password"
-                                        type={showPassword ? 'text' : 'password'}
-                                        autoComplete="new-password"
-                                        placeholder="Mínimo 6 caracteres"
-                                        className={cn(inputClass, 'pr-9')}
-                                        {...register('password')}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword((value) => !value)}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                                        aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                                    >
-                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setValue('password', generatePassword(), { shouldValidate: true, shouldDirty: true });
-                                        setShowPassword(true);
-                                    }}
-                                    className={cn(smallButtonClass, 'h-9')}
-                                >
-                                    <Wand2 className="h-3.5 w-3.5" />
-                                    Gerar senha
-                                </button>
-                            </div>
-                        </Field>
+                    <Panel
+                        title="Acesso ao app"
+                        icon={<KeyRound className="h-4 w-4 text-primary" />}
+                        action={
+                            <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted-foreground">
+                                <input
+                                    type="checkbox"
+                                    checked={withAccess}
+                                    onChange={(event) => setWithAccess(event.target.checked)}
+                                    className="h-4 w-4 accent-primary"
+                                />
+                                Criar agora
+                            </label>
+                        }
+                    >
+                        {!withAccess ? (
+                            <p className="text-sm text-muted-foreground">
+                                Sem acesso ao app: o aluno recebe treinos e dietas em PDF pelo WhatsApp. Não é preciso e-mail nem senha.
+                            </p>
+                        ) : (
+                            <>
+                                <Field label="E-mail de acesso *" htmlFor="student-email" error={errors.email?.message}>
+                                    <input id="student-email" type="email" autoComplete="off" placeholder="aluno@email.com" className={inputClass} {...register('email')} />
+                                </Field>
+                                <Field label="Senha *" htmlFor="student-password" error={errors.password?.message} hint="O aluno entra com este e-mail e senha no app.">
+                                    <div className="flex gap-1.5">
+                                        <div className="relative flex-1">
+                                            <input
+                                                id="student-password"
+                                                type={showPassword ? 'text' : 'password'}
+                                                autoComplete="new-password"
+                                                placeholder="Mínimo 6 caracteres"
+                                                className={cn(inputClass, 'pr-9')}
+                                                {...register('password')}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword((value) => !value)}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                                                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                            >
+                                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            </button>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setValue('password', generatePassword(), { shouldValidate: true, shouldDirty: true });
+                                                setShowPassword(true);
+                                            }}
+                                            className={cn(smallButtonClass, 'h-9')}
+                                        >
+                                            <Wand2 className="h-3.5 w-3.5" />
+                                            Gerar senha
+                                        </button>
+                                    </div>
+                                </Field>
+                            </>
+                        )}
                     </Panel>
 
                     <Panel

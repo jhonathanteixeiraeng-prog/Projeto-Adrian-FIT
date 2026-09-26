@@ -38,6 +38,7 @@ import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes';
 import { cn } from '@/lib/utils';
 import { STUDENTS_USE_APP } from '@/lib/features';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
+import { contactEmail } from '@/lib/student-access';
 import { CustomFoodDialog } from './custom-food-dialog';
 import type { MealRef } from './food-row';
 import { GenerateDraftDialog, type DraftResult, type DraftSource } from './generate-dialog';
@@ -350,7 +351,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             (studentsApi.data ?? []).map((item: any) => ({
                 id: item.id,
                 name: item.user?.name ?? 'Aluno',
-                email: item.user?.email ?? null,
+                email: contactEmail(item.user?.email),
                 avatar: item.user?.avatar ?? null,
                 hint: item.dietPlans?.[0]?.title ? `Dieta ativa: ${item.dietPlans[0].title}` : null,
             })),

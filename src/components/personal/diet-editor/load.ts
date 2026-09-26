@@ -1,5 +1,6 @@
 /** Carregamento dos dados do editor de dieta para cada tipo de rota. */
 import { apiFetcher } from '@/hooks/use-api';
+import { contactEmail } from '@/lib/student-access';
 import {
     cloneMealsForNewPlan,
     dateInputFromDate,
@@ -72,7 +73,7 @@ function profileFromPlanStudent(student: any): StudentProfile | null {
     return {
         id: student.id,
         name: student.user?.name ?? 'Aluno',
-        email: student.user?.email ?? null,
+        email: contactEmail(student.user?.email),
         avatar: student.user?.avatar ?? null,
         birthDate: student.birthDate ?? null,
         gender: student.gender ?? null,

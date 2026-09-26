@@ -224,7 +224,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                         <DialogPrimitive.Title className="truncate text-lg font-bold leading-tight text-foreground">
                                             {row.name}
                                         </DialogPrimitive.Title>
-                                        <p className="truncate text-sm text-muted-foreground">{row.email}</p>
+                                        <p className="truncate text-sm text-muted-foreground">{row.email || 'Sem acesso ao app'}</p>
                                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                             <StudentStatusBadge status={row.status} />
                                             {row.status === 'INACTIVE' && row.billing.status === 'OVERDUE' ? null : (

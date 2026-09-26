@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { hasAppAccess } from '@/lib/student-access';
 import { hash } from 'bcryptjs';
 
 // PUT /api/students/[id]/reset-password - Reset student password
@@ -42,6 +43,14 @@ export async function PUT(
             return NextResponse.json(
                 { success: false, error: 'Aluno não encontrado' },
                 { status: 404 }
+            );
+        }
+
+        // A student registered without an e-mail has no login to reset (see student-access).
+        if (!hasAppAccess(student.user.email)) {
+            return NextResponse.json(
+                { success: false, error: 'Este aluno não tem acesso ao app (foi cadastrado sem e-mail).' },
+                { status: 400 }
             );
         }
 

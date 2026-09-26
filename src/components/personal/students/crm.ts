@@ -1,5 +1,6 @@
 import { PLAN_ENDING_WINDOW_DAYS } from '@/components/personal/dashboard/attention-rules';
 import { STUDENTS_USE_APP } from '@/lib/features';
+import { contactEmail } from '@/lib/student-access';
 import { normalizeText } from '@/lib/utils';
 import {
     INACTIVITY_ALERT_DAYS,
@@ -69,7 +70,8 @@ export function buildRow(student: StudentListItem, now: Date): CrmRow {
         id: student.id,
         student,
         name: student.user?.name || 'Aluno',
-        email: student.user?.email || '',
+        // Students without app access have a placeholder address: never shown, exported or searched.
+        email: contactEmail(student.user?.email) ?? '',
         phone,
         phoneDigits: onlyDigits(phone),
         status,

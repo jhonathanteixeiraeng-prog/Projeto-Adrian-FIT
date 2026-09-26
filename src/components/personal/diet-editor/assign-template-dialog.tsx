@@ -9,6 +9,7 @@ import { useLocalStorageState } from '@/hooks/use-local-storage';
 import { STUDENTS_USE_APP } from '@/lib/features';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
+import { contactEmail } from '@/lib/student-access';
 import { defaultDateRange } from './model';
 import { keepDialogOpenWhileListOpen, StudentPicker, type StudentOption } from './student-picker';
 import { formatInteger, parseAmount } from './units';
@@ -52,7 +53,7 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
             (studentsApi.data ?? []).map((student: any) => ({
                 id: student.id,
                 name: student.user?.name ?? 'Aluno',
-                email: student.user?.email ?? null,
+                email: contactEmail(student.user?.email),
                 avatar: student.user?.avatar ?? null,
                 hint: student.dietPlans?.[0]?.title ? `Dieta ativa: ${student.dietPlans[0].title}` : null,
             })),

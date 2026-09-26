@@ -1,8 +1,10 @@
+import { randomBytes, randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { NO_ACCESS_EMAIL_DOMAIN, isPlaceholderEmail } from '@/lib/student-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,10 +143,14 @@ export async function POST(request: NextRequest) {
         const name = cleanText(body.name);
         const email = cleanText(body.email);
         const password = typeof body.password === 'string' ? body.password : '';
+        // Without an e-mail the student has no app access: they get their plans as PDF over WhatsApp.
+        const withAccess = Boolean(email);
 
         if (!name || name.length < 2) return badRequest('Informe o nome do aluno');
-        if (!email || !EMAIL_RE.test(email)) return badRequest('Informe um e-mail válido');
-        if (password.length < 6) return badRequest('Senha deve ter no mínimo 6 caracteres');
+        if (withAccess) {
+            if (!EMAIL_RE.test(email!) || isPlaceholderEmail(email)) return badRequest('Informe um e-mail válido');
+            if (password.length < 6) return badRequest('Senha deve ter no mínimo 6 caracteres');
+        }
 
         const phone = cleanText(body.phone);
         const goal = cleanText(body.goal);
@@ -198,11 +204,16 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // No e-mail: a unique placeholder address and a random password nobody knows (see student-access).
+        const normalizedEmail = withAccess ? email!.toLowerCase() : `aluno-${randomUUID()}@${NO_ACCESS_EMAIL_DOMAIN}`;
+        const accountPassword = withAccess ? password : randomBytes(24).toString('base64url');
+
         // Case-insensitive on SQLite and Postgres alike (older accounts may have been saved with capitals).
-        const normalizedEmail = email.toLowerCase();
-        const candidates = await prisma.$queryRaw<Array<{ id: string; email: string }>>`
-            SELECT id, email FROM "User" WHERE LOWER(email) = ${normalizedEmail}
-        `;
+        const candidates = withAccess
+            ? await prisma.$queryRaw<Array<{ id: string; email: string }>>`
+                  SELECT id, email FROM "User" WHERE LOWER(email) = ${normalizedEmail}
+              `
+            : [];
         const match = candidates.find((candidate) => candidate.email === email) ?? candidates[0];
         const existingUser = match
             ? await prisma.user.findUnique({
@@ -247,7 +258,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { hash } = await import('bcryptjs');
-        const hashedPassword = await hash(password, 12);
+        const hashedPassword = await hash(accountPassword, 12);
 
         // A student account without a student profile is left behind when a student is removed.
         // Registering the same e-mail again reuses that login with the new name and password.
@@ -296,7 +307,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             data: student,
-            passwordSet: true,
+            passwordSet: withAccess,
+            appAccess: withAccess,
             reusedAccount,
             message: reusedAccount
                 ? 'Aluno cadastrado! A conta de acesso que já existia com este e-mail foi reaproveitada com a nova senha.'
