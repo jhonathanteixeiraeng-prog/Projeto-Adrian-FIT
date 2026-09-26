@@ -5,18 +5,6 @@ export const loginSchema = z.object({
     password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
 });
 
-export const registerSchema = z.object({
-    name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
-    email: z.string().email('E-mail inválido'),
-    password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-    confirmPassword: z.string(),
-    role: z.enum(['PERSONAL', 'STUDENT']),
-    phone: z.string().optional(),
-}).refine((data) => data.password === data.confirmPassword, {
-    message: 'As senhas não coincidem',
-    path: ['confirmPassword'],
-});
-
 const ACTIVITY_LEVELS = ['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIVE'] as const;
 const longText = z.string().max(2000, 'Use no máximo 2000 caracteres');
 
@@ -124,7 +112,6 @@ export const messageSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
-export type RegisterInput = z.infer<typeof registerSchema>;
 export type StudentInput = z.infer<typeof studentSchema>;
 export type AnamnesisInput = z.infer<typeof anamnesisSchema>;
 export type WorkoutPlanInput = z.infer<typeof workoutPlanSchema>;
