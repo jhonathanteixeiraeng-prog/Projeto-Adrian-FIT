@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { normalizeLoadInput, normalizeRpeInput } from '@/lib/workout-load';
 import { findGroupIssues, normalizedGroupIds } from '@/lib/workout-groups';
+import { lockStudentForActivation } from '@/lib/student-lock';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { normalizeText } from '@/lib/utils';
@@ -379,8 +380,12 @@ export const planDetailInclude = {
 
 export const TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 20_000 };
 
-/** Keeps "one active plan per student": deactivates every other active plan of the student. */
+/**
+ * Keeps "one active plan per student": deactivates every other active plan of the student.
+ * Call it first in the transaction that activates a plan (it locks the student, see `lockStudentForActivation`).
+ */
 export async function deactivateOtherActivePlans(tx: Prisma.TransactionClient, studentId: string, keepPlanId?: string) {
+    await lockStudentForActivation(tx, studentId);
     await tx.workoutPlan.updateMany({
         where: { studentId, active: true, ...(keepPlanId ? { id: { not: keepPlanId } } : {}) },
         data: { active: false },

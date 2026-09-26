@@ -11,6 +11,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { normalizeDietFood, withUnambiguousQuantity, type NormalizedDietFood } from '@/lib/diet-normalizer';
 import { notifyStudentAboutPlan } from '@/lib/plan-notifications';
+import { lockStudentForActivation } from '@/lib/student-lock';
 
 export const DEFAULT_PLAN_DURATION_DAYS = 30;
 
@@ -153,7 +154,12 @@ export function findOwnedStudent(studentId: string, personalId: string) {
 
 type TransactionClient = Prisma.TransactionClient;
 
-export function deactivateOtherDietPlans(tx: TransactionClient, studentId: string, exceptPlanId?: string) {
+/**
+ * Mantém "uma dieta ativa por aluno". Chame no início da transação que ativa o plano
+ * (trava o aluno, ver `lockStudentForActivation`).
+ */
+export async function deactivateOtherDietPlans(tx: TransactionClient, studentId: string, exceptPlanId?: string) {
+    await lockStudentForActivation(tx, studentId);
     return tx.dietPlan.updateMany({
         where: {
             studentId,
