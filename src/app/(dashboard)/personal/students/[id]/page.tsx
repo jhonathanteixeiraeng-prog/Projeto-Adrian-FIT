@@ -67,6 +67,7 @@ import { useStickySupported } from '@/components/personal/students/use-sticky-su
 import { useApi } from '@/hooks/use-api';
 import { useHotkey } from '@/hooks/use-hotkey';
 import { useUrlState } from '@/hooks/use-url-state';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { CHECKIN_EXPECTED_DAYS, INACTIVITY_ALERT_DAYS, daysSince, getBillingInfo } from '@/lib/student-status';
 import { cn } from '@/lib/utils';
 
@@ -343,6 +344,7 @@ export default function StudentProfilePage() {
     const workout = student.activeWorkoutPlan;
     const diet = student.activeDietPlan;
     const workoutEnd = planEndInfo(workout?.endDate);
+    const dietEnd = planEndInfo(diet?.endDate);
     const age = ageFrom(student.birthDate);
     const imc = student.height && weightNow ? weightNow / (student.height / 100) ** 2 : null;
     const workoutHistory = student.workoutPlans.filter((plan) => plan.id !== workout?.id);
@@ -454,32 +456,49 @@ export default function StudentProfilePage() {
 
             <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="min-w-0 space-y-4">
-                    {/* KPIs */}
-                    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                        <KpiCard
-                            label="Último treino"
-                            icon={<Dumbbell className="h-3.5 w-3.5 text-muted-foreground" />}
-                            value={lastSession ? relativeDaysLabel(lastWorkoutDays) : 'Nunca treinou'}
-                            detail={lastSession ? `${lastSession.dayName} · ${lastSession.percentage}% concluído` : 'Nenhum treino registrado no app'}
-                            tone={
-                                student.status !== 'ACTIVE'
-                                    ? 'muted'
-                                    : lastWorkoutDays === null || lastWorkoutDays >= INACTIVITY_ALERT_DAYS
-                                        ? 'danger'
-                                        : 'ok'
-                            }
-                        />
-                        <KpiCard
-                            label="Último check-in"
-                            icon={<Clock className="h-3.5 w-3.5 text-muted-foreground" />}
-                            value={lastCheckin ? `${formatShortDate(lastCheckin.date)} · ${relativeDaysLabel(lastCheckinDays).toLowerCase()}` : 'Sem check-in ainda'}
-                            detail={
-                                lastCheckin
-                                    ? `Adesão: treino ${lastCheckin.workoutAdherence}% · dieta ${lastCheckin.dietAdherence}%`
-                                    : 'Envie um lembrete de check-in'
-                            }
-                            tone={lastCheckin ? ((lastCheckinDays ?? 0) >= CHECKIN_EXPECTED_DAYS ? 'warn' : 'ok') : 'muted'}
-                        />
+                    {/* KPIs. Workouts and check-ins only exist when students log them in the app. */}
+                    <div className={cn('grid grid-cols-2 gap-3', STUDENTS_USE_APP ? 'xl:grid-cols-4' : 'xl:grid-cols-3')}>
+                        {!STUDENTS_USE_APP && (
+                            <KpiCard
+                                label="Dieta ativa"
+                                icon={<Utensils className="h-3.5 w-3.5 text-muted-foreground" />}
+                                value={diet ? dietEnd?.label ?? 'Sem data de término' : 'Sem dieta ativa'}
+                                detail={diet ? diet.title : 'Crie a dieta do aluno'}
+                                tone={diet ? dietEnd?.tone ?? 'muted' : 'muted'}
+                            />
+                        )}
+                        {STUDENTS_USE_APP && (
+                            <>
+                                <KpiCard
+                                    label="Último treino"
+                                    icon={<Dumbbell className="h-3.5 w-3.5 text-muted-foreground" />}
+                                    value={lastSession ? relativeDaysLabel(lastWorkoutDays) : 'Nunca treinou'}
+                                    detail={lastSession ? `${lastSession.dayName} · ${lastSession.percentage}% concluído` : 'Nenhum treino registrado no app'}
+                                    tone={
+                                        student.status !== 'ACTIVE'
+                                            ? 'muted'
+                                            : lastWorkoutDays === null || lastWorkoutDays >= INACTIVITY_ALERT_DAYS
+                                                ? 'danger'
+                                                : 'ok'
+                                    }
+                                />
+                                <KpiCard
+                                    label="Último check-in"
+                                    icon={<Clock className="h-3.5 w-3.5 text-muted-foreground" />}
+                                    value={
+                                        lastCheckin
+                                            ? `${formatShortDate(lastCheckin.date)} · ${relativeDaysLabel(lastCheckinDays).toLowerCase()}`
+                                            : 'Sem check-in ainda'
+                                    }
+                                    detail={
+                                        lastCheckin
+                                            ? `Adesão: treino ${lastCheckin.workoutAdherence}% · dieta ${lastCheckin.dietAdherence}%`
+                                            : 'Envie um lembrete de check-in'
+                                    }
+                                    tone={lastCheckin ? ((lastCheckinDays ?? 0) >= CHECKIN_EXPECTED_DAYS ? 'warn' : 'ok') : 'muted'}
+                                />
+                            </>
+                        )}
                         <KpiCard
                             label="Peso atual"
                             icon={<Scale className="h-3.5 w-3.5 text-muted-foreground" />}
@@ -556,6 +575,7 @@ export default function StudentProfilePage() {
                                 </div>
                             </SectionCard>
 
+                            {STUDENTS_USE_APP && (
                             <SectionCard title="Atividade recente" icon={<History className="h-4 w-4 text-muted-foreground" />}>
                                 {student.workoutSessions.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">Nenhum treino registrado no app ainda.</p>
@@ -582,6 +602,7 @@ export default function StudentProfilePage() {
                                     </ul>
                                 )}
                             </SectionCard>
+                            )}
 
                             <SectionCard
                                 title="Treino atual"
@@ -756,10 +777,18 @@ export default function StudentProfilePage() {
                                 {student.checkins.length === 0 ? (
                                     <div className="p-4 text-center sm:p-2">
                                         <p className="font-semibold text-foreground">Sem check-in ainda</p>
-                                        <p className="mt-1 text-sm text-muted-foreground">Envie um lembrete para o aluno registrar peso, medidas e fotos.</p>
-                                        <button type="button" onClick={() => setDialog('reminder')} className={cn(smallButtonClass, 'mt-3')}>
-                                            Enviar lembrete de check-in
-                                        </button>
+                                        {STUDENTS_USE_APP ? (
+                                            <>
+                                                <p className="mt-1 text-sm text-muted-foreground">Envie um lembrete para o aluno registrar peso, medidas e fotos.</p>
+                                                <button type="button" onClick={() => setDialog('reminder')} className={cn(smallButtonClass, 'mt-3')}>
+                                                    Enviar lembrete de check-in
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                Peso, medidas e fotos chegam pelo check-in do app, que os alunos não estão usando nesta fase.
+                                            </p>
+                                        )}
                                     </div>
                                 ) : (
                                     <CheckinsTable checkins={student.checkins} />

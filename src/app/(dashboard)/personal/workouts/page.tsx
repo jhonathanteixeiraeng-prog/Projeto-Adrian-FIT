@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { Avatar, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, useDialogs, useToast } from '@/components/ui';
 import { cn, matchesSearch } from '@/lib/utils';
-import { getStoredNotifyStudent, personalLinks } from '@/lib/notifications';
+import { getStoredNotifyStudent, personalLinks, planActivationText } from '@/lib/notifications';
 import { invalidateApi, useApi } from '@/hooks/use-api';
 import { isModalOpen, useHotkey } from '@/hooks/use-hotkey';
 import { useUrlStateGroup } from '@/hooks/use-url-state';
@@ -262,12 +262,12 @@ export default function WorkoutsPage() {
             value
                 ? {
                       title: `Ativar “${plan.title}”?`,
-                      description: `Ela passa a ser a ficha que ${studentNameOf(plan)} vê no app. A ficha ativa atual do aluno será desativada (continua no histórico). ${shouldNotify ? 'O aluno será avisado no app.' : 'O aluno não será avisado.'}`,
+                      description: planActivationText('ficha', studentNameOf(plan), shouldNotify),
                       confirmText: 'Ativar ficha',
                   }
                 : {
                       title: `Desativar “${plan.title}”?`,
-                      description: `${studentNameOf(plan)} ficará sem ficha ativa no app até você ativar ou criar outra.`,
+                      description: `${studentNameOf(plan)} ficará sem ficha ativa até você ativar ou criar outra.`,
                       confirmText: 'Desativar',
                       variant: 'danger',
                   }
@@ -814,7 +814,7 @@ export default function WorkoutsPage() {
                 <DialogContent className="flex max-h-[80dvh] max-w-md flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0">
                     <DialogHeader className="border-b border-border px-5 py-4 text-left">
                         <DialogTitle className="text-base font-bold">Alunos sem ficha ativa</DialogTitle>
-                        <DialogDescription>Alunos ativos que não têm um treino no app.</DialogDescription>
+                        <DialogDescription>Alunos ativos sem ficha de treino ativa.</DialogDescription>
                     </DialogHeader>
                     <div className="min-h-0 flex-1 overflow-y-auto p-2">
                         {studentsWithoutPlan.length === 0 ? (

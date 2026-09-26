@@ -102,7 +102,7 @@ export function PlanHeader({
                     ) : active ? (
                         <span
                             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400"
-                            title="É a ficha que o aluno vê no app"
+                            title="É a ficha atual do aluno"
                         >
                             <CheckCircle2 className="h-3.5 w-3.5" /> Ativa
                         </span>

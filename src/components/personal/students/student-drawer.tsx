@@ -20,6 +20,7 @@ import {
     X,
 } from 'lucide-react';
 import { Avatar, useDialogs, useToast } from '@/components/ui';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { CHECKIN_EXPECTED_DAYS, renewedExpiry } from '@/lib/student-status';
 import { cn } from '@/lib/utils';
 import { ContractForm } from './contract-form';
@@ -239,7 +240,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                     </div>
                                 </div>
 
-                                <nav className="grid grid-cols-6 gap-1.5" aria-label="Atalhos do aluno">
+                                <nav className={cn('grid gap-1.5', STUDENTS_USE_APP ? 'grid-cols-6' : 'grid-cols-5')} aria-label="Atalhos do aluno">
                                     <Link href={`/personal/students/${row.id}`} className={quickLinkClass}>
                                         <User className="h-4 w-4 text-muted-foreground" />
                                         Ficha
@@ -252,10 +253,12 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                         <Utensils className="h-4 w-4 text-muted-foreground" />
                                         Dieta
                                     </Link>
-                                    <Link href={`/personal/chat/${row.id}`} className={quickLinkClass}>
-                                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                                        Chat
-                                    </Link>
+                                    {STUDENTS_USE_APP && (
+                                        <Link href={`/personal/chat/${row.id}`} className={quickLinkClass}>
+                                            <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                                            Chat
+                                        </Link>
+                                    )}
                                     {whatsapp ? (
                                         <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={quickLinkClass}>
                                             <Phone className="h-4 w-4 text-emerald-600" />
@@ -400,36 +403,41 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
 
                                 <section aria-labelledby="drawer-activity" className="space-y-2">
                                     <h3 id="drawer-activity" className="text-xs font-medium text-muted-foreground">
-                                        Atividade
+                                        {STUDENTS_USE_APP ? 'Atividade' : 'Planos'}
                                     </h3>
                                     <div className="divide-y divide-border rounded-xl border border-border bg-background/60 text-sm">
-                                        <div className="flex items-start justify-between gap-3 p-3">
-                                            <span className="text-muted-foreground">Último treino</span>
-                                            <span className="text-right">
-                                                <span className={cn('font-semibold', toneText[lastWorkoutTone])}>
-                                                    {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
-                                                </span>
-                                                {row.lastWorkoutName && (
-                                                    <span className="block text-xs text-muted-foreground">{row.lastWorkoutName}</span>
-                                                )}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-start justify-between gap-3 p-3">
-                                            <span className="text-muted-foreground">Último check-in</span>
-                                            {lastCheckin ? (
-                                                <span className="text-right">
-                                                    <span className={cn('font-semibold', toneText[checkinTone])}>
-                                                        {formatDate(lastCheckin.date)} · {relativeDaysLabel(row.lastCheckinDays).toLowerCase()}
+                                        {/* Workouts and check-ins are logged in the students' app. */}
+                                        {STUDENTS_USE_APP && (
+                                            <>
+                                                <div className="flex items-start justify-between gap-3 p-3">
+                                                    <span className="text-muted-foreground">Último treino</span>
+                                                    <span className="text-right">
+                                                        <span className={cn('font-semibold', toneText[lastWorkoutTone])}>
+                                                            {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
+                                                        </span>
+                                                        {row.lastWorkoutName && (
+                                                            <span className="block text-xs text-muted-foreground">{row.lastWorkoutName}</span>
+                                                        )}
                                                     </span>
-                                                    <span className="block text-xs text-muted-foreground">
-                                                        {formatNumber(lastCheckin.weight, ' kg')} · treino {lastCheckin.workoutAdherence}% · dieta{' '}
-                                                        {lastCheckin.dietAdherence}%
-                                                    </span>
-                                                </span>
-                                            ) : (
-                                                <span className="font-semibold text-muted-foreground">Sem check-in</span>
-                                            )}
-                                        </div>
+                                                </div>
+                                                <div className="flex items-start justify-between gap-3 p-3">
+                                                    <span className="text-muted-foreground">Último check-in</span>
+                                                    {lastCheckin ? (
+                                                        <span className="text-right">
+                                                            <span className={cn('font-semibold', toneText[checkinTone])}>
+                                                                {formatDate(lastCheckin.date)} · {relativeDaysLabel(row.lastCheckinDays).toLowerCase()}
+                                                            </span>
+                                                            <span className="block text-xs text-muted-foreground">
+                                                                {formatNumber(lastCheckin.weight, ' kg')} · treino {lastCheckin.workoutAdherence}% · dieta{' '}
+                                                                {lastCheckin.dietAdherence}%
+                                                            </span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="font-semibold text-muted-foreground">Sem check-in</span>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
                                         <div className="flex items-start justify-between gap-3 p-3">
                                             <span className="text-muted-foreground">Treino ativo</span>
                                             {row.workout ? (
@@ -475,10 +483,12 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
 
                             <footer className="space-y-2 border-t border-border p-3">
                                 <div className="flex items-center gap-1.5">
-                                    <button type="button" onClick={() => onRemind(row)} className={smallButtonClass}>
-                                        <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
-                                        Enviar lembrete
-                                    </button>
+                                    {STUDENTS_USE_APP && (
+                                        <button type="button" onClick={() => onRemind(row)} className={smallButtonClass}>
+                                            <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
+                                            Enviar lembrete
+                                        </button>
+                                    )}
                                     <Link href={`/personal/students/${row.id}`} className={cn(primarySmallButtonClass, 'flex-1')}>
                                         Abrir ficha completa
                                     </Link>

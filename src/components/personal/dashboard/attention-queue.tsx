@@ -31,8 +31,10 @@ import { personalLinks } from '@/lib/notifications';
 import { dayKey, formatRelativeShort, formatShortDate } from '@/components/personal/chat/time-format';
 import { firstNameOf } from '@/components/personal/chat/preferences';
 import { studentPaths, whatsappHref } from '@/components/personal/chat/contact';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import {
     ATTENTION_CATEGORIES,
+    attentionCategories,
     isAtRisk,
     type AttentionCategory,
     type AttentionReason,
@@ -201,8 +203,9 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
     const shown = expanded ? filtered : filtered.slice(0, INITIAL_ROWS);
     const rovingId = shown.some((item) => item.studentId === focusedId) ? focusedId : shown[0]?.studentId ?? null;
 
-    // Bulk reminders go only to students whose training/check-in routine is at risk.
+    // Bulk reminders go only to students whose training/check-in routine is at risk (app only).
     const bulk = useMemo(() => {
+        if (!STUDENTS_USE_APP) return null;
         if (filter !== 'ALL' && filter !== 'INACTIVITY' && filter !== 'CHECKIN') return null;
         const candidates = active.filter((item) =>
             filter === 'ALL'
@@ -322,7 +325,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
 
     const filterChips: { key: QueueFilter; label: string; count: number; icon?: LucideIcon }[] = [
         { key: 'ALL', label: 'Todos', count: active.length },
-        ...ATTENTION_CATEGORIES.map((category) => ({
+        ...attentionCategories(STUDENTS_USE_APP).map((category) => ({
             key: category.key as QueueFilter,
             label: category.label,
             count: counts[category.key] ?? 0,
@@ -420,12 +423,15 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                         const expired = billing?.daysToExpire !== null && billing?.daysToExpire !== undefined && billing.daysToExpire < 0;
                         const canRenew = hasCategory(item, 'BILLING') && (billing?.status === 'EXPIRING' || expired);
                         const canMarkPaid = hasCategory(item, 'BILLING') && !canRenew;
-                        const hasReminderReason = item.reasons.some(
-                            (reason) =>
-                                reason.category !== 'MESSAGES' &&
-                                reason.key !== 'NO_WORKOUT_PLAN' &&
-                                reason.key !== 'WORKOUT_PLAN_ENDED'
-                        );
+                        // Reminders are app notifications: without the students' app, WhatsApp is the channel.
+                        const hasReminderReason =
+                            STUDENTS_USE_APP &&
+                            item.reasons.some(
+                                (reason) =>
+                                    reason.category !== 'MESSAGES' &&
+                                    reason.key !== 'NO_WORKOUT_PLAN' &&
+                                    reason.key !== 'WORKOUT_PLAN_ENDED'
+                            );
                         const reminded = remindedIds.has(item.studentId);
                         const busy = busyId === item.studentId;
 

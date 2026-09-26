@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { CHECKIN_EXPECTED_DAYS, monthlyValue } from '@/lib/student-status';
 import { parseTzOffset } from '@/lib/viewer-time';
 import { whatsappLink } from '@/lib/whatsapp';
@@ -16,6 +17,8 @@ import {
 export const dynamic = 'force-dynamic';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Workout or diet plan ending within PLAN_ENDING_WINDOW_DAYS or already over: time to renew and resend.
+const PLAN_END_KEYS = new Set(['WORKOUT_PLAN_ENDING', 'WORKOUT_PLAN_ENDED', 'DIET_PLAN_ENDING', 'DIET_PLAN_ENDED']);
 // A legacy WorkoutCompletion this close to a WorkoutSession of the same workout day is the same workout.
 const SAME_WORKOUT_WINDOW_MS = 36 * 60 * 60 * 1000;
 // Same rule as /api/student/adherence: a session counts as done when completed or at least 60% done.
@@ -153,6 +156,8 @@ export async function GET(request: NextRequest) {
         let mrr = 0;
         let pendingCharges = 0;
         let expiringSoon = 0;
+        let studentsWithoutWorkout = 0;
+        let plansToRenew = 0;
 
         const lowAdherenceStudents: any[] = [];
         const studentsWithoutWorkout72hList: any[] = [];
@@ -330,10 +335,12 @@ export async function GET(request: NextRequest) {
             if (billing.status === 'EXPIRING') expiringSoon++;
 
             // 6. Daily attention queue: one entry per student with every reason merged.
-            const conversation = conversations.get(student.userId);
+            // Without the students' app, messages don't reach anyone (STUDENTS_USE_APP).
+            const conversation = STUDENTS_USE_APP ? conversations.get(student.userId) : undefined;
             const lastMessage = conversation?.lastMessage ?? null;
             const unanswered = lastMessage && !lastMessage.fromMe ? lastMessage : null;
             const dietPlan = student.dietPlans[0] ?? null;
+            if (!workoutPlan) studentsWithoutWorkout++;
             const attention = attentionReasons(
                 {
                     status: student.status,
@@ -347,8 +354,9 @@ export async function GET(request: NextRequest) {
                     expectsDiet,
                     unansweredMessageAt: unanswered?.createdAt ?? null,
                 },
-                { now, tzOffset }
+                { now, tzOffset, appSignals: STUDENTS_USE_APP }
             );
+            if (attention.some((reason) => PLAN_END_KEYS.has(reason.key))) plansToRenew++;
 
             if (attention.length > 0) {
                 attentionQueue.push({
@@ -387,7 +395,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Paused/inactive students only enter the queue with an unanswered message.
-        for (const student of otherStudents) {
+        for (const student of STUDENTS_USE_APP ? otherStudents : []) {
             const lastMessage = conversations.get(student.userId)?.lastMessage ?? null;
             if (!lastMessage || lastMessage.fromMe) continue;
             const attention = attentionReasons(
@@ -476,6 +484,10 @@ export async function GET(request: NextRequest) {
                     expiringSoon,
                     unansweredMessages,
                     pendingCheckins,
+                    // Active students without an active workout plan.
+                    studentsWithoutWorkout,
+                    // Active students whose workout or diet plan ends within 7 days or is already over.
+                    plansToRenew,
                 },
                 generatedAt: now.toISOString(),
             },

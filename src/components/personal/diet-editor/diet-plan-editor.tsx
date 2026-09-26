@@ -36,6 +36,7 @@ import { isModalOpen, modKeyLabel, useHotkey } from '@/hooks/use-hotkey';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes';
 import { cn } from '@/lib/utils';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
 import { CustomFoodDialog } from './custom-food-dialog';
 import type { MealRef } from './food-row';
@@ -657,7 +658,13 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             } else {
                 toast.success(
                     createdId ? 'Plano criado' : 'Plano salvo',
-                    current.active ? `Já está no app de ${firstName}.` : 'Plano inativo: não aparece no app do aluno.'
+                    STUDENTS_USE_APP
+                        ? current.active
+                            ? `Já está no app de ${firstName}.`
+                            : 'Plano inativo: não aparece no app do aluno.'
+                        : current.active
+                          ? `É a dieta atual de ${firstName}. Exporte o PDF para enviar.`
+                          : 'Plano salvo como inativo.'
                 );
             }
 
@@ -787,7 +794,9 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             title: isTemplate ? 'Excluir este modelo?' : 'Excluir este plano alimentar?',
             description: isTemplate
                 ? 'Planos já criados a partir dele não são afetados.'
-                : `${firstName.charAt(0).toUpperCase()}${firstName.slice(1)} deixa de ver esta dieta no app. Esta ação não pode ser desfeita.`,
+                : STUDENTS_USE_APP
+                  ? `${firstName.charAt(0).toUpperCase()}${firstName.slice(1)} deixa de ver esta dieta no app. Esta ação não pode ser desfeita.`
+                  : 'O plano sai do histórico do aluno. Esta ação não pode ser desfeita.',
             confirmText: 'Excluir',
             variant: 'danger',
         });
@@ -998,7 +1007,8 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 {(floating) => (
                     <MacroBar totals={totals} targets={state.targets} compact={floating}>
                         {saveStatus}
-                        {kind === 'plan' && (isNew || state.active) && (
+                        {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
+                        {STUDENTS_USE_APP && kind === 'plan' && (isNew || state.active) && (
                             <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-pointer">
                                 <input
                                     type="checkbox"

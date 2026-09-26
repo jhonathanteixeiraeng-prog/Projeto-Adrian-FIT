@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { CreditCard, Dumbbell, Target, Users, Wallet, type LucideIcon } from 'lucide-react';
+import { CalendarClock, CreditCard, Dumbbell, Target, Users, Wallet, type LucideIcon } from 'lucide-react';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/components/personal/chat/contact';
 import type { DashboardKpis } from './types';
@@ -62,9 +63,10 @@ function Skeleton() {
 interface KpiRowProps {
     kpis: DashboardKpis | undefined;
     onShowBilling: () => void;
+    onShowPlans: () => void;
 }
 
-export function KpiRow({ kpis, onShowBilling }: KpiRowProps) {
+export function KpiRow({ kpis, onShowBilling, onShowPlans }: KpiRowProps) {
     if (!kpis) {
         return (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
@@ -88,29 +90,54 @@ export function KpiRow({ kpis, onShowBilling }: KpiRowProps) {
                 tone="bg-muted text-muted-foreground"
                 href="/personal/students"
             />
-            <KpiCard
-                label="Treinos · 7 dias"
-                value={kpis.workoutsLast7Days}
-                hint="concluídos pelos alunos"
-                icon={Dumbbell}
-                tone="bg-muted text-muted-foreground"
-            />
-            <KpiCard
-                label={hasRealAdherence ? 'Adesão · 7 dias' : 'Adesão (último check-in)'}
-                value={adherenceValue === null ? '—' : `${adherenceValue}%`}
-                hint={
-                    hasRealAdherence
-                        ? `treinos feitos vs. previstos · ${kpis.workoutAdherenceStudents} ${kpis.workoutAdherenceStudents === 1 ? 'aluno' : 'alunos'}`
-                        : 'média relatada pelos alunos'
-                }
-                title={
-                    hasRealAdherence
-                        ? 'Dias com treino concluído nos últimos 7 dias, comparados aos dias previstos nas fichas ativas.'
-                        : 'Média da adesão informada no último check-in de cada aluno ativo.'
-                }
-                icon={Target}
-                tone="bg-muted text-muted-foreground"
-            />
+            {STUDENTS_USE_APP ? (
+                <>
+                    <KpiCard
+                        label="Treinos · 7 dias"
+                        value={kpis.workoutsLast7Days}
+                        hint="concluídos pelos alunos"
+                        icon={Dumbbell}
+                        tone="bg-muted text-muted-foreground"
+                    />
+                    <KpiCard
+                        label={hasRealAdherence ? 'Adesão · 7 dias' : 'Adesão (último check-in)'}
+                        value={adherenceValue === null ? '—' : `${adherenceValue}%`}
+                        hint={
+                            hasRealAdherence
+                                ? `treinos feitos vs. previstos · ${kpis.workoutAdherenceStudents} ${kpis.workoutAdherenceStudents === 1 ? 'aluno' : 'alunos'}`
+                                : 'média relatada pelos alunos'
+                        }
+                        title={
+                            hasRealAdherence
+                                ? 'Dias com treino concluído nos últimos 7 dias, comparados aos dias previstos nas fichas ativas.'
+                                : 'Média da adesão informada no último check-in de cada aluno ativo.'
+                        }
+                        icon={Target}
+                        tone="bg-muted text-muted-foreground"
+                    />
+                </>
+            ) : (
+                <>
+                    <KpiCard
+                        label="Sem treino ativo"
+                        value={kpis.studentsWithoutWorkout}
+                        hint={kpis.studentsWithoutWorkout === 1 ? 'aluno ativo sem ficha' : 'alunos ativos sem ficha'}
+                        icon={Dumbbell}
+                        tone={kpis.studentsWithoutWorkout > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-muted text-muted-foreground'}
+                        onClick={onShowPlans}
+                        title="Ver na fila de atenção"
+                    />
+                    <KpiCard
+                        label="Planos a renovar"
+                        value={kpis.plansToRenew}
+                        hint="vencendo em 7 dias ou vencidos"
+                        title="Alunos com treino ou dieta que vence nos próximos 7 dias ou já venceu"
+                        icon={CalendarClock}
+                        tone={kpis.plansToRenew > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-muted text-muted-foreground'}
+                        onClick={onShowPlans}
+                    />
+                </>
+            )}
             <KpiCard
                 label="Receita mensal"
                 value={formatCurrency(kpis.mrr)}

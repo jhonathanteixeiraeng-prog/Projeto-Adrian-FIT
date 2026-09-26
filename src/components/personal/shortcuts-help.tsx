@@ -4,6 +4,7 @@ import React from 'react';
 import { Keyboard } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { modKeyLabel } from '@/hooks/use-hotkey';
+import { STUDENTS_USE_APP } from '@/lib/features';
 
 /** Destinations for the "G then <key>" navigation sequences (handled in the personal layout). */
 export const GO_TO_SHORTCUTS: { key: string; href: string; label: string }[] = [
@@ -12,7 +13,8 @@ export const GO_TO_SHORTCUTS: { key: string; href: string; label: string }[] = [
     { key: 't', href: '/personal/workouts', label: 'Fichas de treino' },
     { key: 'n', href: '/personal/diets', label: 'Planos de dieta' },
     { key: 'e', href: '/personal/exercises', label: 'Exercícios' },
-    { key: 'c', href: '/personal/chat', label: 'Chat' },
+    // The chat reaches students through the app (STUDENTS_USE_APP).
+    ...(STUDENTS_USE_APP ? [{ key: 'c', href: '/personal/chat', label: 'Chat' }] : []),
 ];
 
 function Kbd({ children }: { children: React.ReactNode }) {

@@ -11,7 +11,9 @@ import { useUrlState } from '@/hooks/use-url-state';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { formatClock, formatLongToday } from '@/components/personal/chat/time-format';
 import { AttentionQueue, type QueueFilter } from '@/components/personal/dashboard/attention-queue';
+import { attentionCategories } from '@/components/personal/dashboard/attention-rules';
 import { KpiRow } from '@/components/personal/dashboard/kpi-row';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { ActivityFeed } from '@/components/personal/dashboard/activity-feed';
 import type { DashboardData } from '@/components/personal/dashboard/types';
 
@@ -27,8 +29,11 @@ const FILTER_SLUGS: Record<QueueFilter, string> = {
     PLANS: 'planos',
 };
 
-const filterFromSlug = (slug: string): QueueFilter =>
-    (Object.keys(FILTER_SLUGS) as QueueFilter[]).find((key) => FILTER_SLUGS[key] === slug) ?? 'ALL';
+const filterFromSlug = (slug: string): QueueFilter => {
+    const filter = (Object.keys(FILTER_SLUGS) as QueueFilter[]).find((key) => FILTER_SLUGS[key] === slug) ?? 'ALL';
+    // An old link to an app-only filter (?fila=mensagens) falls back to everything.
+    return filter === 'ALL' || attentionCategories(STUDENTS_USE_APP).some((category) => category.key === filter) ? filter : 'ALL';
+};
 
 export default function PersonalDashboard() {
     const { data: session } = useSession();
@@ -102,10 +107,11 @@ export default function PersonalDashboard() {
                 </div>
             )}
 
-            <KpiRow kpis={data?.kpis} onShowBilling={() => setFilter('BILLING')} />
+            <KpiRow kpis={data?.kpis} onShowBilling={() => setFilter('BILLING')} onShowPlans={() => setFilter('PLANS')} />
 
-            <div className="grid gap-6 xl:grid-cols-3">
-                <div className="xl:col-span-2">
+            {/* The activity feed is made of what students do in the app (workouts, check-ins, messages). */}
+            <div className={cn('grid gap-6', STUDENTS_USE_APP && 'xl:grid-cols-3')}>
+                <div className={cn(STUDENTS_USE_APP && 'xl:col-span-2')}>
                     <AttentionQueue
                         items={data ? data.attentionQueue ?? [] : undefined}
                         failed={Boolean(error && !data)}
@@ -114,7 +120,7 @@ export default function PersonalDashboard() {
                         onChanged={() => void mutate(undefined, { force: true })}
                     />
                 </div>
-                <ActivityFeed />
+                {STUDENTS_USE_APP && <ActivityFeed />}
             </div>
         </div>
     );

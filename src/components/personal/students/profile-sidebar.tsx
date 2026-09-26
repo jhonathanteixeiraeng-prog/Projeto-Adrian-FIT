@@ -21,6 +21,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { useDialogs, useToast } from '@/components/ui';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { getBillingInfo, renewedExpiry } from '@/lib/student-status';
 import { cn } from '@/lib/utils';
 import {
@@ -92,10 +93,12 @@ export function ContactCard({ student }: { student: StudentProfile }) {
                         WhatsApp
                     </span>
                 )}
-                <Link href={`/personal/chat/${student.id}`} className={smallButtonClass}>
-                    <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                    Chat no app
-                </Link>
+                {STUDENTS_USE_APP && (
+                    <Link href={`/personal/chat/${student.id}`} className={smallButtonClass}>
+                        <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                        Chat no app
+                    </Link>
+                )}
             </div>
         </SectionCard>
     );
@@ -309,10 +312,13 @@ export function QuickActionsCard({
                     <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                     Relatório
                 </Link>
-                <button type="button" onClick={onRemind} className={actionClass}>
-                    <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
-                    Lembrete
-                </button>
+                {/* Reminders are app notifications. */}
+                {STUDENTS_USE_APP && (
+                    <button type="button" onClick={onRemind} className={actionClass}>
+                        <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
+                        Lembrete
+                    </button>
+                )}
                 <button type="button" onClick={onResetPassword} className={actionClass}>
                     <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
                     Redefinir senha

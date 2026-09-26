@@ -31,6 +31,7 @@ import { cn, matchesSearch, normalizeText } from '@/lib/utils';
 import { useApi } from '@/hooks/use-api';
 import { confirmNavigation } from '@/hooks/use-unsaved-changes';
 import { whatsappHref } from '@/components/personal/chat/contact';
+import { STUDENTS_USE_APP } from '@/lib/features';
 
 interface StudentItem {
     id: string;
@@ -84,7 +85,7 @@ export function rememberRecentStudent(studentId: string) {
 }
 
 /** Per-student actions; `words` let queries like "treino joao" or "chat ana" jump straight to the action. */
-const STUDENT_ACTIONS: {
+const ALL_STUDENT_ACTIONS: {
     key: string;
     words: string[];
     title: (name: string) => string;
@@ -100,6 +101,9 @@ const STUDENT_ACTIONS: {
     { key: 'whatsapp', words: ['whatsapp', 'whats', 'zap'], title: (n) => `WhatsApp de ${n}`, icon: Phone },
 ];
 
+// The chat reaches students through the app (STUDENTS_USE_APP).
+const STUDENT_ACTIONS = ALL_STUDENT_ACTIONS.filter((action) => STUDENTS_USE_APP || action.key !== 'chat');
+
 const ACTION_WORDS = new Set(STUDENT_ACTIONS.flatMap((action) => action.words));
 
 const STATIC_ITEMS: PaletteItem[] = [
@@ -111,7 +115,9 @@ const STATIC_ITEMS: PaletteItem[] = [
     { id: 'nav-workouts', group: 'Ir para', title: 'Fichas de treino', subtitle: 'G depois T', icon: ClipboardList, href: '/personal/workouts', keywords: 'modelos biblioteca' },
     { id: 'nav-diets', group: 'Ir para', title: 'Planos de dieta', subtitle: 'G depois N', icon: Utensils, href: '/personal/diets', keywords: 'nutricao modelos' },
     { id: 'nav-exercises', group: 'Ir para', title: 'Exercícios', subtitle: 'G depois E', icon: Library, href: '/personal/exercises', keywords: 'biblioteca videos' },
-    { id: 'nav-chat', group: 'Ir para', title: 'Chat', subtitle: 'G depois C', icon: MessageCircle, href: '/personal/chat', keywords: 'mensagens conversas' },
+    ...(STUDENTS_USE_APP
+        ? [{ id: 'nav-chat', group: 'Ir para', title: 'Chat', subtitle: 'G depois C', icon: MessageCircle, href: '/personal/chat', keywords: 'mensagens conversas' }]
+        : []),
     { id: 'nav-notifications', group: 'Ir para', title: 'Notificações', icon: Bell, href: '/personal/notifications', keywords: 'alertas' },
     { id: 'nav-settings', group: 'Ir para', title: 'Configurações', icon: Settings, href: '/personal/settings', keywords: 'perfil conta' },
     {
@@ -313,7 +319,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                             setQuery(e.target.value);
                             setSelectedIndex(0);
                         }}
-                        placeholder='Buscar aluno ou comando — ex.: "treino ana", "chat joão"'
+                        placeholder={`Buscar aluno ou comando — ex.: "treino ana", "${STUDENTS_USE_APP ? 'chat' : 'dieta'} joão"`}
                         className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none"
                     />
                     {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}

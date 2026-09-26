@@ -6,6 +6,7 @@ import { Copy, Library, Loader2, Search, Sparkles, Utensils } from 'lucide-react
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, useToast } from '@/components/ui';
 import { useApi } from '@/hooks/use-api';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
 import { cn, getShortDayOfWeekName, matchesSearch } from '@/lib/utils';
 import { STUDENTS_KEY, errorMessage, refreshStudentPlans, requestJson, todayInput } from './lib';
@@ -197,15 +198,18 @@ export function AssignWorkoutTemplateDialog({
                             <input id="workout-template-end" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className={inputClass} />
                         </Field>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
-                        <input
-                            type="checkbox"
-                            checked={notifyStudent}
-                            onChange={(event) => setNotifyStudent(event.target.checked)}
-                            className="rounded border-border text-primary focus:ring-primary/25"
-                        />
-                        Avisar o aluno
-                    </label>
+                    {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
+                    {STUDENTS_USE_APP && (
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
+                            <input
+                                type="checkbox"
+                                checked={notifyStudent}
+                                onChange={(event) => setNotifyStudent(event.target.checked)}
+                                className="rounded border-border text-primary focus:ring-primary/25"
+                            />
+                            Avisar o aluno
+                        </label>
+                    )}
                     <DialogError message={error} />
                     <div className="flex justify-end gap-2">
                         <button type="button" onClick={() => onOpenChange(false)} className={smallButtonClass} disabled={saving}>
@@ -572,15 +576,18 @@ export function AssignDietTemplateDialog({
                             <input id="diet-template-end" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className={inputClass} />
                         </Field>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
-                        <input
-                            type="checkbox"
-                            checked={notifyStudent}
-                            onChange={(event) => setNotifyStudent(event.target.checked)}
-                            className="rounded border-border text-primary focus:ring-primary/25"
-                        />
-                        Avisar o aluno
-                    </label>
+                    {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
+                    {STUDENTS_USE_APP && (
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
+                            <input
+                                type="checkbox"
+                                checked={notifyStudent}
+                                onChange={(event) => setNotifyStudent(event.target.checked)}
+                                className="rounded border-border text-primary focus:ring-primary/25"
+                            />
+                            Avisar o aluno
+                        </label>
+                    )}
                     <DialogError message={error} />
                     <div className="flex justify-end gap-2">
                         <button type="button" onClick={() => onOpenChange(false)} className={smallButtonClass} disabled={saving}>

@@ -6,6 +6,7 @@ import { AlertTriangle, Loader2, UserPlus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, useToast } from '@/components/ui';
 import { invalidateApi, useApi } from '@/hooks/use-api';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
 import { defaultDateRange } from './model';
@@ -105,7 +106,12 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
             invalidateApi('/api/diets');
             invalidateApi('/api/diet-plans');
             invalidateApi('/api/students');
-            toast.success('Dieta atribuída', `${selected?.name ?? 'O aluno'} já recebe “${template.title}” no app. Abrindo o plano…`);
+            toast.success(
+                'Dieta atribuída',
+                STUDENTS_USE_APP
+                    ? `${selected?.name ?? 'O aluno'} já recebe “${template.title}” no app. Abrindo o plano…`
+                    : `“${template.title}” agora é a dieta atual de ${selected?.name ?? 'o aluno'}. Abrindo o plano…`
+            );
             onClose();
             router.push(`/personal/diets/${body.id}`);
         } catch (submitError) {
@@ -186,15 +192,18 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
                         </span>
                     </label>
 
-                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
-                        <input
-                            type="checkbox"
-                            checked={notifyStudent}
-                            onChange={(event) => setNotifyStudent(event.target.checked)}
-                            className="rounded border-border text-primary focus:ring-primary/25"
-                        />
-                        Avisar o aluno
-                    </label>
+                    {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
+                    {STUDENTS_USE_APP && (
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
+                            <input
+                                type="checkbox"
+                                checked={notifyStudent}
+                                onChange={(event) => setNotifyStudent(event.target.checked)}
+                                className="rounded border-border text-primary focus:ring-primary/25"
+                            />
+                            Avisar o aluno
+                        </label>
+                    )}
 
                     {error && (
                         <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-600 dark:text-red-400">

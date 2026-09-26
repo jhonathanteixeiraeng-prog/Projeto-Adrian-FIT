@@ -35,7 +35,7 @@ import { invalidateApi, useApi } from '@/hooks/use-api';
 import { useHotkey } from '@/hooks/use-hotkey';
 import { useUrlStateGroup } from '@/hooks/use-url-state';
 import { cn, matchesSearch } from '@/lib/utils';
-import { getStoredNotifyStudent } from '@/lib/notifications';
+import { getStoredNotifyStudent, planActivationText } from '@/lib/notifications';
 
 interface PlanRow {
     id: string;
@@ -269,7 +269,7 @@ export default function DietsPage() {
             const studentName = plan.student?.user?.name ?? 'o aluno';
             const ok = await confirm({
                 title: `Ativar “${plan.title}”?`,
-                description: `Ela passa a ser a dieta que ${studentName} vê no app. A dieta ativa atual do aluno será desativada (continua no histórico). ${shouldNotify ? 'O aluno será avisado no app.' : 'O aluno não será avisado.'}`,
+                description: planActivationText('dieta', studentName, shouldNotify),
                 confirmText: 'Ativar dieta',
             });
             if (!ok) return;

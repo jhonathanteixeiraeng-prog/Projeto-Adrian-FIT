@@ -22,6 +22,7 @@ import {
     PanelLeftOpen,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { cn } from '@/lib/utils';
 import { TopHeader } from '@/components/personal/top-header';
 import { NotificationsProvider, useNotifications } from '@/components/personal/notifications-provider';
@@ -64,7 +65,10 @@ const navGroups: NavGroup[] = [
     {
         title: 'Comunicação',
         items: [
-            { href: '/personal/chat', label: 'Chat & Mensagens', icon: MessageCircle, badge: 'messages' },
+            // The chat reaches students through the app (STUDENTS_USE_APP); WhatsApp is the channel for now.
+            ...(STUDENTS_USE_APP
+                ? [{ href: '/personal/chat', label: 'Chat & Mensagens', icon: MessageCircle, badge: 'messages' as const }]
+                : []),
             { href: '/personal/notifications', label: 'Notificações', icon: Bell, badge: 'notifications' },
         ],
     },
@@ -80,7 +84,7 @@ const mobileNavItems: NavItem[] = [
     { href: '/personal/dashboard', label: 'Início', icon: LayoutDashboard },
     { href: '/personal/students', label: 'Alunos', icon: Users },
     { href: '/personal/workouts', label: 'Treinos', icon: ClipboardList },
-    { href: '/personal/chat', label: 'Chat', icon: MessageCircle, badge: 'messages' },
+    ...(STUDENTS_USE_APP ? [{ href: '/personal/chat', label: 'Chat', icon: MessageCircle, badge: 'messages' as const }] : []),
     { href: '/personal/diets', label: 'Dietas', icon: Utensils },
     { href: '/personal/exercises', label: 'Exercícios', icon: Library },
     { href: '/personal/notifications', label: 'Alertas', icon: Bell, badge: 'notifications' },

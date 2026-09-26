@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Sigma, Target, UserRound } from 'lucide-react';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { cn } from '@/lib/utils';
 import {
     ACTIVITY_LABELS,
@@ -141,7 +142,15 @@ export function PlanDetails({
                                 role="switch"
                                 aria-checked={state.active}
                                 onClick={() => dispatch({ type: 'set', patch: { active: !state.active } })}
-                                title={state.active ? 'Visível no app do aluno' : 'Não aparece no app do aluno'}
+                                title={
+                                    STUDENTS_USE_APP
+                                        ? state.active
+                                            ? 'Visível no app do aluno'
+                                            : 'Não aparece no app do aluno'
+                                        : state.active
+                                          ? 'É a dieta atual do aluno'
+                                          : 'Fica só no histórico'
+                                }
                                 className={cn(
                                     'flex h-10 w-full items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-colors',
                                     state.active
@@ -157,7 +166,7 @@ export function PlanDetails({
                                         )}
                                     />
                                 </span>
-                                {state.active ? 'Ativa no app' : 'Inativa'}
+                                {state.active ? (STUDENTS_USE_APP ? 'Ativa no app' : 'Ativa') : 'Inativa'}
                             </button>
                         </Field>
                     </>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { studentLinkFor } from '@/lib/notifications';
 import prisma from '@/lib/prisma';
 import { TRANSACTION_OPTIONS, addDays, deactivateOtherActivePlans } from '@/lib/workout-plans';
@@ -118,17 +119,19 @@ export async function POST(request: NextRequest) {
                 },
             });
 
-            // Notify target student
-            await tx.notification.create({
-                data: {
-                    userId: targetStudent.user.id,
-                    type: 'PLAN_UPDATED',
-                    link: studentLinkFor('PLAN_UPDATED'),
-                    title: 'Nova Ficha de Treino Disponível! 🏋️‍♂️',
-                    body: `Seu personal preparou uma nova ficha de treino (${newTitle}) para você. Confira no app!`,
-                    read: false,
-                },
-            });
+            // Notify target student (in the app; nothing while students don't use it)
+            if (STUDENTS_USE_APP) {
+                await tx.notification.create({
+                    data: {
+                        userId: targetStudent.user.id,
+                        type: 'PLAN_UPDATED',
+                        link: studentLinkFor('PLAN_UPDATED'),
+                        title: 'Nova Ficha de Treino Disponível! 🏋️‍♂️',
+                        body: `Seu personal preparou uma nova ficha de treino (${newTitle}) para você. Confira no app!`,
+                        read: false,
+                    },
+                });
+            }
 
             return created;
         }, TRANSACTION_OPTIONS);

@@ -20,7 +20,8 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, useDialogs, useToast } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { NOTIFY_STUDENT_STORAGE_KEY, getStoredNotifyStudent, personalLinks } from '@/lib/notifications';
+import { STUDENTS_USE_APP } from '@/lib/features';
+import { NOTIFY_STUDENT_STORAGE_KEY, getStoredNotifyStudent, personalLinks, planActivationText } from '@/lib/notifications';
 import { groupLabel } from '@/lib/workout-groups';
 import { parsePerSetReps } from '@/lib/workout-reps';
 import { invalidateApi, useApi } from '@/hooks/use-api';
@@ -966,7 +967,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
         const shouldNotify = getStoredNotifyStudent();
         const ok = await confirm({
             title: 'Ativar esta ficha?',
-            description: `Ela passa a ser a ficha que ${studentName ?? 'o aluno'} vê no app. A ficha ativa atual será desativada (continua no histórico). ${shouldNotify ? 'O aluno será avisado no app.' : 'O aluno não será avisado.'}`,
+            description: planActivationText('ficha', studentName ?? 'o aluno', shouldNotify),
             confirmText: 'Ativar ficha',
         });
         if (!ok) return;
@@ -977,7 +978,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
             setActive(true);
             invalidateApi('/api/workout-plans');
             invalidateApi('/api/students');
-            toast.success('Ficha ativada', 'Agora é a ficha que o aluno vê no app.');
+            toast.success('Ficha ativada', STUDENTS_USE_APP ? 'Agora é a ficha que o aluno vê no app.' : 'Agora é a ficha atual do aluno.');
         } catch (error) {
             toast.error('Não foi possível ativar a ficha', error instanceof Error ? error.message : undefined);
         } finally {
@@ -1152,7 +1153,8 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                             <span className="hidden sm:inline">Exportar PDF</span>
                         </button>
                     )}
-                    {mode === 'plan' && !entityId && (
+                    {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
+                    {STUDENTS_USE_APP && mode === 'plan' && !entityId && (
                         <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-pointer">
                             <input
                                 type="checkbox"

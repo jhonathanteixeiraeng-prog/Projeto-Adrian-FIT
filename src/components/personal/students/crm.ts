@@ -1,3 +1,5 @@
+import { PLAN_ENDING_WINDOW_DAYS } from '@/components/personal/dashboard/attention-rules';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { normalizeText } from '@/lib/utils';
 import {
     INACTIVITY_ALERT_DAYS,
@@ -41,8 +43,11 @@ export interface CrmRow {
     workout: WorkoutSummary | null;
     workoutEndsIn: number | null;
     diet: DietSummary | null;
+    dietEndsIn: number | null;
     onTrack: boolean;
     atRisk: boolean;
+    /** Active student without a workout plan, or whose workout/diet ends within 7 days or is over. */
+    planAlert: boolean;
     billingAlert: boolean;
 }
 
@@ -52,6 +57,10 @@ export function buildRow(student: StudentListItem, now: Date): CrmRow {
     const lastWorkoutDays = daysSince(lastSession?.completedAt, now);
     const lastCheckin = student.checkins?.[0] ?? null;
     const workout = student.workoutPlans?.[0] ?? null;
+    const diet = student.dietPlans?.[0] ?? null;
+    const workoutEndsIn = workout ? daysUntil(workout.endDate, now) : null;
+    const dietEndsIn = diet ? daysUntil(diet.endDate, now) : null;
+    const endsSoon = (days: number | null) => days !== null && days <= PLAN_ENDING_WINDOW_DAYS;
     const billing = getBillingInfo(student, now);
     const isActive = status === 'ACTIVE';
     const phone = student.user?.phone || '';
@@ -72,10 +81,12 @@ export function buildRow(student: StudentListItem, now: Date): CrmRow {
         lastCheckin,
         lastCheckinDays: daysSince(lastCheckin?.date, now),
         workout,
-        workoutEndsIn: workout ? daysUntil(workout.endDate, now) : null,
-        diet: student.dietPlans?.[0] ?? null,
+        workoutEndsIn,
+        diet,
+        dietEndsIn,
         onTrack: isActive && lastWorkoutDays !== null && lastWorkoutDays < INACTIVITY_ALERT_DAYS,
         atRisk: isActive && (lastWorkoutDays === null || lastWorkoutDays >= INACTIVITY_ALERT_DAYS),
+        planAlert: isActive && (!workout || endsSoon(workoutEndsIn) || endsSoon(dietEndsIn)),
         // Former students (INACTIVE) are not billed, so they never count as a billing alert.
         billingAlert: status !== 'INACTIVE' && ['OVERDUE', 'EXPIRING', 'PENDING'].includes(billing.status),
     };
@@ -89,15 +100,21 @@ export const CRM_TABS = [
     { id: 'all', label: 'Todos' },
     { id: 'on-track', label: 'Treinando no ritmo' },
     { id: 'risk', label: 'Em risco' },
+    { id: 'plans', label: 'Planos a renovar' },
     { id: 'billing', label: 'Cobrança' },
     { id: 'inactive', label: 'Pausados / Inativos' },
 ] as const;
 export type CrmTab = (typeof CRM_TABS)[number]['id'];
 
+/** "Treinando no ritmo" and "Em risco" come from workouts logged in the students' app. */
+const APP_TABS: CrmTab[] = ['on-track', 'risk'];
+export const VISIBLE_CRM_TABS = CRM_TABS.filter((tab) => STUDENTS_USE_APP || !APP_TABS.includes(tab.id));
+
 export const tabPredicates: Record<CrmTab, (row: CrmRow) => boolean> = {
     all: () => true,
     'on-track': (row) => row.onTrack,
     risk: (row) => row.atRisk,
+    plans: (row) => row.planAlert,
     billing: (row) => row.billingAlert,
     inactive: (row) => row.status === 'PAUSED' || row.status === 'INACTIVE',
 };
@@ -172,46 +189,39 @@ export function billingWhatsappUrl(row: CrmRow): string | null {
     return whatsappUrl(row.phone, message);
 }
 
+type CsvCell = string | number;
+
+/** CSV columns; `app` ones come from the students' app and are left out while it isn't used. */
+const CSV_COLUMNS: Array<{ header: string; value: (row: CrmRow) => CsvCell; app?: boolean }> = [
+    { header: 'Nome', value: (row) => row.name },
+    { header: 'E-mail', value: (row) => row.email },
+    { header: 'Telefone', value: (row) => row.phone },
+    { header: 'Status', value: (row) => STATUS_LABELS[row.status] ?? row.status },
+    { header: 'Treino ativo', value: (row) => row.workout?.title ?? '' },
+    { header: 'Fim do treino', value: (row) => (row.workout?.endDate ? formatDate(row.workout.endDate, '') : '') },
+    { header: 'Dieta ativa', value: (row) => row.diet?.title ?? '' },
+    { header: 'Fim da dieta', value: (row) => (row.diet?.endDate ? formatDate(row.diet.endDate, '') : '') },
+    { header: 'Último treino', value: (row) => (row.lastWorkoutAt ? formatDate(row.lastWorkoutAt, '') : ''), app: true },
+    { header: 'Dias sem treinar', value: (row) => row.lastWorkoutDays ?? '', app: true },
+    { header: 'Último check-in', value: (row) => (row.lastCheckin ? formatDate(row.lastCheckin.date, '') : ''), app: true },
+    { header: 'Adesão treino (%)', value: (row) => row.lastCheckin?.workoutAdherence ?? '', app: true },
+    { header: 'Adesão dieta (%)', value: (row) => row.lastCheckin?.dietAdherence ?? '', app: true },
+    { header: 'Plano', value: (row) => planLabel(row.student.planType) },
+    { header: 'Valor do plano (R$)', value: (row) => csvNumber(row.student.planValue) },
+    { header: 'Valor mensal (R$)', value: (row) => csvNumber(row.monthly) },
+    { header: 'Vencimento', value: (row) => (row.student.planExpiresAt ? formatDate(row.student.planExpiresAt, '') : '') },
+    { header: 'Situação da cobrança', value: (row) => row.billing.label },
+    {
+        header: 'Pagamento',
+        value: (row) => (row.student.paymentStatus ? PAYMENT_LABELS[row.student.paymentStatus] ?? row.student.paymentStatus : ''),
+    },
+];
+
 export function exportRowsCsv(rows: CrmRow[], filename: string) {
-    const header = [
-        'Nome',
-        'E-mail',
-        'Telefone',
-        'Status',
-        'Treino ativo',
-        'Fim do treino',
-        'Dieta ativa',
-        'Último treino',
-        'Dias sem treinar',
-        'Último check-in',
-        'Adesão treino (%)',
-        'Adesão dieta (%)',
-        'Plano',
-        'Valor do plano (R$)',
-        'Valor mensal (R$)',
-        'Vencimento',
-        'Situação da cobrança',
-        'Pagamento',
-    ];
-    const lines = rows.map((row) => [
-        row.name,
-        row.email,
-        row.phone,
-        STATUS_LABELS[row.status] ?? row.status,
-        row.workout?.title ?? '',
-        row.workout?.endDate ? formatDate(row.workout.endDate, '') : '',
-        row.diet?.title ?? '',
-        row.lastWorkoutAt ? formatDate(row.lastWorkoutAt, '') : '',
-        row.lastWorkoutDays ?? '',
-        row.lastCheckin ? formatDate(row.lastCheckin.date, '') : '',
-        row.lastCheckin?.workoutAdherence ?? '',
-        row.lastCheckin?.dietAdherence ?? '',
-        planLabel(row.student.planType),
-        csvNumber(row.student.planValue),
-        csvNumber(row.monthly),
-        row.student.planExpiresAt ? formatDate(row.student.planExpiresAt, '') : '',
-        row.billing.label,
-        row.student.paymentStatus ? PAYMENT_LABELS[row.student.paymentStatus] ?? row.student.paymentStatus : '',
-    ]);
-    downloadCsv(filename, header, lines);
+    const columns = CSV_COLUMNS.filter((column) => STUDENTS_USE_APP || !column.app);
+    downloadCsv(
+        filename,
+        columns.map((column) => column.header),
+        rows.map((row) => columns.map((column) => column.value(row)))
+    );
 }

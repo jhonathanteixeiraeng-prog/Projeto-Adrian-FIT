@@ -10,6 +10,7 @@ import {
     ArrowUp,
     ArrowUpDown,
     BellRing,
+    CalendarClock,
     CheckCircle2,
     ChevronRight,
     CreditCard,
@@ -44,7 +45,10 @@ import {
     exportRowsCsv,
     sortRows,
     tabPredicates,
+    VISIBLE_CRM_TABS,
 } from '@/components/personal/students/crm';
+import { PLAN_ENDING_WINDOW_DAYS } from '@/components/personal/dashboard/attention-rules';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import {
     PLAN_OPTIONS,
     STATUS_OPTIONS,
@@ -110,6 +114,10 @@ const EMPTY_MESSAGES: Record<CrmTab, { title: string; description: string }> = {
     risk: {
         title: 'Nenhum aluno em risco',
         description: `Todos os alunos ativos treinaram nos últimos ${INACTIVITY_ALERT_DAYS} dias.`,
+    },
+    plans: {
+        title: 'Nenhum plano a renovar',
+        description: 'Todos os alunos ativos têm treino, e nenhum treino ou dieta vence nos próximos 7 dias.',
     },
     billing: {
         title: 'Nenhuma cobrança pendente',
@@ -258,7 +266,7 @@ export default function StudentsPage() {
     const drawerId = params.student;
     const setDrawerId = useCallback((student: string) => setParams({ student }), [setParams]);
 
-    const tab = (CRM_TABS.some((item) => item.id === params.tab) ? params.tab : 'all') as CrmTab;
+    const tab = (VISIBLE_CRM_TABS.some((item) => item.id === params.tab) ? params.tab : 'all') as CrmTab;
     const sortKey = (SORT_KEYS.includes(params.sort as SortKey) ? params.sort : 'name') as SortKey;
     const sortDir: 'asc' | 'desc' = params.dir === 'desc' ? 'desc' : 'asc';
 
@@ -321,6 +329,13 @@ export default function StudentsPage() {
             unpriced: active.length - priced.length,
             risk: rows.filter((row) => row.atRisk).length,
             neverTrained: rows.filter((row) => row.atRisk && row.lastWorkoutDays === null).length,
+            plans: rows.filter((row) => row.planAlert).length,
+            withoutWorkout: rows.filter((row) => row.status === 'ACTIVE' && !row.workout).length,
+            plansEnding: rows.filter(
+                (row) =>
+                    row.status === 'ACTIVE' &&
+                    [row.workoutEndsIn, row.dietEndsIn].some((days) => days !== null && days <= PLAN_ENDING_WINDOW_DAYS)
+            ).length,
             billing: billing.length,
             overdue: billing.filter((row) => row.billing.status === 'OVERDUE').length,
             expiring: billing.filter((row) => row.billing.status === 'EXPIRING').length,
@@ -818,19 +833,35 @@ export default function StudentsPage() {
                         detail={`${metrics.active} ativos · ${metrics.paused} pausados · ${metrics.inactive} inativos`}
                         icon={<Users className="h-4 w-4" />}
                     />
-                    <MetricCard
-                        label="Em risco"
-                        value={metrics.risk}
-                        detail={
-                            metrics.risk === 0
-                                ? 'Todos treinaram recentemente'
-                                : `Sem treinar há ${INACTIVITY_ALERT_DAYS}+ dias${metrics.neverTrained ? ` · ${metrics.neverTrained} nunca treinaram` : ''}`
-                        }
-                        icon={<AlertTriangle className="h-4 w-4" />}
-                        tone={metrics.risk > 0 ? 'danger' : 'ok'}
-                        onClick={() => setParams({ tab: 'risk' })}
-                        active={tab === 'risk'}
-                    />
+                    {STUDENTS_USE_APP ? (
+                        <MetricCard
+                            label="Em risco"
+                            value={metrics.risk}
+                            detail={
+                                metrics.risk === 0
+                                    ? 'Todos treinaram recentemente'
+                                    : `Sem treinar há ${INACTIVITY_ALERT_DAYS}+ dias${metrics.neverTrained ? ` · ${metrics.neverTrained} nunca treinaram` : ''}`
+                            }
+                            icon={<AlertTriangle className="h-4 w-4" />}
+                            tone={metrics.risk > 0 ? 'danger' : 'ok'}
+                            onClick={() => setParams({ tab: 'risk' })}
+                            active={tab === 'risk'}
+                        />
+                    ) : (
+                        <MetricCard
+                            label="Planos a renovar"
+                            value={metrics.plans}
+                            detail={
+                                metrics.plans === 0
+                                    ? 'Todos com treino em dia'
+                                    : `${metrics.withoutWorkout} sem treino · ${metrics.plansEnding} com treino ou dieta vencendo ou vencido`
+                            }
+                            icon={<CalendarClock className="h-4 w-4" />}
+                            tone={metrics.plans > 0 ? 'warn' : 'ok'}
+                            onClick={() => setParams({ tab: 'plans' })}
+                            active={tab === 'plans'}
+                        />
+                    )}
                     <MetricCard
                         label="Cobrança"
                         value={metrics.billing}
@@ -848,7 +879,7 @@ export default function StudentsPage() {
             )}
 
             <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1" role="tablist" aria-label="Segmentos de alunos">
-                {CRM_TABS.map((item) => (
+                {VISIBLE_CRM_TABS.map((item) => (
                     <button
                         key={item.id}
                         type="button"
@@ -862,6 +893,7 @@ export default function StudentsPage() {
                     >
                         {item.id === 'on-track' && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />}
                         {item.id === 'risk' && <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden />}
+                        {item.id === 'plans' && <CalendarClock className="h-3.5 w-3.5 text-amber-500" aria-hidden />}
                         {item.id === 'billing' && <CreditCard className="h-3.5 w-3.5 text-amber-500" aria-hidden />}
                         {item.label}
                         {data && (
@@ -1029,11 +1061,16 @@ export default function StudentsPage() {
                                     <SortableHeader label="Aluno" column="name" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                     <SortableHeader label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                     <SortableHeader label="Treino ativo" column="workout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
-                                    <th scope="col" className="hidden px-3 py-2.5 text-left font-medium 2xl:table-cell">
+                                    <th scope="col" className={cn('hidden px-3 py-2.5 text-left font-medium', STUDENTS_USE_APP ? '2xl:table-cell' : 'lg:table-cell')}>
                                         Dieta ativa
                                     </th>
-                                    <SortableHeader label="Último treino" column="lastWorkout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
-                                    <SortableHeader label="Último check-in" column="lastCheckin" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                    {/* Workouts and check-ins are logged in the students' app. */}
+                                    {STUDENTS_USE_APP && (
+                                        <>
+                                            <SortableHeader label="Último treino" column="lastWorkout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                            <SortableHeader label="Último check-in" column="lastCheckin" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
+                                        </>
+                                    )}
                                     <SortableHeader label="Plano" column="plan" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                     <SortableHeader label="Vencimento" column="expires" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                     <th scope="col" className="w-20 px-3 py-2.5">
@@ -1097,18 +1134,24 @@ export default function StudentsPage() {
                                                 <StudentStatusBadge status={row.status} />
                                             </td>
                                             <td className="max-w-[170px] px-3 py-2">{renderWorkout(row)}</td>
-                                            <td className="hidden max-w-[180px] px-3 py-2 2xl:table-cell">{renderDiet(row)}</td>
-                                            <td className="whitespace-nowrap px-3 py-2">
-                                                <p className={cn('font-semibold', lastWorkoutTone(row))}>
-                                                    {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
-                                                </p>
-                                                {row.lastWorkoutName && (
-                                                    <p className="max-w-[110px] truncate text-xs text-muted-foreground" title={row.lastWorkoutName}>
-                                                        {row.lastWorkoutName}
-                                                    </p>
-                                                )}
+                                            <td className={cn('hidden max-w-[180px] px-3 py-2', STUDENTS_USE_APP ? '2xl:table-cell' : 'lg:table-cell')}>
+                                                {renderDiet(row)}
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-2">{renderCheckin(row)}</td>
+                                            {STUDENTS_USE_APP && (
+                                                <>
+                                                    <td className="whitespace-nowrap px-3 py-2">
+                                                        <p className={cn('font-semibold', lastWorkoutTone(row))}>
+                                                            {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
+                                                        </p>
+                                                        {row.lastWorkoutName && (
+                                                            <p className="max-w-[110px] truncate text-xs text-muted-foreground" title={row.lastWorkoutName}>
+                                                                {row.lastWorkoutName}
+                                                            </p>
+                                                        )}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2">{renderCheckin(row)}</td>
+                                                </>
+                                            )}
                                             <td className="whitespace-nowrap px-3 py-2">{renderPlan(row)}</td>
                                             <td className="whitespace-nowrap px-3 py-2">
                                                 <p className="text-sm font-medium text-foreground">{formatDate(row.student.planExpiresAt)}</p>
@@ -1191,16 +1234,20 @@ export default function StudentsPage() {
                                             <dt className="text-xs text-muted-foreground">Dieta ativa</dt>
                                             <dd>{renderDiet(row)}</dd>
                                         </div>
-                                        <div>
-                                            <dt className="text-xs text-muted-foreground">Último treino</dt>
-                                            <dd className={cn('font-semibold', lastWorkoutTone(row))}>
-                                                {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
-                                            </dd>
-                                        </div>
-                                        <div>
-                                            <dt className="text-xs text-muted-foreground">Último check-in</dt>
-                                            <dd>{renderCheckin(row)}</dd>
-                                        </div>
+                                        {STUDENTS_USE_APP && (
+                                            <>
+                                                <div>
+                                                    <dt className="text-xs text-muted-foreground">Último treino</dt>
+                                                    <dd className={cn('font-semibold', lastWorkoutTone(row))}>
+                                                        {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
+                                                    </dd>
+                                                </div>
+                                                <div>
+                                                    <dt className="text-xs text-muted-foreground">Último check-in</dt>
+                                                    <dd>{renderCheckin(row)}</dd>
+                                                </div>
+                                            </>
+                                        )}
                                         <div>
                                             <dt className="text-xs text-muted-foreground">Plano</dt>
                                             <dd>{renderPlan(row)}</dd>
@@ -1354,15 +1401,18 @@ export default function StudentsPage() {
                                 <PlayCircle className="h-3.5 w-3.5 text-emerald-500" />
                                 Reativar
                             </button>
-                            <button
-                                type="button"
-                                className={smallButtonClass}
-                                disabled={bulkBusy}
-                                onClick={() => setReminderTargets(selectedRows.map((row) => ({ id: row.id, name: row.name })))}
-                            >
-                                <BellRing className="h-3.5 w-3.5 text-primary" />
-                                Enviar lembrete
-                            </button>
+                            {/* Reminders are app notifications. */}
+                            {STUDENTS_USE_APP && (
+                                <button
+                                    type="button"
+                                    className={smallButtonClass}
+                                    disabled={bulkBusy}
+                                    onClick={() => setReminderTargets(selectedRows.map((row) => ({ id: row.id, name: row.name })))}
+                                >
+                                    <BellRing className="h-3.5 w-3.5 text-primary" />
+                                    Enviar lembrete
+                                </button>
+                            )}
                             <button type="button" className={smallButtonClass} onClick={() => exportCsv(selectedRows)}>
                                 <Download className="h-3.5 w-3.5" />
                                 CSV

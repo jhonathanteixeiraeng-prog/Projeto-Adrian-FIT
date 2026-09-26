@@ -45,6 +45,10 @@ export interface DashboardKpis {
     expiringSoon: number;
     unansweredMessages: number;
     pendingCheckins: number;
+    /** Active students without an active workout plan. */
+    studentsWithoutWorkout: number;
+    /** Active students whose workout or diet plan ends within 7 days or is already over. */
+    plansToRenew: number;
 }
 
 export interface DashboardData {

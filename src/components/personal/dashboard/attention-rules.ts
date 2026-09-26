@@ -51,6 +51,14 @@ export const ATTENTION_CATEGORIES: { key: AttentionCategory; label: string }[] =
     { key: 'PLANS', label: 'Planos' },
 ];
 
+/** Categories that only exist when students use the app (messages, training, check-ins). */
+export const APP_ATTENTION_CATEGORIES: AttentionCategory[] = ['MESSAGES', 'INACTIVITY', 'CHECKIN'];
+
+/** Categories the trainer can act on in the current phase (see STUDENTS_USE_APP). */
+export function attentionCategories(appSignals: boolean) {
+    return appSignals ? ATTENTION_CATEGORIES : ATTENTION_CATEGORIES.filter((category) => !APP_ATTENTION_CATEGORIES.includes(category.key));
+}
+
 /** Self-reported adherence (%) below this in a recent check-in is flagged. */
 export const LOW_ADHERENCE_THRESHOLD = 60;
 /** Workout adherence (%) below this is critical. */
@@ -95,6 +103,12 @@ export interface AttentionOptions {
      * in the viewer's timezone even when this runs on a UTC server.
      */
     tzOffset?: number | null;
+    /**
+     * Whether students use the app (STUDENTS_USE_APP). When false, only what the trainer controls
+     * counts (billing and plans): without the app there are no workouts, check-ins or messages to
+     * judge, and every student would look inactive. Defaults to true.
+     */
+    appSignals?: boolean;
 }
 
 const plural = (count: number, singular: string, pluralForm = `${singular}s`) =>
@@ -259,9 +273,10 @@ function planEndReason(
 /** Every reason, most severe first. Empty when the student needs nothing today. */
 export function attentionReasons(signals: AttentionSignals, options: AttentionOptions = {}): AttentionReason[] {
     const now = options.now ?? new Date();
+    const appSignals = options.appSignals ?? true;
     const reasons: AttentionReason[] = [];
 
-    if (signals.unansweredMessageAt) {
+    if (appSignals && signals.unansweredMessageAt) {
         const sentAt = new Date(signals.unansweredMessageAt);
         const minutes = Math.floor((now.getTime() - sentAt.getTime()) / 60000);
         if (!Number.isNaN(minutes) && minutes <= UNANSWERED_LOOKBACK_DAYS * 24 * 60) {
@@ -287,7 +302,7 @@ export function attentionReasons(signals: AttentionSignals, options: AttentionOp
         reasons.push({ key: 'BILLING_PENDING', category: 'BILLING', severity: 'WARNING', label: billing.label });
     }
 
-    reasons.push(...engagementReasons(signals, { ...options, now }));
+    if (appSignals) reasons.push(...engagementReasons(signals, { ...options, now }));
 
     if (!signals.workoutPlan) {
         reasons.push({ key: 'NO_WORKOUT_PLAN', category: 'PLANS', severity: 'WARNING', label: 'Sem treino ativo' });
