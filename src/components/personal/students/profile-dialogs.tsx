@@ -361,7 +361,7 @@ export function ResetPasswordDialog({
             setError(null);
             await requestJson(`/api/students/${student.id}/reset-password`, { method: 'PUT', body: { newPassword: password } });
             setSavedPassword(password);
-            toast.success('Senha redefinida', student.user.name);
+            toast.success('Senha redefinida', `${student.user.name} precisa entrar de novo com a nova senha.`);
         } catch (submitError) {
             setError(errorMessage(submitError));
         } finally {

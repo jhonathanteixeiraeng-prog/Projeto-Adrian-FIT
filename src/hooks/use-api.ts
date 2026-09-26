@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { recheckSession } from './use-session-guard';
 
 /**
  * Minimal stale-while-revalidate cache for GET endpoints (no external dependency).
@@ -68,6 +69,7 @@ export async function apiFetcher<T = unknown>(url: string): Promise<T> {
         body = null;
     }
     if (!response.ok || (body && typeof body === 'object' && body.success === false)) {
+        if (response.status === 401) recheckSession();
         const message = (body && (body.error || body.message)) || `Erro ${response.status} ao carregar dados`;
         throw new Error(typeof message === 'string' ? message : 'Erro ao carregar dados');
     }

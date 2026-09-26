@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { encode, getToken } from 'next-auth/jwt';
 import prisma from '@/lib/prisma';
-import { authOptions } from '@/lib/auth';
+import { authOptions, passwordStamp } from '@/lib/auth';
 import { compare, hash } from 'bcryptjs';
+
+const SESSION_COOKIES = ['__Secure-next-auth.session-token', 'next-auth.session-token'];
+
+/**
+ * The new password ends every session opened with the old one (see passwordStamp). This device keeps
+ * its session: its cookie is re-issued with the new stamp, with NextAuth's own cookie settings.
+ */
+async function renewedSessionCookie(request: NextRequest, stamp: string) {
+    const name = SESSION_COOKIES.find((cookie) => request.cookies.has(cookie));
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!name || !secret) return null;
+    const secure = name.startsWith('__Secure-');
+    const token = await getToken({ req: request, secret, secureCookie: secure });
+    if (!token) return null;
+    const maxAge = authOptions.session?.maxAge ?? 30 * 24 * 60 * 60;
+    const value = await encode({ token: { ...token, stamp }, secret, maxAge });
+    return { name, value, options: { httpOnly: true, sameSite: 'lax' as const, path: '/', secure, maxAge } };
+}
 
 // PUT /api/profile/password - Change password
 export async function PUT(request: NextRequest) {
@@ -65,10 +84,13 @@ export async function PUT(request: NextRequest) {
             data: { password: hashedPassword },
         });
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             success: true,
-            message: 'Senha alterada com sucesso',
+            message: 'Senha alterada. Nos outros aparelhos será preciso entrar de novo.',
         });
+        const cookie = await renewedSessionCookie(request, passwordStamp(hashedPassword));
+        if (cookie) response.cookies.set(cookie.name, cookie.value, cookie.options);
+        return response;
     } catch (error) {
         console.error('Error changing password:', error);
         return NextResponse.json(

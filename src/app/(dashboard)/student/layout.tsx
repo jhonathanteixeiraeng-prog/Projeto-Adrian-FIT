@@ -13,6 +13,7 @@ import {
     Bell
 } from 'lucide-react';
 import { Avatar } from '@/components/ui';
+import { useSessionGuard } from '@/hooks/use-session-guard';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -24,6 +25,7 @@ const navItems = [
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
     const { data: session } = useSession();
+    useSessionGuard();
     const pathname = usePathname();
     const [personalName, setPersonalName] = useState<string>('');
     const [unreadCount, setUnreadCount] = useState(0);

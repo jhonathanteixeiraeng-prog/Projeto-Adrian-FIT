@@ -73,9 +73,10 @@ export async function PUT(
             data: { password: hashedPassword },
         });
 
+        // The new password also ends the sessions opened with the old one (see passwordStamp).
         return NextResponse.json({
             success: true,
-            message: `Senha de ${student.user.name} redefinida com sucesso!`,
+            message: `Senha de ${student.user.name} redefinida. Os acessos abertos com a senha antiga foram encerrados.`,
         });
     } catch (error) {
         console.error('Error resetting password:', error);

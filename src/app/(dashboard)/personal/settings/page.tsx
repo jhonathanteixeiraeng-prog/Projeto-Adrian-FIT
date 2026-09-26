@@ -203,7 +203,7 @@ export default function SettingsPage() {
             });
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success) throw new Error(result?.error || 'Erro ao alterar senha');
-            toast.success('Senha alterada');
+            toast.success('Senha alterada', 'Este aparelho continua conectado; nos outros será preciso entrar de novo.');
             setPassword({ current: '', new: '', confirm: '' });
         } catch (reason) {
             toast.error('Não foi possível alterar a senha', reason instanceof Error ? reason.message : undefined);

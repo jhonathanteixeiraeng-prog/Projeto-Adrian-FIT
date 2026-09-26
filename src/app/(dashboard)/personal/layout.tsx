@@ -30,6 +30,7 @@ import { PageMetaProvider } from '@/components/personal/page-meta';
 import { GO_TO_SHORTCUTS, ShortcutsHelpDialog } from '@/components/personal/shortcuts-help';
 import { useHotkey, isTypingTarget, isModalOpen } from '@/hooks/use-hotkey';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
+import { useSessionGuard } from '@/hooks/use-session-guard';
 import { confirmNavigation } from '@/hooks/use-unsaved-changes';
 
 type BadgeSource = 'messages' | 'notifications';
@@ -148,6 +149,7 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
     const mobileMoreItems = mobileNavItems.slice(4);
 
     useGoToShortcuts();
+    useSessionGuard();
     useHotkey('?', () => setIsShortcutsOpen(true));
     useHotkey('[', () => setCollapsed((current) => !current));
 

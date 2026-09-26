@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
@@ -28,6 +28,11 @@ export default function LoginPage() {
     const router = useRouter();
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    // Set by useSessionGuard when a session ends on an open page (expired or password changed).
+    const [sessionEnded, setSessionEnded] = useState(false);
+    useEffect(() => {
+        setSessionEnded(new URLSearchParams(window.location.search).get('reason') === 'session');
+    }, []);
 
     const {
         register,
@@ -117,6 +122,12 @@ export default function LoginPage() {
                         <h2 className="text-3xl font-bold text-foreground mb-2">Bem-vindo!</h2>
                         <p className="text-muted-foreground">Entre com suas credenciais para acessar</p>
                     </div>
+
+                    {sessionEnded && !error && (
+                        <div className="mb-6 rounded-xl border border-border bg-muted p-4 text-sm text-foreground" role="status">
+                            Sua sessão foi encerrada. Entre novamente para continuar de onde parou.
+                        </div>
+                    )}
 
                     {error && (
                         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm">

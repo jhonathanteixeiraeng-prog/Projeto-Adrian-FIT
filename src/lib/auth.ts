@@ -1,7 +1,18 @@
+import { createHash } from 'crypto';
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import prisma from '@/lib/prisma';
+
+/**
+ * Fingerprint of the stored password hash, kept in the (encrypted) session JWT. Changing or resetting
+ * the password changes it, so every session issued before stops working (audit A09).
+ */
+export function passwordStamp(passwordHash: string): string {
+    return createHash('sha256').update(passwordHash).digest('base64url').slice(0, 22);
+}
+
+const SESSION_REVOKED = 'SESSION_REVOKED';
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -60,7 +71,8 @@ export const authOptions: NextAuthOptions = {
                     role: user.role as 'PERSONAL' | 'STUDENT',
                     personalId: user.personal?.id,
                     studentId: user.student?.id,
-                    personalTrainerName: user.student?.personal?.user?.name
+                    personalTrainerName: user.student?.personal?.user?.name,
+                    stamp: passwordStamp(user.password),
                 };
             },
         }),
@@ -73,17 +85,26 @@ export const authOptions: NextAuthOptions = {
                 token.personalId = user.personalId;
                 token.studentId = user.studentId;
                 token.personalTrainerName = user.personalTrainerName;
+                token.stamp = user.stamp;
+                return token;
+            }
+            // Every request: the account must still exist with the password this session was opened with.
+            // Throwing makes NextAuth drop the session and clear its cookie (getServerSession returns null).
+            if (!token.id || !token.stamp) throw new Error(SESSION_REVOKED);
+            const current = await prisma.user
+                .findUnique({ where: { id: token.id }, select: { password: true, name: true, email: true } })
+                .catch((error) => {
+                    // Database unavailable: keep the session, the request fails on its own anyway.
+                    console.error('Could not check the session against the account:', error);
+                    return undefined;
+                });
+            if (current === null || (current && passwordStamp(current.password) !== token.stamp)) {
+                throw new Error(SESSION_REVOKED);
             }
             // useSession().update() after editing the profile: reload name/e-mail so the header shows them.
-            if (trigger === 'update' && token.id) {
-                const fresh = await prisma.user.findUnique({
-                    where: { id: token.id },
-                    select: { name: true, email: true },
-                });
-                if (fresh) {
-                    token.name = fresh.name;
-                    token.email = fresh.email;
-                }
+            if (trigger === 'update' && current) {
+                token.name = current.name;
+                token.email = current.email;
             }
             return token;
         },
@@ -102,6 +123,17 @@ export const authOptions: NextAuthOptions = {
         signIn: '/login',
         error: '/login',
     },
+    logger: {
+        // A revoked session is expected (password changed elsewhere), not an error worth an alert.
+        error(code, metadata) {
+            const message = metadata instanceof Error ? metadata.message : (metadata as { message?: string } | undefined)?.message;
+            if (code === 'JWT_SESSION_ERROR' && message === SESSION_REVOKED) {
+                console.info('[auth] session ended: the password changed or the account is gone');
+                return;
+            }
+            console.error(`[next-auth][error][${code}]`, metadata);
+        },
+    },
     session: {
         strategy: 'jwt',
         maxAge: 30 * 24 * 60 * 60, // 30 days
@@ -117,6 +149,8 @@ declare module 'next-auth' {
         personalId?: string;
         studentId?: string;
         personalTrainerName?: string;
+        /** passwordStamp of the password used to sign in. */
+        stamp?: string;
     }
 
     interface Session {
@@ -137,5 +171,7 @@ declare module 'next-auth/jwt' {
         personalId?: string;
         studentId?: string;
         personalTrainerName?: string;
+        /** passwordStamp at sign-in; a different stamp now means the password changed (session ended). */
+        stamp?: string;
     }
 }

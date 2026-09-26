@@ -1,4 +1,5 @@
 import { invalidateApi, setApiData } from '@/hooks/use-api';
+import { recheckSession } from '@/hooks/use-session-guard';
 import { PLAN_TYPE_LABELS, PLAN_TYPE_MONTHS, monthlyValue } from '@/lib/student-status';
 import { whatsappLink } from '@/lib/whatsapp';
 import type { StudentListItem, StudentPatch, StudentProfile, StudentUpdateResult } from './types';
@@ -325,6 +326,7 @@ export async function requestJson<T = any>(url: string, options: { method?: stri
         json = null;
     }
     if (!response.ok || (json && typeof json === 'object' && json.success === false)) {
+        if (response.status === 401) recheckSession();
         const message = json?.error || json?.message;
         throw new Error(typeof message === 'string' && message ? message : `Erro ${response.status} ao processar a solicitação`);
     }
