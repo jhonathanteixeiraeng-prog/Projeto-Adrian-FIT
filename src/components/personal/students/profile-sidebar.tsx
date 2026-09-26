@@ -17,6 +17,7 @@ import {
     Phone,
     RefreshCw,
     Trash2,
+    UserPlus,
     Utensils,
     Zap,
 } from 'lucide-react';
@@ -45,7 +46,7 @@ import { BillingBadge, InfoRow, SectionCard, primarySmallButtonClass, smallButto
 const editButtonClass =
     'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-primary hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
 
-export function ContactCard({ student }: { student: StudentProfile }) {
+export function ContactCard({ student, onCreateAccess }: { student: StudentProfile; onCreateAccess?: () => void }) {
     const { toast } = useToast();
     const whatsapp = whatsappUrl(student.user.phone);
     const email = contactEmail(student.user.email);
@@ -72,7 +73,14 @@ export function ContactCard({ student }: { student: StudentProfile }) {
                             </button>
                         </>
                     ) : (
-                        <span className="text-muted-foreground">Sem acesso ao app</span>
+                        <>
+                            <span className="min-w-0 flex-1 text-muted-foreground">Sem acesso ao app</span>
+                            {onCreateAccess && (
+                                <button type="button" onClick={onCreateAccess} className={editButtonClass}>
+                                    Criar acesso
+                                </button>
+                            )}
+                        </>
                     )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -297,11 +305,13 @@ export function QuickActionsCard({
     student,
     onRemind,
     onResetPassword,
+    onCreateAccess,
     onDelete,
 }: {
     student: StudentProfile;
     onRemind: () => void;
     onResetPassword: () => void;
+    onCreateAccess: () => void;
     onDelete: () => void;
 }) {
     const actionClass = cn(smallButtonClass, 'justify-start');
@@ -327,11 +337,16 @@ export function QuickActionsCard({
                         Lembrete
                     </button>
                 )}
-                {/* A student registered without e-mail has no login to reset. */}
-                {hasAppAccess(student.user.email) && (
+                {/* A student registered without e-mail has no login to reset: the trainer can create one. */}
+                {hasAppAccess(student.user.email) ? (
                     <button type="button" onClick={onResetPassword} className={actionClass}>
                         <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
                         Redefinir senha
+                    </button>
+                ) : (
+                    <button type="button" onClick={onCreateAccess} className={actionClass}>
+                        <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                        Criar acesso ao app
                     </button>
                 )}
                 <button type="button" onClick={onDelete} className={cn(actionClass, 'text-red-600 hover:bg-red-500/10 dark:text-red-400')}>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Check, Copy, Eye, EyeOff, KeyRound, Loader2, Phone, Wand2 } from 'lucide-react';
+import { Check, Copy, Eye, EyeOff, KeyRound, Loader2, Phone, UserPlus, Wand2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, useToast } from '@/components/ui';
 import { anamnesisSchema } from '@/lib/validations';
 import { cn } from '@/lib/utils';
@@ -9,8 +9,10 @@ import { whatsappNumber } from '@/lib/whatsapp';
 import {
     ACTIVITY_LEVEL_OPTIONS,
     GENDER_OPTIONS,
+    applyStudentUpdate,
     dateInputToIso,
     errorMessage,
+    firstName,
     generatePassword,
     requestJson,
     toDateInputValue,
@@ -454,6 +456,179 @@ export function ResetPasswordDialog({
                             </div>
                         </Field>
                         <DialogActions saving={saving} onCancel={() => onOpenChange(false)} label="Redefinir senha" />
+                    </form>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// App access for a student registered without e-mail
+// ---------------------------------------------------------------------------
+
+/**
+ * "Criar acesso ao app": the student was registered without e-mail (see student-access), so the
+ * trainer sets the e-mail and password they will sign in with, then sends them over WhatsApp.
+ */
+export function CreateAccessDialog({
+    open,
+    onOpenChange,
+    student,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    student: StudentProfile;
+}) {
+    const { toast } = useToast();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [visible, setVisible] = useState(false);
+    const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({});
+    const [saving, setSaving] = useState(false);
+    const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        if (!open) return;
+        setEmail('');
+        setPassword(generatePassword());
+        setVisible(true);
+        setErrors({});
+        setCreated(null);
+        setCopied(false);
+    }, [open]);
+
+    const credentials = created
+        ? `Olá, ${firstName(student.user.name)}! Seu acesso ao app foi criado.\n\nE-mail: ${created.email}\nSenha: ${created.password}\n\nAcesse: ${typeof window !== 'undefined' ? window.location.origin : ''}/login`
+        : '';
+    const whatsapp = created ? whatsappUrl(student.user.phone, credentials) : null;
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
+        const nextErrors: typeof errors = {};
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = 'Informe um e-mail válido';
+        if (password.length < 6) nextErrors.password = 'A senha deve ter no mínimo 6 caracteres';
+        setErrors(nextErrors);
+        if (nextErrors.email || nextErrors.password) return;
+        try {
+            setSaving(true);
+            const result = await requestJson<{ data: { email: string } }>(`/api/students/${student.id}/access`, {
+                method: 'PUT',
+                body: { email: email.trim(), password },
+            });
+            // The profile, the list and the report now show the real e-mail and "Redefinir senha".
+            applyStudentUpdate({ id: student.id, user: { ...student.user, email: result.data.email } });
+            setCreated({ email: result.data.email, password });
+            toast.success('Acesso criado', `${student.user.name} já pode entrar no app.`);
+        } catch (submitError) {
+            setErrors({ form: errorMessage(submitError) });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(credentials);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+            toast.error('Não foi possível copiar', 'Selecione o texto e copie manualmente.');
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
+            <DialogContent className="max-w-md rounded-2xl border-border bg-card">
+                <DialogHeader className="text-left">
+                    <DialogTitle className="flex items-center gap-2 text-base font-bold">
+                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                        Criar acesso ao app
+                    </DialogTitle>
+                    <DialogDescription>
+                        {student.user.name} foi cadastrado sem e-mail. Defina o e-mail e a senha de acesso ao app.
+                    </DialogDescription>
+                </DialogHeader>
+                {created ? (
+                    <div className="space-y-3">
+                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+                            <p className="font-semibold text-emerald-700 dark:text-emerald-400">Acesso criado. Envie ao aluno:</p>
+                            <p className="mt-1 text-foreground">{created.email}</p>
+                            <p className="font-mono text-foreground">{created.password}</p>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                            <button type="button" onClick={copy} className={smallButtonClass}>
+                                {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                {copied ? 'Copiado' : 'Copiar acesso'}
+                            </button>
+                            {whatsapp && (
+                                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={smallButtonClass}>
+                                    <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                                    Enviar no WhatsApp
+                                </a>
+                            )}
+                            <button type="button" onClick={() => onOpenChange(false)} className={primarySmallButtonClass}>
+                                Concluir
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+                        <FormError message={errors.form ?? null} />
+                        <Field label="E-mail do aluno" htmlFor="access-email" error={errors.email}>
+                            <input
+                                id="access-email"
+                                type="email"
+                                value={email}
+                                onChange={(event) => {
+                                    setEmail(event.target.value);
+                                    setErrors({});
+                                }}
+                                placeholder="aluno@email.com"
+                                autoComplete="off"
+                                className={inputClass}
+                            />
+                        </Field>
+                        <Field label="Senha" htmlFor="access-password" error={errors.password}>
+                            <div className="flex gap-1.5">
+                                <div className="relative flex-1">
+                                    <input
+                                        id="access-password"
+                                        type={visible ? 'text' : 'password'}
+                                        value={password}
+                                        onChange={(event) => {
+                                            setPassword(event.target.value);
+                                            setErrors({});
+                                        }}
+                                        placeholder="Mínimo 6 caracteres"
+                                        autoComplete="new-password"
+                                        className={cn(inputClass, 'pr-9')}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setVisible((value) => !value)}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                                        aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
+                                    >
+                                        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPassword(generatePassword());
+                                        setVisible(true);
+                                        setErrors({});
+                                    }}
+                                    className={cn(smallButtonClass, 'h-9')}
+                                >
+                                    <Wand2 className="h-3.5 w-3.5" />
+                                    Gerar
+                                </button>
+                            </div>
+                        </Field>
+                        <DialogActions saving={saving} onCancel={() => onOpenChange(false)} label="Criar acesso" />
                     </form>
                 )}
             </DialogContent>

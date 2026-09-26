@@ -59,7 +59,7 @@ import {
 } from '@/components/personal/students/lib';
 import { AssignDietTemplateDialog, AssignWorkoutTemplateDialog, CloneWorkoutDialog } from '@/components/personal/students/plan-dialogs';
 import { DietPlanView, EmptyPlan, WorkoutPlanView } from '@/components/personal/students/plan-views';
-import { AnamnesisDialog, PersonalInfoDialog, ResetPasswordDialog } from '@/components/personal/students/profile-dialogs';
+import { AnamnesisDialog, CreateAccessDialog, PersonalInfoDialog, ResetPasswordDialog } from '@/components/personal/students/profile-dialogs';
 import { AnamnesisCard, ContactCard, ContractCard, QuickActionsCard, StatusCard } from '@/components/personal/students/profile-sidebar';
 import { AssessmentDialog } from '@/components/personal/students/assessment-dialog';
 import { AssessmentsTable, CheckinsTable, MeasurementsSummary, PhotoGallery, hasMeasures } from '@/components/personal/students/progress-section';
@@ -85,7 +85,7 @@ const TABS = [
 ] as const;
 type ProfileTab = (typeof TABS)[number]['id'];
 
-type DialogName = 'contract' | 'info' | 'anamnesis' | 'password' | 'reminder' | 'assignWorkout' | 'cloneWorkout' | 'assignDiet';
+type DialogName = 'contract' | 'info' | 'anamnesis' | 'password' | 'access' | 'reminder' | 'assignWorkout' | 'cloneWorkout' | 'assignDiet';
 
 function KpiCard({
     label,
@@ -879,7 +879,7 @@ export default function StudentProfilePage() {
                     ref={asideRef}
                     className={cn('space-y-3', stickyAside && 'lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:pb-2')}
                 >
-                    <ContactCard student={student} />
+                    <ContactCard student={student} onCreateAccess={() => setDialog('access')} />
                     <ContractCard student={student} onEdit={() => setDialog('contract')} />
                     <AnamnesisCard student={student} onEdit={() => setDialog('anamnesis')} />
                     <StatusCard student={student} />
@@ -887,6 +887,7 @@ export default function StudentProfilePage() {
                         student={student}
                         onRemind={() => setDialog('reminder')}
                         onResetPassword={() => setDialog('password')}
+                        onCreateAccess={() => setDialog('access')}
                         onDelete={deleteStudent}
                     />
                 </aside>
@@ -905,6 +906,7 @@ export default function StudentProfilePage() {
             <PersonalInfoDialog open={dialog === 'info'} onOpenChange={(open) => setDialog(open ? 'info' : null)} student={student} />
             <AnamnesisDialog open={dialog === 'anamnesis'} onOpenChange={(open) => setDialog(open ? 'anamnesis' : null)} student={student} />
             <ResetPasswordDialog open={dialog === 'password'} onOpenChange={(open) => setDialog(open ? 'password' : null)} student={student} />
+            <CreateAccessDialog open={dialog === 'access'} onOpenChange={(open) => setDialog(open ? 'access' : null)} student={student} />
             <ReminderDialog
                 open={dialog === 'reminder'}
                 onOpenChange={(open) => setDialog(open ? 'reminder' : null)}
