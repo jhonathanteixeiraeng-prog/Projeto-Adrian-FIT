@@ -25,8 +25,16 @@ export async function GET(request: NextRequest) {
         let whereClause: any = {};
 
         if (session.user.role === 'STUDENT') {
+            // A self-registered account has no student profile: an undefined studentId would drop
+            // the filter and list every student's check-ins.
+            if (!session.user.studentId) {
+                return NextResponse.json(
+                    { success: false, error: 'Perfil de aluno não encontrado' },
+                    { status: 403 }
+                );
+            }
             whereClause.studentId = session.user.studentId;
-        } else if (session.user.role === 'PERSONAL' && studentId) {
+        } else if (session.user.role === 'PERSONAL' && session.user.personalId && studentId) {
             // Verify the student belongs to this personal
             const student = await prisma.student.findFirst({
                 where: { id: studentId, personalId: session.user.personalId },

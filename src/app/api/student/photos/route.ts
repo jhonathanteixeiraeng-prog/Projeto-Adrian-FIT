@@ -22,6 +22,10 @@ export async function GET(request: NextRequest) {
             if (!queryStudentId) {
                 return NextResponse.json({ success: false, error: 'studentId é obrigatório para personal' }, { status: 400 });
             }
+            // Without a personalId the filter below would be dropped and match any student.
+            if (!session.user.personalId) {
+                return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 403 });
+            }
             const student = await prisma.student.findFirst({
                 where: { id: queryStudentId, personalId: session.user.personalId },
             });
@@ -78,11 +82,29 @@ export async function POST(request: NextRequest) {
 
         let studentId = session.user.studentId;
         if (session.user.role === 'PERSONAL' && body?.studentId) {
-            studentId = String(body.studentId);
+            // A personal can only add photos to their own students.
+            const owned = session.user.personalId
+                ? await prisma.student.findFirst({
+                      where: { id: String(body.studentId), personalId: session.user.personalId },
+                      select: { id: true },
+                  })
+                : null;
+            if (!owned) {
+                return NextResponse.json({ success: false, error: 'Aluno não encontrado' }, { status: 404 });
+            }
+            studentId = owned.id;
         }
 
         if (!url || !studentId) {
             return NextResponse.json({ success: false, error: 'URL da foto e identificador de aluno são obrigatórios' }, { status: 400 });
+        }
+
+        // The check-in must be the same student's, so a photo never shows up in someone else's check-in.
+        if (checkinId) {
+            const checkin = await prisma.checkin.findFirst({ where: { id: checkinId, studentId }, select: { id: true } });
+            if (!checkin) {
+                return NextResponse.json({ success: false, error: 'Check-in não encontrado' }, { status: 404 });
+            }
         }
 
         // Se o peso não foi explicitamente enviado, pega o peso atual do aluno
