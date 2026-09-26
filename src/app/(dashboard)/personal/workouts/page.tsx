@@ -661,7 +661,7 @@ export default function WorkoutsPage() {
                                         </div>
                                         <Link
                                             href={personalLinks.student(plan.studentId, 'workout')}
-                                            className="relative z-10 flex min-w-0 items-center gap-2 justify-self-start text-sm text-foreground hover:text-primary"
+                                            className="relative z-10 flex min-w-0 max-w-full items-center gap-2 justify-self-start text-sm text-foreground hover:text-primary"
                                         >
                                             <Avatar name={studentNameOf(plan)} src={plan.student?.user?.avatar ?? undefined} size="sm" />
                                             <span className="truncate">{studentNameOf(plan)}</span>
