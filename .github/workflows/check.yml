@@ -1,0 +1,28 @@
+# Types, lint, Prisma schemas, tests (tests/) and the production build on every push to main and every PR.
+# The same checks run locally with `npm run check` (+ `npm run build`).
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: file:./dev.db
+      NEXTAUTH_SECRET: ci-only-secret
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Prisma client and an empty local database
+        run: npx prisma generate && npx prisma db push --skip-generate
+      - run: npm run check
+      - run: npm run build

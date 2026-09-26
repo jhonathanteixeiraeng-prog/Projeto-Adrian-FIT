@@ -1,5 +1,5 @@
 import React from 'react';
-import { Document, Image, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { Document, Image as PdfImage, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { DocumentHeader, DocumentPage, InfoStrip, kit } from './kit';
 import type { ReportPdfModel, ReportPdfPhoto, ReportPdfTable } from './report-model';
 import { pdfColors } from './theme';
@@ -101,7 +101,7 @@ function Photo({ photo, missing }: { photo: ReportPdfPhoto | null; missing: stri
         <View style={styles.photoCell}>
             <Text style={styles.photoDate}>{photo ? photo.date : ' '}</Text>
             <View style={styles.photoBox}>
-                {photo?.src ? <Image src={photo.src} style={styles.photo} /> : <Text style={styles.photoEmpty}>{photo ? 'Foto indisponível' : missing}</Text>}
+                {photo?.src ? <PdfImage src={photo.src} style={styles.photo} /> : <Text style={styles.photoEmpty}>{photo ? 'Foto indisponível' : missing}</Text>}
             </View>
         </View>
     );

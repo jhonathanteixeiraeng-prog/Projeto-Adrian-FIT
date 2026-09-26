@@ -446,7 +446,7 @@ export default function ProgressPage() {
                         <CardContent>
                             {checkins.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
-                                    Nenhum check-in registrado ainda. Clique em "Novo Check-in" para começar.
+                                    Nenhum check-in registrado ainda. Clique em &ldquo;Novo Check-in&rdquo; para começar.
                                 </div>
                             ) : (
                                 <div className="divide-y divide-border">
