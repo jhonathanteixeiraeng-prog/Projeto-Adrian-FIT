@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, Calendar, Camera, Dumbbell, Printer, RefreshCw, Ruler, Scale, TrendingUp, Utensils } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Calendar, Camera, ClipboardList, Dumbbell, Percent, Printer, RefreshCw, Ruler, Scale, TrendingUp, Utensils } from 'lucide-react';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { crmHref, formatDate, formatDelta, formatNumber, PHOTO_ANGLE_LABELS, reportKey } from '@/components/personal/students/lib';
 import { MEASURES } from '@/components/personal/students/progress-section';
@@ -13,7 +13,10 @@ import { useInstantUrlValue } from '@/components/personal/students/use-instant-u
 import { useApi } from '@/hooks/use-api';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
 import { useUrlState } from '@/hooks/use-url-state';
+import { evolutionRecords, type EvolutionRecord } from '@/lib/evolution';
+import { STUDENTS_USE_APP } from '@/lib/features';
 import { cn } from '@/lib/utils';
+import { formatPhone } from '@/lib/whatsapp';
 
 const PERIODS = [
     { id: '30', label: 'Últimos 30 dias', days: 30 },
@@ -96,24 +99,38 @@ export default function StudentEvolutionReportPage() {
         const now = new Date();
         const start = periodConfig.days ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - periodConfig.days) : null;
 
+        const inRange = (date: string) => !start || new Date(date) >= start;
         const checkins = [...student.checkins].sort(byDateAsc);
-        const inPeriod = start ? checkins.filter((checkin) => new Date(checkin.date) >= start) : checkins;
-        const before = start ? checkins.filter((checkin) => new Date(checkin.date) < start) : [];
-        // Baseline: the real first check-in for the whole follow-up, or the last one before the period started.
-        const baseline = start ? before[before.length - 1] ?? inPeriod[0] ?? null : student.firstCheckin ?? checkins[0] ?? null;
-        const latest = inPeriod[inPeriod.length - 1] ?? null;
-        const series = baseline && !inPeriod.some((checkin) => checkin.id === baseline.id) ? [baseline, ...inPeriod] : inPeriod;
+        const checkinsInPeriod = checkins.filter((checkin) => inRange(checkin.date));
 
-        const initialWeight = baseline?.weight ?? null;
-        const currentWeight = latest?.weight ?? null;
+        // Weight and measures: the trainer's assessments and the app check-ins together, oldest first.
+        // The first check-in ever may be older than the ones loaded, so it joins the timeline.
+        const timeline = evolutionRecords(student.checkins, student.assessments ?? []).reverse();
+        if (student.firstCheckin && !timeline.some((record) => record.id === student.firstCheckin!.id)) {
+            timeline.unshift(evolutionRecords([student.firstCheckin], [])[0]);
+        }
+        const inPeriod = timeline.filter((record) => inRange(record.date));
+        const before = timeline.filter((record) => !inRange(record.date));
+        // Baseline: the first record of the whole follow-up, or the last one before the period started.
+        const baselineOf = (list: EvolutionRecord[], periodList: EvolutionRecord[]) =>
+            start ? list[list.length - 1] ?? periodList[0] ?? null : periodList[0] ?? null;
+        const baseline = baselineOf(before, inPeriod);
+        const series = baseline && !inPeriod.some((record) => record.id === baseline.id) ? [baseline, ...inPeriod] : inPeriod;
+
+        const hasWeight = (record: EvolutionRecord) => record.weight != null;
+        const weightBaseline = baselineOf(before.filter(hasWeight), inPeriod.filter(hasWeight));
+        const weightLatest = [...inPeriod].reverse().find(hasWeight) ?? null;
+        const initialWeight = weightBaseline?.weight ?? null;
+        const currentWeight = weightLatest?.weight ?? null;
         const heightMeters = student.height ? student.height / 100 : null;
         const bmi = (weight: number | null) => (weight && heightMeters ? weight / (heightMeters * heightMeters) : null);
 
         const measurements = MEASURES.map((measure) => {
-            const initial = series.find((checkin) => checkin[measure.key] != null)?.[measure.key] ?? null;
-            const current = [...series].reverse().find((checkin) => checkin[measure.key] != null)?.[measure.key] ?? null;
+            const initial = series.find((record) => record[measure.key] != null)?.[measure.key] ?? null;
+            const current = [...series].reverse().find((record) => record[measure.key] != null)?.[measure.key] ?? null;
             return { ...measure, initial, current };
         }).filter((row) => row.initial != null || row.current != null);
+        const bodyFat = measurements.find((row) => row.key === 'bodyFatPercentage') ?? null;
 
         const photos = (student.progressPhotos ?? [])
             .filter((photo) => !start || new Date(photo.createdAt) >= start)
@@ -130,20 +147,25 @@ export default function StudentEvolutionReportPage() {
             })
             .filter((pair) => pair.before);
 
+        const assessmentsInPeriod = inPeriod.filter((record) => record.source === 'ASSESSMENT');
         return {
             start,
             inPeriod,
-            baseline,
-            latest,
+            checkinsInPeriod,
+            weightBaseline,
+            weightLatest,
             initialWeight,
             currentWeight,
             initialBmi: bmi(initialWeight),
             currentBmi: bmi(currentWeight),
-            avgWorkout: average(inPeriod.map((checkin) => checkin.workoutAdherence)),
-            avgDiet: average(inPeriod.map((checkin) => checkin.dietAdherence)),
+            avgWorkout: average(checkinsInPeriod.map((checkin) => checkin.workoutAdherence)),
+            avgDiet: average(checkinsInPeriod.map((checkin) => checkin.dietAdherence)),
             measurements,
+            bodyFat,
             photoPairs,
-            history: [...inPeriod].reverse().slice(0, HISTORY_ROWS),
+            assessmentCount: assessmentsInPeriod.length,
+            assessmentHistory: [...assessmentsInPeriod].reverse().slice(0, HISTORY_ROWS),
+            history: [...checkinsInPeriod].reverse().slice(0, HISTORY_ROWS),
         };
     }, [student, period]);
 
@@ -182,7 +204,8 @@ export default function StudentEvolutionReportPage() {
         : `Todo o acompanhamento, desde ${formatDate(student.createdAt)}`;
     const weightDelta = formatDelta(report.currentWeight, report.initialWeight, ' kg');
     const bmiDelta = formatDelta(report.currentBmi, report.initialBmi);
-    const noCheckins = report.inPeriod.length === 0;
+    const noRecords = report.inPeriod.length === 0;
+    const weightChanged = Boolean(report.weightBaseline && report.weightLatest && report.weightBaseline.id !== report.weightLatest.id);
 
     return (
         <div className="mx-auto max-w-5xl space-y-4 pb-16">
@@ -231,7 +254,7 @@ export default function StudentEvolutionReportPage() {
                     </div>
                     <div className="space-y-0.5 text-xs sm:border-l sm:border-border sm:pl-6 sm:text-right">
                         <p className="font-semibold text-foreground">Treinador: {coach}</p>
-                        {student.personal?.user?.phone && <p className="text-muted-foreground">{student.personal.user.phone}</p>}
+                        {student.personal?.user?.phone && <p className="text-muted-foreground">{formatPhone(student.personal.user.phone)}</p>}
                         <p className="text-muted-foreground">Emitido em {formatDate(new Date())}</p>
                     </div>
                 </div>
@@ -256,9 +279,11 @@ export default function StudentEvolutionReportPage() {
                     </div>
                 </div>
 
-                {noCheckins && (
-                    <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        Nenhum check-in neste período. Escolha um período maior ou peça um check-in ao aluno.
+                {noRecords && (
+                    <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
+                        {STUDENTS_USE_APP
+                            ? 'Nenhuma avaliação ou check-in neste período. Escolha um período maior, registre uma avaliação ou peça um check-in ao aluno.'
+                            : 'Nenhuma avaliação neste período. Escolha um período maior ou registre uma avaliação na aba Evolução da ficha do aluno.'}
                     </p>
                 )}
 
@@ -268,28 +293,57 @@ export default function StudentEvolutionReportPage() {
                         icon={<Scale className="h-3.5 w-3.5 text-blue-600" />}
                         label="Peso corporal"
                         value={formatNumber(report.currentWeight, ' kg')}
-                        delta={report.baseline && report.latest && report.baseline.id !== report.latest.id ? weightDelta : null}
-                        detail={report.baseline ? `Inicial: ${formatNumber(report.initialWeight, ' kg')} em ${formatDate(report.baseline.date)}` : 'Sem registro inicial'}
+                        delta={weightChanged ? weightDelta : null}
+                        detail={
+                            report.weightBaseline
+                                ? `Inicial: ${formatNumber(report.initialWeight, ' kg')} em ${formatDate(report.weightBaseline.date)}`
+                                : 'Sem registro inicial'
+                        }
                     />
                     <Kpi
                         icon={<TrendingUp className="h-3.5 w-3.5 text-purple-600" />}
                         label="IMC"
                         value={formatNumber(report.currentBmi)}
-                        delta={report.baseline && report.latest && report.baseline.id !== report.latest.id ? bmiDelta : null}
+                        delta={weightChanged ? bmiDelta : null}
                         detail={student.height ? `Inicial: ${formatNumber(report.initialBmi)}` : 'Altura não informada'}
                     />
-                    <Kpi
-                        icon={<Dumbbell className="h-3.5 w-3.5 text-brand" />}
-                        label="Adesão média ao treino"
-                        value={report.avgWorkout === null ? '—' : `${report.avgWorkout}%`}
-                        detail={`${report.inPeriod.length} ${report.inPeriod.length === 1 ? 'check-in' : 'check-ins'} no período`}
-                    />
-                    <Kpi
-                        icon={<Utensils className="h-3.5 w-3.5 text-emerald-600" />}
-                        label="Adesão média à dieta"
-                        value={report.avgDiet === null ? '—' : `${report.avgDiet}%`}
-                        detail="Cumprimento do plano alimentar"
-                    />
+                    {/* Adherence is the student's self-report in the app check-in. */}
+                    {STUDENTS_USE_APP ? (
+                        <>
+                            <Kpi
+                                icon={<Dumbbell className="h-3.5 w-3.5 text-brand" />}
+                                label="Adesão média ao treino"
+                                value={report.avgWorkout === null ? '—' : `${report.avgWorkout}%`}
+                                detail={`${report.checkinsInPeriod.length} ${report.checkinsInPeriod.length === 1 ? 'check-in' : 'check-ins'} no período`}
+                            />
+                            <Kpi
+                                icon={<Utensils className="h-3.5 w-3.5 text-emerald-600" />}
+                                label="Adesão média à dieta"
+                                value={report.avgDiet === null ? '—' : `${report.avgDiet}%`}
+                                detail="Cumprimento do plano alimentar"
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <Kpi
+                                icon={<Percent className="h-3.5 w-3.5 text-orange-600" />}
+                                label="% de gordura"
+                                value={formatNumber(report.bodyFat?.current, '%')}
+                                delta={
+                                    report.bodyFat?.initial != null && report.bodyFat.current != null && report.bodyFat.initial !== report.bodyFat.current
+                                        ? formatDelta(report.bodyFat.current, report.bodyFat.initial, ' p.p.')
+                                        : null
+                                }
+                                detail={report.bodyFat?.initial != null ? `Inicial: ${formatNumber(report.bodyFat.initial, '%')}` : 'Sem medição'}
+                            />
+                            <Kpi
+                                icon={<ClipboardList className="h-3.5 w-3.5 text-blue-600" />}
+                                label="Avaliações"
+                                value={String(report.assessmentCount)}
+                                detail={report.assessmentCount === 1 ? 'avaliação no período' : 'avaliações no período'}
+                            />
+                        </>
+                    )}
                 </div>
 
                 {/* Measurements */}
@@ -363,14 +417,51 @@ export default function StudentEvolutionReportPage() {
                     </section>
                 )}
 
+                {/* Assessment history */}
+                {report.assessmentHistory.length > 0 && (
+                    <section className="report-avoid-break space-y-3">
+                        <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+                            <ClipboardList className="h-4 w-4 text-blue-600" />
+                            Avaliações do período
+                            {report.assessmentCount > HISTORY_ROWS && (
+                                <span className="text-xs font-normal text-muted-foreground">(últimas {HISTORY_ROWS} de {report.assessmentCount})</span>
+                            )}
+                        </h2>
+                        <div className="overflow-hidden rounded-2xl border border-border">
+                            <table className="w-full text-left text-sm">
+                                <thead>
+                                    <tr className="border-b border-border bg-muted text-xs font-semibold text-muted-foreground">
+                                        <th className="p-3">Data</th>
+                                        <th className="p-3 text-center">Peso</th>
+                                        <th className="p-3 text-center">% de gordura</th>
+                                        <th className="p-3 text-center">Cintura</th>
+                                        <th className="p-3">Observações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {report.assessmentHistory.map((record) => (
+                                        <tr key={record.id}>
+                                            <td className="whitespace-nowrap p-3 font-medium text-foreground">{formatDate(record.date)}</td>
+                                            <td className="p-3 text-center font-semibold text-foreground">{formatNumber(record.weight, ' kg')}</td>
+                                            <td className="p-3 text-center text-foreground">{formatNumber(record.bodyFatPercentage, '%')}</td>
+                                            <td className="p-3 text-center text-foreground">{formatNumber(record.waist, ' cm')}</td>
+                                            <td className="p-3 text-muted-foreground">{record.notes || '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                )}
+
                 {/* Check-in history */}
                 {report.history.length > 0 && (
                     <section className="report-avoid-break space-y-3">
                         <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
                             <Calendar className="h-4 w-4 text-blue-600" />
                             Check-ins do período
-                            {report.inPeriod.length > HISTORY_ROWS && (
-                                <span className="text-xs font-normal text-muted-foreground">(últimos {HISTORY_ROWS} de {report.inPeriod.length})</span>
+                            {report.checkinsInPeriod.length > HISTORY_ROWS && (
+                                <span className="text-xs font-normal text-muted-foreground">(últimos {HISTORY_ROWS} de {report.checkinsInPeriod.length})</span>
                             )}
                         </h2>
                         <div className="overflow-hidden rounded-2xl border border-border">

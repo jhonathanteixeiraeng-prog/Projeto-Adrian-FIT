@@ -79,6 +79,7 @@ model Student {
   dietPlans         DietPlan[]
   checkins          Checkin[]
   progressPhotos    ProgressPhoto[]
+  assessments       Assessment[]
   foodSubstitutions FoodSubstitutionHistory[]
   setLogs           SetLog[]
   workoutSessions   WorkoutSession[]
@@ -360,6 +361,9 @@ model ProgressPhoto {
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   checkinId String?
   checkin   Checkin? @relation(fields: [checkinId], references: [id], onDelete: SetNull)
+  // Photo taken in an assessment the trainer recorded (see Assessment).
+  assessmentId String?
+  assessment   Assessment? @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
   url       String
   angle     String // FRONT | SIDE | BACK | OTHER
   weight    Float? // snapshot de peso no momento da foto
@@ -369,6 +373,36 @@ model ProgressPhoto {
   @@index([studentId, createdAt])
   @@index([studentId, angle])
   @@index([checkinId])
+  @@index([assessmentId])
+}
+
+// Physical assessment the trainer records (weight, body fat, circumferences, photos).
+// Separate from Checkin, which is the student's self-report in the app (sleep, adherence…);
+// the iOS app decodes check-ins with those fields required.
+model Assessment {
+  id                String   @id @default(cuid())
+  studentId         String
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date              DateTime
+  weight            Float? // kg
+  bodyFatPercentage Float? // % de gordura corporal
+  chest             Float? // Tórax / peitoral (cm)
+  waist             Float? // Cintura
+  abdomen           Float? // Abdômen
+  hips              Float? // Quadril
+  armRight          Float? // Braço direito
+  armLeft           Float? // Braço esquerdo
+  thighRight        Float? // Coxa direita
+  thighLeft         Float? // Coxa esquerda
+  calfRight         Float? // Panturrilha direita
+  calfLeft          Float? // Panturrilha esquerda
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  photos ProgressPhoto[]
+
+  @@index([studentId, date])
 }
 
 // ==========================================

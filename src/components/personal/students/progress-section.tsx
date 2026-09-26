@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Camera, ChevronLeft, ChevronRight, Columns2, ImageOff } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Columns2, ImageOff, Pencil, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { PHOTO_ANGLE_LABELS, formatDate, formatDelta, formatNumber } from './lib';
-import type { Checkin, ProgressPhoto } from './types';
+import type { Assessment, Checkin, ProgressPhoto } from './types';
 import { Field, selectClass, smallButtonClass } from './ui';
 
 type MeasureKey =
@@ -41,12 +41,17 @@ function Delta({ current, previous, unit = '' }: { current: number | null | unde
     return <span className="ml-1 text-xs font-normal text-muted-foreground">{text}</span>;
 }
 
-/** Latest measurements with the change since the first check-in. */
-export function MeasurementsSummary({ checkins, firstCheckin }: { checkins: Checkin[]; firstCheckin: Checkin | null }) {
-    const latest = checkins.find((checkin) => MEASURES.some((measure) => checkin[measure.key] != null));
+/** A check-in or an assessment: anything dated with body measurements. */
+type MeasureRow = { id: string; date: string } & Partial<Record<MeasureKey, number | null>>;
+
+export const hasMeasures = (row: MeasureRow) => MEASURES.some((measure) => row[measure.key] != null);
+
+/** Latest measurements with the change since the first record (newest first; `firstRecord` may be older than the list). */
+export function MeasurementsSummary({ records, firstRecord }: { records: MeasureRow[]; firstRecord?: MeasureRow | null }) {
+    const latest = records.find(hasMeasures);
     if (!latest) return null;
-    const baseline = [...checkins].reverse().find((checkin) => MEASURES.some((measure) => checkin[measure.key] != null));
-    const reference = firstCheckin && MEASURES.some((measure) => firstCheckin[measure.key] != null) ? firstCheckin : baseline;
+    const baseline = [...records].reverse().find(hasMeasures);
+    const reference = firstRecord && hasMeasures(firstRecord) && new Date(firstRecord.date) < new Date(baseline?.date ?? latest.date) ? firstRecord : baseline;
     const items = MEASURES.filter((measure) => latest[measure.key] != null);
 
     return (
@@ -139,6 +144,97 @@ export function CheckinsTable({ checkins }: { checkins: Checkin[] }) {
                                     ) : (
                                         '—'
                                     )}
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+/** Assessments the trainer recorded, newest first, with the change against the previous one. */
+export function AssessmentsTable({
+    assessments,
+    onEdit,
+    onDelete,
+}: {
+    assessments: Assessment[];
+    onEdit: (assessment: Assessment) => void;
+    onDelete: (assessment: Assessment) => void;
+}) {
+    const columns = MEASURES.filter((measure) => assessments.some((assessment) => assessment[measure.key] != null));
+    const iconButtonClass =
+        'rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
+
+    return (
+        <div className="overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[560px] text-sm">
+                <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
+                    <tr>
+                        <th scope="col" className="px-3 py-2 font-semibold">Data</th>
+                        <th scope="col" className="px-3 py-2 font-semibold">Peso</th>
+                        {columns.map((measure) => (
+                            <th key={measure.key} scope="col" className="px-3 py-2 font-semibold" title={measure.label}>
+                                {measure.short}
+                            </th>
+                        ))}
+                        <th scope="col" className="px-3 py-2 font-semibold">Fotos</th>
+                        <th scope="col" className="px-3 py-2 font-semibold">Observações</th>
+                        <th scope="col" className="w-20 px-3 py-2">
+                            <span className="sr-only">Ações</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                    {assessments.map((assessment, index) => {
+                        const previous = assessments[index + 1];
+                        const photos = assessment.photos?.length ?? 0;
+                        return (
+                            <tr key={assessment.id} className="align-top hover:bg-muted/30">
+                                <td className="whitespace-nowrap px-3 py-2 font-medium text-foreground">{formatDate(assessment.date)}</td>
+                                <td className="whitespace-nowrap px-3 py-2 font-semibold text-foreground">
+                                    {formatNumber(assessment.weight, ' kg')}
+                                    <Delta current={assessment.weight} previous={previous?.weight} />
+                                </td>
+                                {columns.map((measure) => (
+                                    <td key={measure.key} className="whitespace-nowrap px-3 py-2 text-foreground">
+                                        {formatNumber(assessment[measure.key])}
+                                        <Delta current={assessment[measure.key]} previous={previous?.[measure.key]} />
+                                    </td>
+                                ))}
+                                <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                                    {photos > 0 ? (
+                                        <span className="inline-flex items-center gap-1">
+                                            <Camera className="h-3.5 w-3.5" />
+                                            {photos}
+                                        </span>
+                                    ) : (
+                                        '—'
+                                    )}
+                                </td>
+                                <td className="max-w-[240px] px-3 py-2 text-xs text-muted-foreground">
+                                    {assessment.notes ? (
+                                        <span className="line-clamp-2" title={assessment.notes}>
+                                            {assessment.notes}
+                                        </span>
+                                    ) : (
+                                        '—'
+                                    )}
+                                </td>
+                                <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                                    <button type="button" onClick={() => onEdit(assessment)} className={iconButtonClass} aria-label={`Editar avaliação de ${formatDate(assessment.date)}`}>
+                                        <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onDelete(assessment)}
+                                        className={cn(iconButtonClass, 'hover:text-red-600 dark:hover:text-red-400')}
+                                        aria-label={`Excluir avaliação de ${formatDate(assessment.date)}`}
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
                                 </td>
                             </tr>
                         );

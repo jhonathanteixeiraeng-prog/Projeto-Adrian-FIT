@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { assessmentInclude } from '@/lib/assessments-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ const ACTIVITY_LEVELS = ['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIV
 
 const PROFILE_CHECKINS = 60;
 const PROFILE_PHOTOS = 60;
+const PROFILE_ASSESSMENTS = 60;
 const REPORT_LIMIT = 500;
 
 const userSelect = {
@@ -181,6 +183,12 @@ export async function GET(
                         },
                         checkins: { orderBy: { date: 'desc' }, take: PROFILE_CHECKINS },
                         progressPhotos: { orderBy: { createdAt: 'desc' }, take: PROFILE_PHOTOS },
+                        // Recorded by the trainer (weight, measures, photos); see /api/students/[id]/assessments.
+                        assessments: {
+                            orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+                            take: PROFILE_ASSESSMENTS,
+                            include: assessmentInclude,
+                        },
                         workoutSessions: {
                             orderBy: { completedAt: 'desc' },
                             take: 10,
@@ -195,7 +203,7 @@ export async function GET(
                                 totalSets: true,
                             },
                         },
-                        _count: { select: { checkins: true, progressPhotos: true, workoutSessions: true } },
+                        _count: { select: { checkins: true, progressPhotos: true, workoutSessions: true, assessments: true } },
                     },
                 }),
                 prisma.workoutPlan.findFirst({
@@ -249,6 +257,7 @@ export async function GET(
                         },
                         checkins: { orderBy: { date: 'desc' }, take: REPORT_LIMIT },
                         progressPhotos: { orderBy: { createdAt: 'desc' }, take: REPORT_LIMIT },
+                        assessments: { orderBy: [{ date: 'desc' }, { createdAt: 'desc' }], take: REPORT_LIMIT },
                     },
                 }),
                 firstCheckinQuery,

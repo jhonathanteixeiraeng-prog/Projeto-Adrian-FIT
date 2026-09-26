@@ -47,6 +47,29 @@ export interface ProgressPhoto {
     notes?: string | null;
     createdAt: string;
     checkinId?: string | null;
+    assessmentId?: string | null;
+}
+
+/** Assessment the trainer recorded (GET /api/students/[id]/assessments). */
+export interface Assessment {
+    id: string;
+    date: string;
+    weight: number | null;
+    bodyFatPercentage: number | null;
+    chest: number | null;
+    waist: number | null;
+    abdomen: number | null;
+    hips: number | null;
+    armRight: number | null;
+    armLeft: number | null;
+    thighRight: number | null;
+    thighLeft: number | null;
+    calfRight: number | null;
+    calfLeft: number | null;
+    notes: string | null;
+    createdAt: string;
+    /** Only in the profile view and the assessments route. */
+    photos?: Array<{ id: string; url: string; angle: string }>;
 }
 
 /** Row of GET /api/students. */
@@ -210,8 +233,9 @@ export interface StudentProfile extends StudentContractFields {
     checkins: Checkin[];
     firstCheckin: Checkin | null;
     progressPhotos: ProgressPhoto[];
+    assessments: Assessment[];
     workoutSessions: WorkoutSessionSummary[];
-    _count?: { checkins: number; progressPhotos: number; workoutSessions: number };
+    _count?: { checkins: number; progressPhotos: number; workoutSessions: number; assessments?: number };
 }
 
 /** GET /api/students/[id]?view=report */
@@ -232,6 +256,7 @@ export interface StudentReport {
     } | null;
     checkins: Checkin[];
     progressPhotos: ProgressPhoto[];
+    assessments?: Assessment[];
     firstCheckin: Checkin | null;
 }
 

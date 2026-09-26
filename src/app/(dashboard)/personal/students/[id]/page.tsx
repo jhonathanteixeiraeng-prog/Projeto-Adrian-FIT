@@ -17,6 +17,7 @@ import {
     Library,
     Loader2,
     Pencil,
+    Plus,
     RefreshCw,
     Ruler,
     Scale,
@@ -37,6 +38,7 @@ import {
     calendarDate,
     crmHref,
     errorMessage,
+    firstName,
     formatDate,
     formatDelta,
     formatNumber,
@@ -48,6 +50,7 @@ import {
     readNavOrder,
     relativeDaysLabel,
     removeStudentFromCaches,
+    reportKey,
     requestJson,
     saveNavOrder,
     toneText,
@@ -57,16 +60,18 @@ import { AssignDietTemplateDialog, AssignWorkoutTemplateDialog, CloneWorkoutDial
 import { DietPlanView, EmptyPlan, WorkoutPlanView } from '@/components/personal/students/plan-views';
 import { AnamnesisDialog, PersonalInfoDialog, ResetPasswordDialog } from '@/components/personal/students/profile-dialogs';
 import { AnamnesisCard, ContactCard, ContractCard, QuickActionsCard, StatusCard } from '@/components/personal/students/profile-sidebar';
-import { CheckinsTable, MeasurementsSummary, PhotoGallery } from '@/components/personal/students/progress-section';
+import { AssessmentDialog } from '@/components/personal/students/assessment-dialog';
+import { AssessmentsTable, CheckinsTable, MeasurementsSummary, PhotoGallery, hasMeasures } from '@/components/personal/students/progress-section';
 import { ReminderDialog } from '@/components/personal/students/reminder-dialog';
 import { StudentSwitcher } from '@/components/personal/students/student-switcher';
-import type { StudentListItem, StudentProfile } from '@/components/personal/students/types';
+import type { Assessment, StudentListItem, StudentProfile } from '@/components/personal/students/types';
 import { BillingBadge, InfoRow, Kbd, SectionCard, StudentStatusBadge, primarySmallButtonClass, smallButtonClass } from '@/components/personal/students/ui';
 import { useInstantUrlValue } from '@/components/personal/students/use-instant-url-value';
 import { useStickySupported } from '@/components/personal/students/use-sticky-supported';
-import { useApi } from '@/hooks/use-api';
+import { invalidateApi, useApi } from '@/hooks/use-api';
 import { useHotkey } from '@/hooks/use-hotkey';
 import { useUrlState } from '@/hooks/use-url-state';
+import { evolutionRecords, weightRange } from '@/lib/evolution';
 import { STUDENTS_USE_APP } from '@/lib/features';
 import { CHECKIN_EXPECTED_DAYS, INACTIVITY_ALERT_DAYS, daysSince, getBillingInfo } from '@/lib/student-status';
 import { cn } from '@/lib/utils';
@@ -158,6 +163,7 @@ export default function StudentProfilePage() {
     const stickyAside = useStickySupported(asideRef);
     const [savingTemplate, setSavingTemplate] = useState<'workout' | 'diet' | null>(null);
     const [pdfTarget, setPdfTarget] = useState<PdfExportTarget | null>(null);
+    const [assessmentDialog, setAssessmentDialog] = useState<{ assessment: Assessment | null } | null>(null);
 
     const [backHref, setBackHref] = useState('/personal/students');
     useEffect(() => setBackHref(crmHref()), []);
@@ -232,15 +238,22 @@ export default function StudentProfilePage() {
         if (!student) return null;
         const lastSession = student.workoutSessions[0] ?? null;
         const lastCheckin = student.checkins[0] ?? null;
-        const weightNow = lastCheckin?.weight ?? student.weight ?? null;
-        const firstWeight = student.firstCheckin?.weight ?? null;
+        // Weight and measures come from the trainer's assessments and the app check-ins together.
+        const records = evolutionRecords(student.checkins, student.assessments ?? []);
+        const weights = weightRange(records, student.firstCheckin);
+        const weightNow = weights.latest?.weight ?? student.weight ?? null;
         return {
             lastSession,
             lastWorkoutDays: daysSince(lastSession?.completedAt),
             lastCheckin,
             lastCheckinDays: daysSince(lastCheckin?.date),
+            records,
+            weights,
             weightNow,
-            weightDelta: student.firstCheckin && lastCheckin && student.firstCheckin.id !== lastCheckin.id ? formatDelta(weightNow, firstWeight, ' kg') : null,
+            weightDelta:
+                weights.latest && weights.earliest && weights.earliest.id !== weights.latest.id
+                    ? formatDelta(weightNow, weights.earliest.weight, ' kg')
+                    : null,
             activeWorkoutCount: student.workoutPlans.filter((plan) => plan.active).length,
             activeDietCount: student.dietPlans.filter((plan) => plan.active).length,
             billing: getBillingInfo(student),
@@ -248,6 +261,30 @@ export default function StudentProfilePage() {
     }, [student]);
 
     // ------------------------------------------------------------ actions
+    // Assessments change the profile (weight, measures, photos) and the evolution report.
+    const refreshEvolution = () => {
+        void mutate();
+        invalidateApi(reportKey(id));
+    };
+
+    const deleteAssessment = async (assessment: Assessment) => {
+        const photos = assessment.photos?.length ?? 0;
+        const ok = await confirm({
+            title: `Excluir a avaliação de ${formatDate(assessment.date)}?`,
+            description: photos > 0 ? `As ${photos} fotos dela também serão removidas. Esta ação não pode ser desfeita.` : 'Esta ação não pode ser desfeita.',
+            confirmText: 'Excluir',
+            variant: 'danger',
+        });
+        if (!ok) return;
+        try {
+            await requestJson(`/api/students/${id}/assessments/${assessment.id}`, { method: 'DELETE' });
+            toast.success('Avaliação excluída');
+            refreshEvolution();
+        } catch (deleteError) {
+            toast.error('Não foi possível excluir a avaliação', errorMessage(deleteError));
+        }
+    };
+
     const saveWorkoutAsTemplate = async () => {
         const plan = student?.activeWorkoutPlan;
         if (!plan) return;
@@ -340,7 +377,7 @@ export default function StudentProfilePage() {
         );
     }
 
-    const { lastSession, lastWorkoutDays, lastCheckin, lastCheckinDays, weightNow, weightDelta, billing } = derived;
+    const { lastSession, lastWorkoutDays, lastCheckin, lastCheckinDays, records, weights, weightNow, weightDelta, billing } = derived;
     const workout = student.activeWorkoutPlan;
     const diet = student.activeDietPlan;
     const workoutEnd = planEndInfo(workout?.endDate);
@@ -504,10 +541,10 @@ export default function StudentProfilePage() {
                             icon={<Scale className="h-3.5 w-3.5 text-muted-foreground" />}
                             value={formatNumber(weightNow, ' kg')}
                             detail={
-                                weightDelta && student.firstCheckin
-                                    ? `${weightDelta} desde ${formatDate(student.firstCheckin.date)}`
-                                    : lastCheckin
-                                        ? 'Primeiro registro de peso'
+                                weightDelta && weights.earliest
+                                    ? `${weightDelta} desde ${formatDate(weights.earliest.date)}`
+                                    : weights.latest
+                                        ? `${weights.latest.source === 'ASSESSMENT' ? 'Avaliação' : 'Check-in'} de ${formatDate(weights.latest.date)}`
                                         : 'Peso do cadastro'
                             }
                         />
@@ -525,7 +562,11 @@ export default function StudentProfilePage() {
                         {TABS.map((item) => {
                             const Icon = item.icon;
                             const badge =
-                                item.id === 'progress' && counts ? counts.checkins : item.id === 'workout' && derived.activeWorkoutCount > 1 ? derived.activeWorkoutCount : null;
+                                item.id === 'progress' && counts
+                                    ? counts.checkins + (counts.assessments ?? 0)
+                                    : item.id === 'workout' && derived.activeWorkoutCount > 1
+                                      ? derived.activeWorkoutCount
+                                      : null;
                             return (
                                 <button
                                     key={item.id}
@@ -757,43 +798,64 @@ export default function StudentProfilePage() {
 
                     {tab === 'progress' && (
                         <div className="space-y-4">
-                            {student.checkins.some((checkin) => checkin.waist != null || checkin.chest != null || checkin.bodyFatPercentage != null || checkin.hips != null || checkin.armRight != null || checkin.thighRight != null || checkin.abdomen != null) && (
-                                <SectionCard title="Medidas corporais" icon={<Ruler className="h-4 w-4 text-muted-foreground" />}>
-                                    <MeasurementsSummary checkins={student.checkins} firstCheckin={student.firstCheckin} />
-                                </SectionCard>
-                            )}
                             <SectionCard
-                                title="Check-ins"
-                                icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
+                                title="Avaliações"
+                                icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
                                 action={
-                                    counts && counts.checkins > student.checkins.length ? (
-                                        <Link href={`/personal/students/${student.id}/report`} className="text-xs font-semibold text-primary hover:underline">
-                                            Últimos {student.checkins.length} de {counts.checkins} · ver relatório completo
-                                        </Link>
-                                    ) : undefined
+                                    <button type="button" onClick={() => setAssessmentDialog({ assessment: null })} className={primarySmallButtonClass}>
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Nova avaliação
+                                    </button>
                                 }
                                 bodyClassName="p-0 sm:p-4"
                             >
-                                {student.checkins.length === 0 ? (
+                                {(student.assessments ?? []).length === 0 ? (
                                     <div className="p-4 text-center sm:p-2">
-                                        <p className="font-semibold text-foreground">Sem check-in ainda</p>
-                                        {STUDENTS_USE_APP ? (
-                                            <>
-                                                <p className="mt-1 text-sm text-muted-foreground">Envie um lembrete para o aluno registrar peso, medidas e fotos.</p>
-                                                <button type="button" onClick={() => setDialog('reminder')} className={cn(smallButtonClass, 'mt-3')}>
-                                                    Enviar lembrete de check-in
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <p className="mt-1 text-sm text-muted-foreground">
-                                                Peso, medidas e fotos chegam pelo check-in do app, que os alunos não estão usando nesta fase.
-                                            </p>
-                                        )}
+                                        <p className="font-semibold text-foreground">Nenhuma avaliação registrada</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            Registre peso, % de gordura, medidas e fotos de {firstName(student.user.name)} para acompanhar a evolução e gerar o relatório.
+                                        </p>
                                     </div>
                                 ) : (
-                                    <CheckinsTable checkins={student.checkins} />
+                                    <AssessmentsTable
+                                        assessments={student.assessments}
+                                        onEdit={(assessment) => setAssessmentDialog({ assessment })}
+                                        onDelete={(assessment) => void deleteAssessment(assessment)}
+                                    />
                                 )}
                             </SectionCard>
+                            {records.some(hasMeasures) && (
+                                <SectionCard title="Medidas corporais" icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}>
+                                    <MeasurementsSummary records={records} firstRecord={student.firstCheckin} />
+                                </SectionCard>
+                            )}
+                            {/* Check-ins are the student's self-report in the app. */}
+                            {(STUDENTS_USE_APP || student.checkins.length > 0) && (
+                                <SectionCard
+                                    title="Check-ins do app"
+                                    icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
+                                    action={
+                                        counts && counts.checkins > student.checkins.length ? (
+                                            <Link href={`/personal/students/${student.id}/report`} className="text-xs font-semibold text-primary hover:underline">
+                                                Últimos {student.checkins.length} de {counts.checkins} · ver relatório completo
+                                            </Link>
+                                        ) : undefined
+                                    }
+                                    bodyClassName="p-0 sm:p-4"
+                                >
+                                    {student.checkins.length === 0 ? (
+                                        <div className="p-4 text-center sm:p-2">
+                                            <p className="font-semibold text-foreground">Sem check-in ainda</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">Envie um lembrete para o aluno registrar peso, medidas e fotos.</p>
+                                            <button type="button" onClick={() => setDialog('reminder')} className={cn(smallButtonClass, 'mt-3')}>
+                                                Enviar lembrete de check-in
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <CheckinsTable checkins={student.checkins} />
+                                    )}
+                                </SectionCard>
+                            )}
                             <SectionCard title="Fotos de evolução" icon={<Camera className="h-4 w-4 text-muted-foreground" />}>
                                 <PhotoGallery photos={student.progressPhotos} total={counts?.progressPhotos ?? student.progressPhotos.length} />
                             </SectionCard>
@@ -861,6 +923,16 @@ export default function StudentProfilePage() {
                 onOpenChange={(open) => {
                     if (!open) setPdfTarget(null);
                 }}
+            />
+            <AssessmentDialog
+                open={assessmentDialog !== null}
+                onOpenChange={(open) => {
+                    if (!open) setAssessmentDialog(null);
+                }}
+                studentId={student.id}
+                studentName={student.user.name}
+                assessment={assessmentDialog?.assessment ?? null}
+                onSaved={refreshEvolution}
             />
         </div>
     );
