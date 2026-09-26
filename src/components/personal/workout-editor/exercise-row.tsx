@@ -44,7 +44,7 @@ export const ROW_GRID_MD =
     'md:grid-cols-[16px_22px_minmax(120px,2fr)_40px_minmax(56px,0.9fr)_minmax(56px,1fr)_40px_minmax(48px,0.6fr)_minmax(64px,0.85fr)_32px]';
 
 const inputBase =
-    'h-8 w-full min-w-0 rounded-md border bg-muted/40 px-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors hover:border-border focus:border-[#F88022] focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#F88022]/20';
+    'h-8 w-full min-w-0 rounded-md border bg-muted/40 px-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors hover:border-border focus:border-primary focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/20';
 
 /** Optional fields: the example only shows while typing, so empty cells don't read as prescribed values. */
 const focusPlaceholder = 'placeholder:text-transparent focus:placeholder:text-muted-foreground/70';
@@ -138,7 +138,7 @@ function ExerciseRowComponent({
             className={cn(
                 'group relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_32px] items-center gap-x-2 gap-y-1.5 rounded-lg px-1.5 py-1.5 transition-colors md:gap-x-1.5 md:gap-y-0 md:py-0.5',
                 ROW_GRID_MD,
-                flash ? 'bg-[#F88022]/10' : 'hover:bg-muted/40',
+                flash ? 'bg-primary/10' : 'hover:bg-muted/40',
                 hasIssues && 'bg-red-500/5'
             )}
         >
@@ -146,7 +146,7 @@ function ExerciseRowComponent({
                 <span
                     aria-hidden
                     className={cn(
-                        'pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-[#F88022]',
+                        'pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-primary',
                         dropIndicator === 'before' ? '-top-px' : '-bottom-px'
                     )}
                 />

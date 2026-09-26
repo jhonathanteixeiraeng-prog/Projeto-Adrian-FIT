@@ -36,7 +36,7 @@ import {
 const byName = (a: LibraryExercise, b: LibraryExercise) => a.name.localeCompare(b.name, 'pt-BR');
 
 const selectClass =
-    'h-9 rounded-lg border bg-card px-2.5 text-sm focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'h-9 rounded-lg border bg-card px-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25';
 
 function Thumbnail({ exercise, onPlay, className }: { exercise: LibraryExercise; onPlay: () => void; className?: string }) {
     const [failed, setFailed] = useState(false);
@@ -74,7 +74,7 @@ function Thumbnail({ exercise, onPlay, className }: { exercise: LibraryExercise;
 
 function OwnerBadge({ exercise }: { exercise: LibraryExercise }) {
     return exercise.personalId ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#F88022]/10 px-2 py-0.5 text-xs font-medium text-[#F88022]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
             <UserRound className="h-3 w-3" /> Meu
         </span>
     ) : (
@@ -274,7 +274,7 @@ export default function ExercisesPage() {
         <div className="space-y-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Biblioteca de exercícios</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight text-foreground">Biblioteca de exercícios</h1>
                     <p className="text-sm text-muted-foreground">
                         {isLoading
                             ? 'Carregando…'
@@ -284,7 +284,7 @@ export default function ExercisesPage() {
                 <button
                     type="button"
                     onClick={openCreate}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#F88022]/90"
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
                 >
                     <Plus className="h-4 w-4" /> Novo exercício
                 </button>
@@ -300,7 +300,7 @@ export default function ExercisesPage() {
                         onKeyDown={onSearchKeyDown}
                         placeholder="Buscar por nome, músculo ou equipamento"
                         aria-label="Buscar exercício"
-                        className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25"
+                        className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                     />
                     {query ? (
                         <button
@@ -321,7 +321,7 @@ export default function ExercisesPage() {
                     aria-label="Grupo muscular"
                     value={filters.muscle}
                     onChange={(event) => setFilters({ muscle: event.target.value })}
-                    className={cn(selectClass, filters.muscle ? 'border-[#F88022] text-foreground' : 'border-border text-muted-foreground')}
+                    className={cn(selectClass, filters.muscle ? 'border-primary text-foreground' : 'border-border text-muted-foreground')}
                 >
                     <option value="">Todos os músculos</option>
                     {muscleGroups.map((group) => (
@@ -334,7 +334,7 @@ export default function ExercisesPage() {
                     aria-label="Equipamento"
                     value={filters.equipment}
                     onChange={(event) => setFilters({ equipment: event.target.value })}
-                    className={cn(selectClass, 'max-w-[200px]', filters.equipment ? 'border-[#F88022] text-foreground' : 'border-border text-muted-foreground')}
+                    className={cn(selectClass, 'max-w-[200px]', filters.equipment ? 'border-primary text-foreground' : 'border-border text-muted-foreground')}
                 >
                     <option value="">Qualquer equipamento</option>
                     {equipments.map((item) => (
@@ -347,7 +347,7 @@ export default function ExercisesPage() {
                     aria-label="Dificuldade"
                     value={filters.difficulty}
                     onChange={(event) => setFilters({ difficulty: event.target.value })}
-                    className={cn(selectClass, filters.difficulty ? 'border-[#F88022] text-foreground' : 'border-border text-muted-foreground')}
+                    className={cn(selectClass, filters.difficulty ? 'border-primary text-foreground' : 'border-border text-muted-foreground')}
                 >
                     <option value="">Todas as dificuldades</option>
                     {DIFFICULTIES.map((difficulty) => (
@@ -412,7 +412,7 @@ export default function ExercisesPage() {
                     <span>
                         {results.length} de {exercises.length} exercícios
                     </span>
-                    <button type="button" onClick={clearFilters} className="font-semibold text-[#F88022] hover:underline">
+                    <button type="button" onClick={clearFilters} className="font-semibold text-primary hover:underline">
                         Limpar filtros
                     </button>
                 </div>
@@ -428,7 +428,7 @@ export default function ExercisesPage() {
                 <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card px-6 py-12 text-center">
                     <AlertCircle className="h-6 w-6 text-red-500" />
                     <p className="text-sm text-muted-foreground">Não foi possível carregar os exercícios. {error.message}</p>
-                    <button type="button" onClick={() => void mutate()} className="text-sm font-semibold text-[#F88022] hover:underline">
+                    <button type="button" onClick={() => void mutate()} className="text-sm font-semibold text-primary hover:underline">
                         Tentar novamente
                     </button>
                 </div>
@@ -440,7 +440,7 @@ export default function ExercisesPage() {
                     <button
                         type="button"
                         onClick={openCreate}
-                        className="inline-flex items-center gap-2 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white"
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground"
                     >
                         <Plus className="h-4 w-4" /> Novo exercício
                     </button>
@@ -456,7 +456,7 @@ export default function ExercisesPage() {
                         <button
                             type="button"
                             onClick={openCreate}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground"
                         >
                             <Plus className="h-4 w-4" /> Criar exercício
                         </button>
@@ -464,7 +464,7 @@ export default function ExercisesPage() {
                 </div>
             ) : view === 'table' ? (
                 <div ref={listRef} className="overflow-hidden rounded-2xl border border-border bg-card">
-                    <div className="hidden grid-cols-[64px_minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.3fr)_120px_96px_72px] items-center gap-3 border-b border-border bg-muted/40 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
+                    <div className="hidden grid-cols-[64px_minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.3fr)_120px_96px_72px] items-center gap-3 border-b border-border bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground md:grid">
                         <span />
                         <span>Exercício</span>
                         <span>Grupo</span>
@@ -528,7 +528,7 @@ export default function ExercisesPage() {
                             data-index={index}
                             className={cn(
                                 'overflow-hidden rounded-2xl border bg-card transition-colors',
-                                index === highlight ? 'border-[#F88022]/60' : 'border-border hover:border-[#F88022]/40'
+                                index === highlight ? 'border-primary/60' : 'border-border hover:border-primary/40'
                             )}
                         >
                             <Thumbnail exercise={exercise} onPlay={() => setPlaying(exercise)} className="aspect-video w-full rounded-none" />
@@ -537,7 +537,7 @@ export default function ExercisesPage() {
                                     <button
                                         type="button"
                                         onClick={() => openEdit(exercise)}
-                                        className="min-w-0 text-left text-sm font-semibold text-foreground hover:text-[#F88022]"
+                                        className="min-w-0 text-left text-sm font-semibold text-foreground hover:text-primary"
                                     >
                                         {exercise.name}
                                     </button>

@@ -79,6 +79,62 @@
     --ring: #F88022;
   }
 
+  /*
+    Personal area (data-area="personal" on <html>, set before the first paint): a work tool used for hours.
+    Graphite instead of pure black, off-white text (~15:1 instead of 21:1), visible layers (page < card <
+    popover) and orange only for actions and state. Buttons put dark text on the brand orange (7:1); the
+    light theme uses a deeper orange that reads as text on white (4.5:1). --brand keeps the pure brand
+    orange for the logo. The student area keeps the tokens above.
+  */
+  :root {
+    --brand: #F88022;
+    --brand-foreground: #1B1206;
+  }
+
+  html[data-area="personal"] {
+    --background: #F4F5F7;
+    --foreground: #1A1F27;
+    --card: #FFFFFF;
+    --card-foreground: #1A1F27;
+    --popover: #FFFFFF;
+    --popover-foreground: #1A1F27;
+    --primary: #C2570C;
+    --primary-foreground: #FFFFFF;
+    --secondary: #1A1F27;
+    --secondary-foreground: #FFFFFF;
+    --accent: #C2570C;
+    --accent-foreground: #FFFFFF;
+    --muted: #EEF0F3;
+    --muted-foreground: #5E6673;
+    --destructive: #DC2626;
+    --destructive-foreground: #FFFFFF;
+    --border: #E2E5EA;
+    --input: #FFFFFF;
+    --ring: #C2570C;
+  }
+
+  html.dark[data-area="personal"] {
+    --background: #131518;
+    --foreground: #E6E8EB;
+    --card: #1A1D21;
+    --card-foreground: #E6E8EB;
+    --popover: #1F2227;
+    --popover-foreground: #E6E8EB;
+    --primary: #F88022;
+    --primary-foreground: #1B1206;
+    --secondary: #E6E8EB;
+    --secondary-foreground: #131518;
+    --accent: #F88022;
+    --accent-foreground: #1B1206;
+    --muted: #24282E;
+    --muted-foreground: #9AA0A8;
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
+    --border: #2B2F36;
+    --input: #15181B;
+    --ring: #F88022;
+  }
+
   * {
     box-sizing: border-box;
     padding: 0;
@@ -117,6 +173,19 @@
     font-family: 'Montserrat', 'Poppins', sans-serif;
     font-weight: 700;
     letter-spacing: -0.02em;
+  }
+
+  /* Personal area: one typeface for the whole tool (Montserrat stays in the logo, via font-brand).
+     :where keeps this at element specificity, so weight/font utilities on a heading still win. */
+  :where(html[data-area="personal"]) h1,
+  :where(html[data-area="personal"]) h2,
+  :where(html[data-area="personal"]) h3,
+  :where(html[data-area="personal"]) h4,
+  :where(html[data-area="personal"]) h5,
+  :where(html[data-area="personal"]) h6 {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.011em;
   }
 
   /* Better touch targets for interactive elements (touch screens only; desktop keeps dense controls) */
@@ -161,6 +230,27 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--foreground);
   }
+
+  /* Personal area: quieter scrollbars (hours of scrolling lists and editors). */
+  html[data-area="personal"] ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  html[data-area="personal"] ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+  }
+
+  html[data-area="personal"] ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+  }
+}
+
+/* Personal area: initials avatars are neutral (the shared Avatar paints a secondary→accent gradient). */
+html[data-area="personal"] .avatar-fallback {
+  background-image: none;
+  background-color: var(--muted);
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 /* Utility classes */

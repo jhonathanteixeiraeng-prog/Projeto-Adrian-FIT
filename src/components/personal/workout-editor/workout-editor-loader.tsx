@@ -313,7 +313,7 @@ export function WorkoutEditorLoader({ source }: { source: EditorSource }) {
             <LoaderMeta meta={meta} />
             <div className="mx-auto mt-10 max-w-md rounded-2xl border border-border bg-card p-6 text-center">
                 <AlertCircle className="mx-auto h-8 w-8 text-red-500" />
-                <h1 className="mt-3 text-base font-bold text-foreground">Não foi possível abrir a ficha</h1>
+                <h1 className="mt-3 text-base font-semibold text-foreground">Não foi possível abrir a ficha</h1>
                 <p className="mt-1 text-sm text-muted-foreground">{state.message}</p>
                 <div className="mt-5 flex justify-center gap-2">
                     <Link
@@ -325,7 +325,7 @@ export function WorkoutEditorLoader({ source }: { source: EditorSource }) {
                     <button
                         type="button"
                         onClick={() => setAttempt((current) => current + 1)}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                     >
                         <RotateCw className="h-4 w-4" /> Tentar novamente
                     </button>

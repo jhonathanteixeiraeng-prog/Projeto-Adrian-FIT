@@ -93,7 +93,7 @@ function KpiCard({
 }) {
     return (
         <div className="rounded-2xl border border-border bg-card p-3.5">
-            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 {icon}
                 {label}
             </p>
@@ -320,7 +320,7 @@ export default function StudentProfilePage() {
                 </Link>
                 <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-10 text-center" role="alert">
                     <AlertTriangle className="mx-auto h-8 w-8 text-red-500" />
-                    <h1 className="mt-3 text-lg font-bold text-foreground">Não foi possível abrir a ficha</h1>
+                    <h1 className="mt-3 text-lg font-semibold text-foreground">Não foi possível abrir a ficha</h1>
                     <p className="mt-1 text-sm text-muted-foreground">{error?.message ?? 'Aluno não encontrado.'}</p>
                     <div className="mt-4 flex justify-center gap-2">
                         <button type="button" onClick={() => mutate()} className={smallButtonClass}>
@@ -359,7 +359,7 @@ export default function StudentProfilePage() {
                 Atribuir modelo
             </button>
             <button type="button" onClick={() => setDialog('cloneWorkout')} className={smallButtonClass}>
-                <Sparkles className="h-3.5 w-3.5 text-[#F88022]" />
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
                 Clonar de aluno
             </button>
         </>
@@ -421,7 +421,7 @@ export default function StudentProfilePage() {
                 <Avatar name={student.user.name} src={student.user.avatar || undefined} size="xl" />
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="truncate text-2xl font-bold text-foreground">{student.user.name}</h1>
+                        <h1 className="truncate text-2xl font-semibold text-foreground">{student.user.name}</h1>
                         <StudentStatusBadge status={student.status} />
                         <BillingBadge billing={billing} />
                         {isValidating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Atualizando" />}
@@ -443,7 +443,7 @@ export default function StudentProfilePage() {
                     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                         <KpiCard
                             label="Último treino"
-                            icon={<Dumbbell className="h-3.5 w-3.5 text-[#F88022]" />}
+                            icon={<Dumbbell className="h-3.5 w-3.5 text-muted-foreground" />}
                             value={lastSession ? relativeDaysLabel(lastWorkoutDays) : 'Nunca treinou'}
                             detail={lastSession ? `${lastSession.dayName} · ${lastSession.percentage}% concluído` : 'Nenhum treino registrado no app'}
                             tone={
@@ -456,7 +456,7 @@ export default function StudentProfilePage() {
                         />
                         <KpiCard
                             label="Último check-in"
-                            icon={<Clock className="h-3.5 w-3.5 text-purple-500" />}
+                            icon={<Clock className="h-3.5 w-3.5 text-muted-foreground" />}
                             value={lastCheckin ? `${formatShortDate(lastCheckin.date)} · ${relativeDaysLabel(lastCheckinDays).toLowerCase()}` : 'Sem check-in ainda'}
                             detail={
                                 lastCheckin
@@ -467,7 +467,7 @@ export default function StudentProfilePage() {
                         />
                         <KpiCard
                             label="Peso atual"
-                            icon={<Scale className="h-3.5 w-3.5 text-blue-500" />}
+                            icon={<Scale className="h-3.5 w-3.5 text-muted-foreground" />}
                             value={formatNumber(weightNow, ' kg')}
                             detail={
                                 weightDelta && student.firstCheckin
@@ -479,7 +479,7 @@ export default function StudentProfilePage() {
                         />
                         <KpiCard
                             label="Treino ativo"
-                            icon={<History className="h-3.5 w-3.5 text-emerald-500" />}
+                            icon={<History className="h-3.5 w-3.5 text-muted-foreground" />}
                             value={workout ? workoutEnd?.label ?? 'Sem data de término' : 'Sem treino ativo'}
                             detail={workout ? workout.title : 'Prescreva um treino'}
                             tone={workout ? workoutEnd?.tone ?? 'muted' : 'danger'}
@@ -500,11 +500,11 @@ export default function StudentProfilePage() {
                                     aria-selected={tab === item.id}
                                     onClick={() => setTab(item.id)}
                                     className={cn(
-                                        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                                        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                                         tab === item.id ? 'bg-background font-semibold text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                                     )}
                                 >
-                                    <Icon className={cn('h-4 w-4', tab === item.id && 'text-[#F88022]')} />
+                                    <Icon className={cn('h-4 w-4', tab === item.id && 'text-primary')} />
                                     {item.label}
                                     {badge ? <span className="rounded-full bg-background/70 px-1.5 text-xs font-semibold text-muted-foreground">{badge}</span> : null}
                                 </button>
@@ -516,12 +516,12 @@ export default function StudentProfilePage() {
                         <div className="grid gap-4 xl:grid-cols-2">
                             <SectionCard
                                 title="Informações"
-                                icon={<User className="h-4 w-4 text-[#F88022]" />}
+                                icon={<User className="h-4 w-4 text-muted-foreground" />}
                                 action={
                                     <button
                                         type="button"
                                         onClick={() => setDialog('info')}
-                                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[#F88022] hover:bg-[#F88022]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-primary hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                                     >
                                         <Pencil className="h-3 w-3" />
                                         Editar
@@ -541,7 +541,7 @@ export default function StudentProfilePage() {
                                 </div>
                             </SectionCard>
 
-                            <SectionCard title="Atividade recente" icon={<History className="h-4 w-4 text-emerald-500" />}>
+                            <SectionCard title="Atividade recente" icon={<History className="h-4 w-4 text-muted-foreground" />}>
                                 {student.workoutSessions.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">Nenhum treino registrado no app ainda.</p>
                                 ) : (
@@ -570,9 +570,9 @@ export default function StudentProfilePage() {
 
                             <SectionCard
                                 title="Treino atual"
-                                icon={<Dumbbell className="h-4 w-4 text-[#F88022]" />}
+                                icon={<Dumbbell className="h-4 w-4 text-muted-foreground" />}
                                 action={
-                                    <button type="button" onClick={() => setTab('workout')} className="text-xs font-semibold text-[#F88022] hover:underline">
+                                    <button type="button" onClick={() => setTab('workout')} className="text-xs font-semibold text-primary hover:underline">
                                         Ver treino completo
                                     </button>
                                 }
@@ -601,9 +601,9 @@ export default function StudentProfilePage() {
 
                             <SectionCard
                                 title="Dieta atual"
-                                icon={<Utensils className="h-4 w-4 text-emerald-500" />}
+                                icon={<Utensils className="h-4 w-4 text-muted-foreground" />}
                                 action={
-                                    <button type="button" onClick={() => setTab('diet')} className="text-xs font-semibold text-[#F88022] hover:underline">
+                                    <button type="button" onClick={() => setTab('diet')} className="text-xs font-semibold text-primary hover:underline">
                                         Ver dieta completa
                                     </button>
                                 }
@@ -722,16 +722,16 @@ export default function StudentProfilePage() {
                     {tab === 'progress' && (
                         <div className="space-y-4">
                             {student.checkins.some((checkin) => checkin.waist != null || checkin.chest != null || checkin.bodyFatPercentage != null || checkin.hips != null || checkin.armRight != null || checkin.thighRight != null || checkin.abdomen != null) && (
-                                <SectionCard title="Medidas corporais" icon={<Ruler className="h-4 w-4 text-emerald-500" />}>
+                                <SectionCard title="Medidas corporais" icon={<Ruler className="h-4 w-4 text-muted-foreground" />}>
                                     <MeasurementsSummary checkins={student.checkins} firstCheckin={student.firstCheckin} />
                                 </SectionCard>
                             )}
                             <SectionCard
                                 title="Check-ins"
-                                icon={<TrendingUp className="h-4 w-4 text-[#F88022]" />}
+                                icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
                                 action={
                                     counts && counts.checkins > student.checkins.length ? (
-                                        <Link href={`/personal/students/${student.id}/report`} className="text-xs font-semibold text-[#F88022] hover:underline">
+                                        <Link href={`/personal/students/${student.id}/report`} className="text-xs font-semibold text-primary hover:underline">
                                             Últimos {student.checkins.length} de {counts.checkins} · ver relatório completo
                                         </Link>
                                     ) : undefined
@@ -750,7 +750,7 @@ export default function StudentProfilePage() {
                                     <CheckinsTable checkins={student.checkins} />
                                 )}
                             </SectionCard>
-                            <SectionCard title="Fotos de evolução" icon={<Camera className="h-4 w-4 text-indigo-500" />}>
+                            <SectionCard title="Fotos de evolução" icon={<Camera className="h-4 w-4 text-muted-foreground" />}>
                                 <PhotoGallery photos={student.progressPhotos} total={counts?.progressPhotos ?? student.progressPhotos.length} />
                             </SectionCard>
                         </div>

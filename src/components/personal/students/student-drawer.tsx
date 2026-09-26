@@ -61,7 +61,7 @@ interface StudentDrawerProps {
 const NAVIGATION_KEYS = new Set(['j', 'k', 'x', 'arrowup', 'arrowdown']);
 
 const quickLinkClass =
-    'flex flex-col items-center gap-1 rounded-xl border border-border bg-background px-1 py-2 text-xs font-semibold text-foreground transition-colors hover:border-[#F88022]/50 hover:bg-[#F88022]/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40';
+    'flex flex-col items-center gap-1 rounded-xl border border-border bg-background px-1 py-2 text-xs font-semibold text-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
 
 /**
  * Right-side sheet with the essentials of one student. Non-modal on purpose: the list stays usable,
@@ -209,7 +209,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                         )}
                                     </div>
                                     <DialogPrimitive.Close
-                                        className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                                        className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                                         aria-label="Fechar painel (Esc)"
                                         title="Fechar (Esc)"
                                     >
@@ -241,19 +241,19 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
 
                                 <nav className="grid grid-cols-6 gap-1.5" aria-label="Atalhos do aluno">
                                     <Link href={`/personal/students/${row.id}`} className={quickLinkClass}>
-                                        <User className="h-4 w-4 text-[#F88022]" />
+                                        <User className="h-4 w-4 text-muted-foreground" />
                                         Ficha
                                     </Link>
                                     <Link href={`/personal/students/${row.id}/workout`} className={quickLinkClass}>
-                                        <Dumbbell className="h-4 w-4 text-[#F88022]" />
+                                        <Dumbbell className="h-4 w-4 text-muted-foreground" />
                                         Treino
                                     </Link>
                                     <Link href={`/personal/students/${row.id}/diet`} className={quickLinkClass}>
-                                        <Utensils className="h-4 w-4 text-emerald-500" />
+                                        <Utensils className="h-4 w-4 text-muted-foreground" />
                                         Dieta
                                     </Link>
                                     <Link href={`/personal/chat/${row.id}`} className={quickLinkClass}>
-                                        <MessageCircle className="h-4 w-4 text-blue-500" />
+                                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
                                         Chat
                                     </Link>
                                     {whatsapp ? (
@@ -268,7 +268,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                         </span>
                                     )}
                                     <Link href={`/personal/students/${row.id}/report`} className={quickLinkClass}>
-                                        <FileText className="h-4 w-4 text-purple-500" />
+                                        <FileText className="h-4 w-4 text-muted-foreground" />
                                         Relatório
                                     </Link>
                                 </nav>
@@ -277,14 +277,14 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                             <div className="flex-1 space-y-5 overflow-y-auto p-4">
                                 <section aria-labelledby="drawer-contract">
                                     <div className="mb-2 flex items-center justify-between">
-                                        <h3 id="drawer-contract" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        <h3 id="drawer-contract" className="text-xs font-medium text-muted-foreground">
                                             Contrato
                                         </h3>
                                         {!editingContract && (
                                             <button
                                                 type="button"
                                                 onClick={() => setEditingContract(true)}
-                                                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[#F88022] hover:bg-[#F88022]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                                                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-primary hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                                             >
                                                 <Pencil className="h-3 w-3" />
                                                 Editar
@@ -373,7 +373,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                 </section>
 
                                 <section aria-labelledby="drawer-status">
-                                    <h3 id="drawer-status" className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    <h3 id="drawer-status" className="mb-2 text-xs font-medium text-muted-foreground">
                                         Status do aluno
                                     </h3>
                                     <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-labelledby="drawer-status">
@@ -386,7 +386,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                                 onClick={() => setStatus(option.value)}
                                                 disabled={busy !== null}
                                                 className={cn(
-                                                    'rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                                                    'rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                                                     row.status === option.value
                                                         ? 'bg-card text-foreground shadow-sm'
                                                         : 'text-muted-foreground hover:text-foreground'
@@ -399,7 +399,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                 </section>
 
                                 <section aria-labelledby="drawer-activity" className="space-y-2">
-                                    <h3 id="drawer-activity" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    <h3 id="drawer-activity" className="text-xs font-medium text-muted-foreground">
                                         Atividade
                                     </h3>
                                     <div className="divide-y divide-border rounded-xl border border-border bg-background/60 text-sm">
@@ -436,14 +436,14 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                                 <span className="min-w-0 text-right">
                                                     <Link
                                                         href={`/personal/students/${row.id}/workout`}
-                                                        className="block truncate font-semibold text-foreground hover:text-[#F88022]"
+                                                        className="block truncate font-semibold text-foreground hover:text-primary"
                                                     >
                                                         {row.workout.title}
                                                     </Link>
                                                     {workoutEnd && <span className={cn('block text-xs', toneText[workoutEnd.tone])}>{workoutEnd.label}</span>}
                                                 </span>
                                             ) : (
-                                                <Link href={`/personal/students/${row.id}/workout`} className="text-xs font-semibold text-[#F88022] hover:underline">
+                                                <Link href={`/personal/students/${row.id}/workout`} className="text-xs font-semibold text-primary hover:underline">
                                                     Sem treino · Prescrever
                                                 </Link>
                                             )}
@@ -454,7 +454,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                                 <span className="min-w-0 text-right">
                                                     <Link
                                                         href={`/personal/students/${row.id}/diet`}
-                                                        className="block truncate font-semibold text-foreground hover:text-[#F88022]"
+                                                        className="block truncate font-semibold text-foreground hover:text-primary"
                                                     >
                                                         {row.diet.title}
                                                     </Link>
@@ -464,7 +464,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                                                     </span>
                                                 </span>
                                             ) : (
-                                                <Link href={`/personal/students/${row.id}/diet`} className="text-xs font-semibold text-[#F88022] hover:underline">
+                                                <Link href={`/personal/students/${row.id}/diet`} className="text-xs font-semibold text-primary hover:underline">
                                                     Sem dieta · Criar
                                                 </Link>
                                             )}
@@ -476,7 +476,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
                             <footer className="space-y-2 border-t border-border p-3">
                                 <div className="flex items-center gap-1.5">
                                     <button type="button" onClick={() => onRemind(row)} className={smallButtonClass}>
-                                        <BellRing className="h-3.5 w-3.5 text-[#F88022]" />
+                                        <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
                                         Enviar lembrete
                                     </button>
                                     <Link href={`/personal/students/${row.id}`} className={cn(primarySmallButtonClass, 'flex-1')}>

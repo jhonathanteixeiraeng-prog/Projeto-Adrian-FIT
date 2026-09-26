@@ -48,7 +48,7 @@ export function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onO
             <DialogContent className="max-w-2xl rounded-2xl border-border bg-card">
                 <DialogHeader className="text-left">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                        <Keyboard className="h-5 w-5 text-[#F88022]" />
+                        <Keyboard className="h-5 w-5 text-primary" />
                         Atalhos de teclado
                     </DialogTitle>
                     <DialogDescription>Use o teclado para trabalhar mais rápido no painel.</DialogDescription>
@@ -56,14 +56,14 @@ export function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onO
 
                 <div className="grid gap-6 sm:grid-cols-2">
                     <section>
-                        <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">Geral</h3>
+                        <h3 className="mb-1 text-xs font-medium text-muted-foreground">Geral</h3>
                         <div className="divide-y divide-border/60">
                             <Row keys={[`${mod} K`]} label="Buscar aluno ou comando" />
                             <Row keys={['?']} label="Mostrar atalhos" />
                             <Row keys={['[']} label="Recolher / expandir menu" />
                             <Row keys={['Esc']} label="Fechar janela ou painel" />
                         </div>
-                        <h3 className="mb-1 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Ir para</h3>
+                        <h3 className="mb-1 mt-5 text-xs font-medium text-muted-foreground">Ir para</h3>
                         <div className="divide-y divide-border/60">
                             {GO_TO_SHORTCUTS.map((item) => (
                                 <Row key={item.key} keys={['G', item.key.toUpperCase()]} label={item.label} sequence />
@@ -71,7 +71,7 @@ export function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onO
                         </div>
                     </section>
                     <section>
-                        <h3 className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">Nas telas</h3>
+                        <h3 className="mb-1 text-xs font-medium text-muted-foreground">Nas telas</h3>
                         <div className="divide-y divide-border/60">
                             <Row keys={['/']} label="Focar a busca da lista" />
                             <Row keys={['↑', '↓']} label="Navegar na lista" />
@@ -82,7 +82,7 @@ export function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onO
                             <Row keys={['Alt ↑', 'Alt ↓']} label="Conversa anterior / próxima (chat)" />
                             <Row keys={['Alt 1…9']} label="Inserir resposta rápida (chat)" />
                         </div>
-                        <h3 className="mb-1 mt-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Editores de treino e dieta</h3>
+                        <h3 className="mb-1 mt-5 text-xs font-medium text-muted-foreground">Editores de treino e dieta</h3>
                         <div className="divide-y divide-border/60">
                             <Row keys={[`${mod} S`]} label="Salvar sem sair da tela" />
                             <Row keys={['Enter']} label="Adicionar item selecionado na busca" />

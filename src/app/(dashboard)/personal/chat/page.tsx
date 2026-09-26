@@ -27,11 +27,11 @@ export default function PersonalChatPage() {
 
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#F88022]/10 text-[#F88022]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                 <MessageCircle className="h-8 w-8" />
             </div>
             <div className="space-y-1.5">
-                <h2 className="text-lg font-bold text-foreground">Selecione uma conversa</h2>
+                <h2 className="text-lg font-semibold text-foreground">Selecione uma conversa</h2>
                 <p className="max-w-sm text-sm text-muted-foreground">
                     Escolha um aluno na lista para ver o histórico e responder. As conversas com mensagens novas ficam no topo.
                 </p>

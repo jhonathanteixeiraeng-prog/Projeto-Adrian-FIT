@@ -109,15 +109,15 @@ function DayCardComponent(props: DayCardProps) {
             }}
             className={cn(
                 'rounded-2xl border bg-card transition-shadow',
-                isActive ? 'border-[#F88022]/60 shadow-[0_0_0_3px_rgba(248,128,34,0.12)]' : 'border-border',
-                dropIndex !== null && 'border-[#F88022]'
+                isActive ? 'border-primary/60 shadow-[0_0_0_3px_rgba(248,128,34,0.12)]' : 'border-border',
+                dropIndex !== null && 'border-primary'
             )}
         >
             <header className="flex flex-wrap items-center gap-2 px-3 py-1.5 sm:flex-nowrap">
                 <span
                     className={cn(
                         'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm font-bold',
-                        isActive ? 'bg-[#F88022] text-white' : 'bg-muted text-muted-foreground'
+                        isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                     )}
                     aria-hidden
                 >
@@ -133,7 +133,7 @@ function DayCardComponent(props: DayCardProps) {
                     placeholder="Nome do treino"
                     onChange={(event) => props.onUpdateDay(day.key, { name: event.target.value })}
                     className={cn(
-                        'h-8 min-w-[160px] flex-1 rounded-md border bg-transparent px-2 text-sm font-semibold sm:min-w-0 text-foreground placeholder:font-normal hover:border-border focus:border-[#F88022] focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#F88022]/20',
+                        'h-8 min-w-[160px] flex-1 rounded-md border bg-transparent px-2 text-sm font-semibold sm:min-w-0 text-foreground placeholder:font-normal hover:border-border focus:border-primary focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/20',
                         nameError ? 'border-red-500' : 'border-transparent'
                     )}
                 />
@@ -141,7 +141,7 @@ function DayCardComponent(props: DayCardProps) {
                     aria-label="Dia da semana"
                     value={day.dayOfWeek}
                     onChange={(event) => props.onUpdateDay(day.key, { dayOfWeek: Number(event.target.value) })}
-                    className="h-8 shrink-0 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/20"
+                    className="h-8 shrink-0 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
                     {WEEKDAY_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -153,7 +153,7 @@ function DayCardComponent(props: DayCardProps) {
                     {day.items.length} {day.items.length === 1 ? 'exercício' : 'exercícios'} · {totalSets} séries
                 </span>
                 {isActive && (
-                    <span className="hidden shrink-0 rounded-full bg-[#F88022]/10 px-2 py-0.5 text-xs font-semibold text-[#F88022] lg:inline">
+                    <span className="hidden shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary lg:inline">
                         Adicionando aqui
                     </span>
                 )}
@@ -217,7 +217,7 @@ function DayCardComponent(props: DayCardProps) {
                             onClick={() => props.onAddExercise(day.key)}
                             className={cn(
                                 'mt-1 flex w-full flex-col items-center gap-1 rounded-xl border-2 border-dashed px-4 py-5 text-center text-sm transition-colors',
-                                dropIndex !== null ? 'border-[#F88022] bg-[#F88022]/5 text-[#F88022]' : 'border-border text-muted-foreground hover:border-[#F88022]/50 hover:text-foreground'
+                                dropIndex !== null ? 'border-primary bg-primary/5 text-primary' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
                             )}
                         >
                             <span className="font-semibold">Nenhum exercício neste dia</span>
@@ -231,7 +231,7 @@ function DayCardComponent(props: DayCardProps) {
                             type="button"
                             tabIndex={-1}
                             onClick={() => props.onAddExercise(day.key)}
-                            className="mt-1 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-[#F88022] lg:hidden"
+                            className="mt-1 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-primary lg:hidden"
                         >
                             <Plus className="h-3.5 w-3.5" /> Adicionar exercício
                         </button>

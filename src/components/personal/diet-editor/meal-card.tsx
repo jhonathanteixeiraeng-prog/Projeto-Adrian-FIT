@@ -34,7 +34,7 @@ interface MealCardProps {
 }
 
 const headerInputClass =
-    'h-8 rounded-md border border-transparent bg-transparent px-2 text-foreground hover:border-border focus:border-[#F88022] focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'h-8 rounded-md border border-transparent bg-transparent px-2 text-foreground hover:border-border focus:border-primary focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/25';
 
 const iconButtonClass =
     'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30';
@@ -84,7 +84,7 @@ function MealCardComponent({
             onKeyDown={onKeyDown}
             className={cn(
                 'rounded-2xl border bg-card shadow-sm transition-colors',
-                hasInvalid ? 'border-red-500/60' : 'border-border focus-within:border-[#F88022]/40'
+                hasInvalid ? 'border-red-500/60' : 'border-border focus-within:border-primary/40'
             )}
         >
             <header className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/70 px-2 py-1.5">
@@ -98,7 +98,7 @@ function MealCardComponent({
                 >
                     {meal.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
-                <span className="flex h-6 min-w-[24px] items-center justify-center rounded-md bg-[#F88022]/10 px-1 text-xs font-bold text-[#F88022]">
+                <span className="flex h-6 min-w-[24px] items-center justify-center rounded-md bg-primary/10 px-1 text-xs font-bold text-primary">
                     {index + 1}
                 </span>
                 <input
@@ -134,7 +134,7 @@ function MealCardComponent({
                         title="Observação da refeição"
                         aria-expanded={showNotes}
                         onClick={() => setNotesOpen((open) => !open || Boolean(meal.notes))}
-                        className={cn(iconButtonClass, meal.notes && 'text-[#F88022]')}
+                        className={cn(iconButtonClass, meal.notes && 'text-primary')}
                     >
                         <MessageSquareText className="h-4 w-4" />
                     </button>
@@ -195,7 +195,7 @@ function MealCardComponent({
                             onBlur={() => {
                                 if (!meal.notes.trim()) setNotesOpen(false);
                             }}
-                            className="mb-1 h-8 w-full rounded-md border border-border bg-muted/40 px-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#F88022]/25"
+                            className="mb-1 h-8 w-full rounded-md border border-border bg-muted/40 px-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/25"
                         />
                     )}
 
@@ -203,7 +203,7 @@ function MealCardComponent({
                         <div
                             aria-hidden
                             className={cn(
-                                'hidden px-1.5 pb-0.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground lg:grid',
+                                'hidden px-1.5 pb-0.5 text-xs font-medium text-muted-foreground lg:grid',
                                 FOOD_GRID
                             )}
                         >

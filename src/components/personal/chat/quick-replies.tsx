@@ -9,7 +9,7 @@ import { DEFAULT_QUICK_REPLIES, MAX_QUICK_REPLIES, sanitizeQuickReplies } from '
 const SEPARATOR = '\u0000';
 
 const inputClass =
-    'w-full min-w-0 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/30';
+    'w-full min-w-0 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
 
 const iconButtonClass =
     'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30 lg:min-h-0 lg:min-w-0';
@@ -163,7 +163,7 @@ export function QuickRepliesForm({ initial, onSave, onCancel, saveLabel = 'Salva
                     <button
                         type="submit"
                         disabled={!isDirty}
-                        className="rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#F88022]/90 disabled:opacity-50"
+                        className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                     >
                         {saveLabel}
                     </button>

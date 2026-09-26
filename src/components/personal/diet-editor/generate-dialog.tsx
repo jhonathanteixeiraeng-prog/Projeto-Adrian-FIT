@@ -53,9 +53,9 @@ const MEAL_SUBSETS: Record<number, number[]> = {
 };
 
 const fieldClass =
-    'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25';
 const textareaClass =
-    'w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25';
 
 function describeStudent(student: StudentProfile | null, energy: EnergyEstimate | null, targets: EditorTargets) {
     const lines: string[] = [];
@@ -98,7 +98,7 @@ function PlacementChoice({ value, onChange }: { value: 'replace' | 'append'; onC
                         key={option.value}
                         className={cn(
                             'flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm',
-                            value === option.value ? 'border-[#F88022] bg-[#F88022]/5 text-foreground' : 'border-border text-muted-foreground'
+                            value === option.value ? 'border-primary bg-primary/5 text-foreground' : 'border-border text-muted-foreground'
                         )}
                     >
                         <input
@@ -107,7 +107,7 @@ function PlacementChoice({ value, onChange }: { value: 'replace' | 'append'; onC
                             value={option.value}
                             checked={value === option.value}
                             onChange={() => onChange(option.value)}
-                            className="accent-[#F88022]"
+                            className="accent-primary"
                         />
                         {option.label}
                     </label>
@@ -263,7 +263,7 @@ export function GenerateDraftDialog({ mode, onClose, student, energy, targets, h
                 <form onSubmit={submit} className="space-y-4">
                     <DialogHeader className="text-left">
                         <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                            {isAi ? <Sparkles className="h-5 w-5 text-[#F88022]" /> : <Wand2 className="h-5 w-5 text-[#F88022]" />}
+                            {isAi ? <Sparkles className="h-5 w-5 text-primary" /> : <Wand2 className="h-5 w-5 text-primary" />}
                             {isAi ? 'Gerar rascunho com IA' : 'Gerar rascunho automático'}
                         </DialogTitle>
                         <DialogDescription>
@@ -386,7 +386,7 @@ export function GenerateDraftDialog({ mode, onClose, student, energy, targets, h
                         <button
                             type="submit"
                             disabled={loading}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                         >
                             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                             {loading && isAi ? 'Gerando… (até 1 min)' : 'Gerar rascunho'}

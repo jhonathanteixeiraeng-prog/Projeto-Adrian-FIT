@@ -130,7 +130,7 @@ export function ImportDayDialog({ open, onOpenChange, targetDayName, excludePlan
                                     value={query}
                                     onChange={(event) => setQuery(event.target.value)}
                                     placeholder={tab === 'plans' ? 'Buscar ficha ou aluno…' : 'Buscar modelo…'}
-                                    className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-2 text-sm focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25"
+                                    className="h-9 w-full rounded-lg border border-border bg-background pl-8 pr-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                                 />
                             </div>
                         </div>
@@ -152,7 +152,7 @@ export function ImportDayDialog({ open, onOpenChange, targetDayName, excludePlan
                                             onClick={() => choose({ kind: 'plan', id: plan.id })}
                                             className={cn(
                                                 'flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-muted',
-                                                source?.id === plan.id && 'bg-[#F88022]/10'
+                                                source?.id === plan.id && 'bg-primary/10'
                                             )}
                                         >
                                             <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -175,7 +175,7 @@ export function ImportDayDialog({ open, onOpenChange, targetDayName, excludePlan
                                         onClick={() => choose({ kind: 'template', id: template.id })}
                                         className={cn(
                                             'flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-muted',
-                                            source?.id === template.id && 'bg-[#F88022]/10'
+                                            source?.id === template.id && 'bg-primary/10'
                                         )}
                                     >
                                         <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -210,7 +210,7 @@ export function ImportDayDialog({ open, onOpenChange, targetDayName, excludePlan
                                         onDoubleClick={() => finish([day], 'append')}
                                         className={cn(
                                             'w-full rounded-xl border px-3 py-2 text-left transition-colors',
-                                            dayId === day.id ? 'border-[#F88022] bg-[#F88022]/5' : 'border-border hover:border-[#F88022]/50'
+                                            dayId === day.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                                         )}
                                     >
                                         <span className="flex items-center justify-between gap-2">
@@ -248,7 +248,7 @@ export function ImportDayDialog({ open, onOpenChange, targetDayName, excludePlan
                                 type="button"
                                 disabled={!selectedDay}
                                 onClick={() => selectedDay && finish([selectedDay], 'append')}
-                                className="rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#F88022]/90 disabled:opacity-50"
+                                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                             >
                                 Adicionar em {targetDayName}
                             </button>

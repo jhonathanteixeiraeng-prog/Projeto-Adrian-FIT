@@ -81,7 +81,7 @@ export function ReminderDialog({
             <DialogContent className="max-w-md rounded-2xl border-border bg-card">
                 <DialogHeader className="text-left">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                        <BellRing className="h-4 w-4 text-[#F88022]" />
+                        <BellRing className="h-4 w-4 text-muted-foreground" />
                         {title}
                     </DialogTitle>
                     <DialogDescription>Notificação enviada no app do aluno.</DialogDescription>
@@ -94,9 +94,9 @@ export function ReminderDialog({
                                 <label
                                     key={option.value}
                                     className={cn(
-                                        'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-[#F88022]/30',
+                                        'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-primary/30',
                                         type === option.value
-                                            ? 'border-[#F88022] bg-[#F88022]/10 text-[#F88022]'
+                                            ? 'border-primary bg-primary/10 text-primary'
                                             : 'border-border text-foreground hover:bg-muted'
                                     )}
                                 >

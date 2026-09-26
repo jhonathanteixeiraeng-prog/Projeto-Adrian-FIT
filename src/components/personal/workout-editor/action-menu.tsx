@@ -215,7 +215,7 @@ export function ActionMenu({
                     }
                 }}
                 className={cn(
-                    'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                    'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                     open && 'bg-muted text-foreground',
                     triggerClassName
                 )}
@@ -238,7 +238,7 @@ export function ActionMenu({
                             if (entry.type === 'separator') return <div key={index} className="my-1 h-px bg-border" role="separator" />;
                             if (entry.type === 'label') {
                                 return (
-                                    <p key={index} className="px-2.5 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    <p key={index} className="px-2.5 pb-1 pt-2 text-xs font-medium text-muted-foreground">
                                         {entry.label}
                                     </p>
                                 );

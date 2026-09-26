@@ -81,7 +81,7 @@ function Panel({ title, icon, children, action }: { title: string; icon: React.R
     return (
         <section className="rounded-2xl border border-border bg-card">
             <header className="flex items-center justify-between gap-2 border-b border-border/70 px-4 py-3">
-                <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     {icon}
                     {title}
                 </h2>
@@ -240,7 +240,7 @@ export default function NewStudentPage() {
                             <CheckCircle2 className="h-7 w-7 text-emerald-500" />
                         </div>
                         <div className="min-w-0">
-                            <h1 className="text-xl font-bold text-foreground">{created.name} foi cadastrado</h1>
+                            <h1 className="text-xl font-semibold text-foreground">{created.name} foi cadastrado</h1>
                             <p className="mt-0.5 text-sm text-muted-foreground">Envie o acesso ao aluno e já prescreva o treino e a dieta.</p>
                         </div>
                     </div>
@@ -289,15 +289,15 @@ export default function NewStudentPage() {
                 <div className="grid gap-3 sm:grid-cols-3">
                     <Link
                         href={`/personal/students/${created.id}/workout`}
-                        className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-[#F88022]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                        className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     >
-                        <Dumbbell className="h-5 w-5 text-[#F88022]" />
+                        <Dumbbell className="h-5 w-5 text-primary" />
                         <p className="mt-2 font-semibold text-foreground">Prescrever treino</p>
                         <p className="text-xs text-muted-foreground">Do zero ou a partir de um modelo</p>
                     </Link>
                     <Link
                         href={`/personal/students/${created.id}/diet`}
-                        className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-[#F88022]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                        className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     >
                         <Utensils className="h-5 w-5 text-emerald-500" />
                         <p className="mt-2 font-semibold text-foreground">Criar dieta</p>
@@ -305,7 +305,7 @@ export default function NewStudentPage() {
                     </Link>
                     <Link
                         href={`/personal/students/${created.id}`}
-                        className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-[#F88022]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                        className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     >
                         <User className="h-5 w-5 text-blue-500" />
                         <p className="mt-2 font-semibold text-foreground">Abrir ficha</p>
@@ -338,7 +338,7 @@ export default function NewStudentPage() {
                         <ArrowLeft className="h-4 w-4" />
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">Novo aluno</h1>
+                        <h1 className="text-2xl font-semibold text-foreground">Novo aluno</h1>
                         <p className="text-sm text-muted-foreground">Dados, acesso ao app, contrato e anamnese em uma só tela.</p>
                     </div>
                 </div>
@@ -356,7 +356,7 @@ export default function NewStudentPage() {
             )}
 
             <div className="grid items-start gap-4 lg:grid-cols-2">
-                <Panel title="Dados pessoais" icon={<User className="h-4 w-4 text-[#F88022]" />}>
+                <Panel title="Dados pessoais" icon={<User className="h-4 w-4 text-primary" />}>
                     <Field label="Nome completo *" htmlFor="student-name" error={errors.name?.message}>
                         <input id="student-name" autoComplete="off" className={inputClass} {...register('name')} />
                     </Field>
@@ -398,7 +398,7 @@ export default function NewStudentPage() {
                 </Panel>
 
                 <div className="space-y-4">
-                    <Panel title="Acesso ao app" icon={<KeyRound className="h-4 w-4 text-[#F88022]" />}>
+                    <Panel title="Acesso ao app" icon={<KeyRound className="h-4 w-4 text-primary" />}>
                         <Field label="E-mail de acesso *" htmlFor="student-email" error={errors.email?.message}>
                             <input id="student-email" type="email" autoComplete="off" placeholder="aluno@email.com" className={inputClass} {...register('email')} />
                         </Field>
@@ -439,14 +439,14 @@ export default function NewStudentPage() {
 
                     <Panel
                         title="Contrato"
-                        icon={<CreditCard className="h-4 w-4 text-[#F88022]" />}
+                        icon={<CreditCard className="h-4 w-4 text-primary" />}
                         action={
                             <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted-foreground">
                                 <input
                                     type="checkbox"
                                     checked={withContract}
                                     onChange={(event) => setWithContract(event.target.checked)}
-                                    className="h-4 w-4 accent-[#F88022]"
+                                    className="h-4 w-4 accent-primary"
                                 />
                                 Registrar agora
                             </label>
@@ -501,7 +501,7 @@ export default function NewStudentPage() {
                                 type="button"
                                 onClick={() => setWithAnamnesis((value) => !value)}
                                 aria-expanded={withAnamnesis}
-                                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[#F88022] hover:bg-[#F88022]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-primary hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                             >
                                 {withAnamnesis ? 'Ocultar' : 'Preencher (opcional)'}
                                 <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', withAnamnesis && 'rotate-180')} />

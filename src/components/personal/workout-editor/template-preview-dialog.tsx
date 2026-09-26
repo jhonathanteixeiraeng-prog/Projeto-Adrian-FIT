@@ -109,7 +109,7 @@ export function TemplatePreviewDialog({ template, onOpenChange, onAssign }: Temp
             <DialogContent className="flex max-h-[88dvh] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0">
                 <DialogHeader className="border-b border-border px-5 py-4 text-left">
                     <DialogTitle className="flex items-center gap-2 pr-6 text-base font-bold">
-                        <Dumbbell className="h-5 w-5 shrink-0 text-[#F88022]" />
+                        <Dumbbell className="h-5 w-5 shrink-0 text-primary" />
                         {template?.title}
                     </DialogTitle>
                     <DialogDescription>{template?.description || 'Estrutura completa do modelo de treino'}</DialogDescription>
@@ -120,7 +120,7 @@ export function TemplatePreviewDialog({ template, onOpenChange, onAssign }: Temp
                             <div key={day.id} className="rounded-xl border border-border">
                                 <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-muted/40 px-3 py-2">
                                     <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#F88022]/15 text-xs font-bold text-[#F88022]">
+                                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/15 text-xs font-bold text-primary">
                                             {String.fromCharCode(65 + index)}
                                         </span>
                                         {day.name}
@@ -157,7 +157,7 @@ export function TemplatePreviewDialog({ template, onOpenChange, onAssign }: Temp
                         <button
                             type="button"
                             onClick={() => onAssign(template)}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                         >
                             <UserPlus className="h-4 w-4" /> Atribuir a aluno
                         </button>

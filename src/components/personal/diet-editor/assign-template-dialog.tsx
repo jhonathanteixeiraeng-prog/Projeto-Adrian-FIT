@@ -19,7 +19,7 @@ export interface AssignableTemplate {
 }
 
 const fieldClass =
-    'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25';
 
 /** Atribui um modelo a um aluno (sem aluno pré-selecionado) e abre o plano criado. */
 export function AssignTemplateDialog({ template, onClose }: { template: AssignableTemplate | null; onClose: () => void }) {
@@ -121,7 +121,7 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
                 <form onSubmit={submit} className="space-y-4">
                     <DialogHeader className="text-left">
                         <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                            <UserPlus className="h-5 w-5 text-[#F88022]" />
+                            <UserPlus className="h-5 w-5 text-primary" />
                             Atribuir modelo a um aluno
                         </DialogTitle>
                         <DialogDescription>“{template?.title}” vira o plano ativo do aluno. Você pode ajustar tudo depois no editor.</DialogDescription>
@@ -191,7 +191,7 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
                             type="checkbox"
                             checked={notifyStudent}
                             onChange={(event) => setNotifyStudent(event.target.checked)}
-                            className="rounded border-border text-[#F88022] focus:ring-[#F88022]/25"
+                            className="rounded border-border text-primary focus:ring-primary/25"
                         />
                         Avisar o aluno
                     </label>
@@ -214,7 +214,7 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
                         <button
                             type="submit"
                             disabled={saving}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                         >
                             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                             Atribuir e abrir plano

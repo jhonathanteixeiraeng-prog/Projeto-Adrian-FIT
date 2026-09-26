@@ -17,7 +17,7 @@ interface CustomFoodDialogProps {
 }
 
 const fieldClass =
-    'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25';
 
 const MACRO_FIELDS = [
     { key: 'calories', label: 'Calorias (kcal)' },
@@ -155,7 +155,7 @@ export function CustomFoodDialog({ open, initialName, onClose, onCreated }: Cust
                         <button
                             type="button"
                             onClick={() => setValues((current) => ({ ...current, calories: String(Math.round(estimatedKcal)) }))}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#F88022] hover:underline"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
                         >
                             <Calculator className="h-3.5 w-3.5" />
                             Usar {formatInteger(estimatedKcal)} kcal calculadas pelos macros (4/4/9)
@@ -179,7 +179,7 @@ export function CustomFoodDialog({ open, initialName, onClose, onCreated }: Cust
                         <button
                             type="submit"
                             disabled={saving}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                         >
                             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                             Cadastrar e adicionar

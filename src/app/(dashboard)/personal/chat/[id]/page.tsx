@@ -103,7 +103,7 @@ function Conversation({ conversation }: { conversation: ConversationItem }) {
                         <button
                             type="button"
                             onClick={() => setIsPanelOpen((open) => !open)}
-                            className={cn(iconButtonClass, 'hidden xl:inline-flex', isPanelOpen && 'text-[#F88022]')}
+                            className={cn(iconButtonClass, 'hidden xl:inline-flex', isPanelOpen && 'text-primary')}
                             aria-pressed={isPanelOpen}
                             title={isPanelOpen ? 'Ocultar painel do aluno' : 'Mostrar painel do aluno'}
                             aria-label={isPanelOpen ? 'Ocultar painel do aluno' : 'Mostrar painel do aluno'}
@@ -182,7 +182,7 @@ export default function PersonalChatConversationPage() {
     if (checkedFor !== studentId && !error) {
         return (
             <div className="flex flex-1 items-center justify-center">
-                <Loader2 className="h-7 w-7 animate-spin text-[#F88022]" />
+                <Loader2 className="h-7 w-7 animate-spin text-primary" />
             </div>
         );
     }
@@ -207,7 +207,7 @@ export default function PersonalChatConversationPage() {
                         Tentar novamente
                     </button>
                 )}
-                <Link href="/personal/chat" className="rounded-xl px-3 py-1.5 text-sm font-semibold text-[#F88022] hover:bg-[#F88022]/10">
+                <Link href="/personal/chat" className="rounded-xl px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary/10">
                     Voltar para as conversas
                 </Link>
             </div>

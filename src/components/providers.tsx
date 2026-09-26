@@ -1,16 +1,28 @@
 'use client';
 
 import { SessionProvider } from 'next-auth/react';
-import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { ReactNode, createContext, useCallback, useContext, useEffect, useLayoutEffect, useState } from 'react';
+import {
+    THEME_STORAGE_KEY,
+    defaultThemePreference,
+    isPersonalArea,
+    isThemePreference,
+    type Theme,
+    type ThemePreference,
+} from '@/lib/theme';
 
 interface ProvidersProps {
     children: ReactNode;
 }
 
 interface ThemeContextType {
-    theme: 'light' | 'dark';
+    /** Theme in use. */
+    theme: Theme;
+    preference: ThemePreference;
+    /** Switches to the other theme (an explicit choice, no longer following the system). */
     toggleTheme: () => void;
-    setTheme: (theme: 'light' | 'dark') => void;
+    setTheme: (preference: ThemePreference) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -23,36 +35,56 @@ export function useTheme() {
     return context;
 }
 
+function readSavedPreference(): ThemePreference | null {
+    try {
+        const saved = localStorage.getItem(THEME_STORAGE_KEY);
+        return isThemePreference(saved) ? saved : null;
+    } catch {
+        return null;
+    }
+}
+
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
 function ThemeProvider({ children }: { children: ReactNode }) {
-    const [theme, setThemeState] = useState<'light' | 'dark'>('dark');
+    const personal = isPersonalArea(usePathname());
+    // null = nothing saved: the area's default applies.
+    const [saved, setSaved] = useState<ThemePreference | null>(null);
+    const [systemDark, setSystemDark] = useState(false);
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
+        setSaved(readSavedPreference());
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        setSystemDark(media.matches);
+        const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches);
+        media.addEventListener('change', onChange);
         setMounted(true);
-        // Check localStorage or system preference
-        const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-        if (savedTheme) {
-            setThemeState(savedTheme);
-            document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-        } else {
-            // Default to dark mode
-            setThemeState('dark');
-            document.documentElement.classList.add('dark');
+        return () => media.removeEventListener('change', onChange);
+    }, []);
+
+    const preference: ThemePreference = saved ?? defaultThemePreference(personal);
+    const theme: Theme = preference === 'system' ? (systemDark ? 'dark' : 'light') : preference;
+
+    // Before paint, so a page never shows the other area's palette or the other theme.
+    useIsomorphicLayoutEffect(() => {
+        if (!mounted) return;
+        const root = document.documentElement;
+        root.classList.toggle('dark', theme === 'dark');
+        if (personal) root.setAttribute('data-area', 'personal');
+        else root.removeAttribute('data-area');
+    }, [mounted, theme, personal]);
+
+    const setTheme = useCallback((next: ThemePreference) => {
+        setSaved(next);
+        try {
+            localStorage.setItem(THEME_STORAGE_KEY, next);
+        } catch {
+            // Private mode: the choice lasts until the page is closed.
         }
     }, []);
 
-    const toggleTheme = () => {
-        const newTheme = theme === 'dark' ? 'light' : 'dark';
-        setThemeState(newTheme);
-        localStorage.setItem('theme', newTheme);
-        document.documentElement.classList.toggle('dark', newTheme === 'dark');
-    };
-
-    const setTheme = (newTheme: 'light' | 'dark') => {
-        setThemeState(newTheme);
-        localStorage.setItem('theme', newTheme);
-        document.documentElement.classList.toggle('dark', newTheme === 'dark');
-    };
+    const toggleTheme = useCallback(() => setTheme(theme === 'dark' ? 'light' : 'dark'), [setTheme, theme]);
 
     // Prevent flash
     if (!mounted) {
@@ -60,7 +92,7 @@ function ThemeProvider({ children }: { children: ReactNode }) {
     }
 
     return (
-        <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+        <ThemeContext.Provider value={{ theme, preference, toggleTheme, setTheme }}>
             {children}
         </ThemeContext.Provider>
     );

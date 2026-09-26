@@ -45,7 +45,7 @@ export function Avatar({ src, alt, name, size = 'md', className }: AvatarProps) 
     return (
         <div
             className={cn(
-                'rounded-full flex items-center justify-center font-semibold bg-gradient-to-br from-secondary to-accent text-white',
+                'avatar-fallback rounded-full flex items-center justify-center font-semibold bg-gradient-to-br from-secondary to-accent text-white',
                 sizes[size],
                 className
             )}

@@ -16,7 +16,7 @@ export interface GroupTone {
 
 // Groups next to each other get different colors (A, B, C…).
 const TONES: GroupTone[] = [
-    { border: 'border-[#F88022]', pill: 'bg-[#F88022]/15 text-[#F88022]', chip: 'border-[#F88022]/40 text-[#F88022]' },
+    { border: 'border-primary', pill: 'bg-primary/15 text-primary', chip: 'border-primary/40 text-primary' },
     {
         border: 'border-sky-500',
         pill: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',

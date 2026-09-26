@@ -121,7 +121,7 @@ function Notice({
                 tone === 'draft' && 'border-violet-500/40 bg-violet-500/10 text-foreground'
             )}
         >
-            <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', tone === 'warning' ? 'text-amber-500' : tone === 'draft' ? 'text-violet-500' : 'text-[#F88022]')} />
+            <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', tone === 'warning' ? 'text-amber-500' : tone === 'draft' ? 'text-violet-500' : 'text-primary')} />
             <div className="min-w-0 flex-1 space-y-1.5">{children}</div>
             {onDismiss && (
                 <button type="button" onClick={onDismiss} aria-label="Dispensar aviso" className="rounded-md p-1 text-muted-foreground hover:bg-background/60 hover:text-foreground">
@@ -831,14 +831,14 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             <div className="mx-auto max-w-lg space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
                 <AlertTriangle className="mx-auto h-8 w-8 text-amber-500" />
                 <div>
-                    <h1 className="text-lg font-bold text-foreground">Não foi possível abrir</h1>
+                    <h1 className="text-lg font-semibold text-foreground">Não foi possível abrir</h1>
                     <p className="mt-1 text-sm text-muted-foreground">{loadError}</p>
                 </div>
                 <div className="flex justify-center gap-2">
                     <button
                         type="button"
                         onClick={() => setReloadToken((token) => token + 1)}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                     >
                         <RefreshCw className="h-4 w-4" />
                         Tentar novamente
@@ -935,7 +935,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                         <ArrowLeft className="h-4 w-4" />
                         {backLabel}
                     </Link>
-                    <h1 className="mt-1 truncate text-2xl font-bold tracking-tight text-foreground">
+                    <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight text-foreground">
                         {heading}
                         {kind === 'plan' && studentName && <span className="font-semibold text-muted-foreground"> · {studentName}</span>}
                     </h1>
@@ -955,7 +955,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                     <DropdownMenu
                         label="Gerar rascunho"
                         items={generateItems}
-                        buttonClassName="inline-flex h-9 items-center gap-2 rounded-xl border border-[#F88022]/60 bg-card px-3 text-sm font-semibold text-[#F88022] hover:bg-[#F88022]/10"
+                        buttonClassName="inline-flex h-9 items-center gap-2 rounded-xl border border-primary/60 bg-card px-3 text-sm font-semibold text-primary hover:bg-primary/10"
                     >
                         <Sparkles className="h-4 w-4" />
                         Gerar rascunho
@@ -982,7 +982,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                                     type="checkbox"
                                     checked={notifyStudent}
                                     onChange={(e) => setNotifyStudent(e.target.checked)}
-                                    className="rounded border-border text-[#F88022] focus:ring-[#F88022]/25"
+                                    className="rounded border-border text-primary focus:ring-primary/25"
                                 />
                                 Avisar o aluno
                             </label>
@@ -991,7 +991,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                             type="button"
                             onClick={() => void save()}
                             disabled={saving}
-                            className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#F88022] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#F88022]/90 disabled:opacity-60"
+                            className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-60"
                         >
                             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                             {isNew ? (kind === 'template' ? 'Criar modelo' : 'Criar plano') : 'Salvar'}
@@ -1115,7 +1115,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 <button
                     type="button"
                     onClick={addMeal}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-[#F88022]/60 hover:text-foreground"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground"
                 >
                     <Plus className="h-4 w-4" />
                     Adicionar refeição

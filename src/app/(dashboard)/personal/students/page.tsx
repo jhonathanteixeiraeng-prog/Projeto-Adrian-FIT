@@ -147,16 +147,16 @@ function SortableHeader({
                 type="button"
                 onClick={() => onSort(column)}
                 className={cn(
-                    'inline-flex items-center gap-1 rounded-md px-1 -mx-1 uppercase tracking-wider transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                    'inline-flex items-center gap-1 rounded-md px-1 -mx-1 transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                     active && 'text-foreground'
                 )}
             >
                 {label}
                 {active ? (
                     sortDir === 'asc' ? (
-                        <ArrowUp className="h-3 w-3 text-[#F88022]" />
+                        <ArrowUp className="h-3 w-3 text-primary" />
                     ) : (
-                        <ArrowDown className="h-3 w-3 text-[#F88022]" />
+                        <ArrowDown className="h-3 w-3 text-primary" />
                     )
                 ) : (
                     <ArrowUpDown className="h-3 w-3 opacity-40" />
@@ -189,19 +189,19 @@ function MetricCard({
             {...(onClick ? { type: 'button' as const, onClick } : {})}
             className={cn(
                 'rounded-2xl border bg-card p-4 text-left transition-colors',
-                onClick && 'hover:border-[#F88022]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
-                active ? 'border-[#F88022]/60' : 'border-border'
+                onClick && 'hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                active ? 'border-primary/60' : 'border-border'
             )}
         >
             <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+                <span className="text-xs font-medium text-muted-foreground">{label}</span>
                 <span
                     className={cn(
                         'flex h-8 w-8 items-center justify-center rounded-lg',
                         tone === 'danger' && 'bg-red-500/10 text-red-500',
                         tone === 'warn' && 'bg-amber-500/10 text-amber-500',
-                        tone === 'ok' && 'bg-emerald-500/10 text-emerald-500',
-                        tone === 'default' && 'bg-blue-500/10 text-blue-500'
+                        tone === 'ok' && 'bg-muted text-muted-foreground',
+                        tone === 'default' && 'bg-muted text-muted-foreground'
                     )}
                 >
                     {icon}
@@ -209,7 +209,7 @@ function MetricCard({
             </div>
             <p
                 className={cn(
-                    'mt-1 text-2xl font-black',
+                    'mt-1 text-2xl font-semibold tabular-nums',
                     tone === 'danger' ? 'text-red-500' : tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'
                 )}
             >
@@ -631,7 +631,7 @@ export default function StudentsPage() {
             return (
                 <Link
                     href={`/personal/students/${row.id}/workout`}
-                    className="text-xs font-semibold text-[#F88022] hover:underline focus:outline-none focus-visible:underline"
+                    className="text-xs font-semibold text-primary hover:underline focus:outline-none focus-visible:underline"
                 >
                     + Prescrever treino
                 </Link>
@@ -653,7 +653,7 @@ export default function StudentsPage() {
             return (
                 <Link
                     href={`/personal/students/${row.id}/diet`}
-                    className="text-xs font-semibold text-[#F88022] hover:underline focus:outline-none focus-visible:underline"
+                    className="text-xs font-semibold text-primary hover:underline focus:outline-none focus-visible:underline"
                 >
                     + Criar dieta
                 </Link>
@@ -686,7 +686,7 @@ export default function StudentsPage() {
                 </p>
                 <p className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-0.5" title="Adesão ao treino">
-                        <Dumbbell className="h-3 w-3 text-[#F88022]" />
+                        <Dumbbell className="h-3 w-3 text-primary" />
                         {row.lastCheckin.workoutAdherence}%
                     </span>
                     <span className="inline-flex items-center gap-0.5" title="Adesão à dieta">
@@ -726,7 +726,7 @@ export default function StudentsPage() {
                 )}
                 <Link
                     href={`/personal/students/${row.id}`}
-                    className="rounded-lg bg-[#F88022]/10 p-1.5 text-[#F88022] transition-colors hover:bg-[#F88022]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                    className="rounded-lg bg-primary/10 p-1.5 text-primary transition-colors hover:bg-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     title="Abrir ficha completa"
                     aria-label={`Abrir ficha de ${row.name}`}
                 >
@@ -740,14 +740,14 @@ export default function StudentsPage() {
         if (rows.length === 0) {
             return (
                 <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F88022]/10 text-[#F88022]">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
                         <Users className="h-6 w-6" />
                     </div>
-                    <h3 className="mt-3 text-base font-bold text-foreground">Você ainda não tem alunos</h3>
+                    <h3 className="mt-3 text-base font-semibold text-foreground">Você ainda não tem alunos</h3>
                     <p className="mt-1 text-sm text-muted-foreground">Cadastre o primeiro aluno para prescrever treino, dieta e acompanhar a evolução.</p>
                     <Link
                         href="/personal/students/new"
-                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                     >
                         <UserPlus className="h-4 w-4" />
                         Cadastrar aluno
@@ -761,7 +761,7 @@ export default function StudentsPage() {
                 <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
                     {tab === 'billing' && !filtersActive ? <CheckCircle2 className="h-5 w-5 text-emerald-500" /> : <Search className="h-5 w-5" />}
                 </div>
-                <h3 className="mt-3 text-base font-bold text-foreground">{message.title}</h3>
+                <h3 className="mt-3 text-base font-semibold text-foreground">{message.title}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{message.description}</p>
                 {filtersActive && (
                     <button type="button" onClick={clearFilters} className={cn(smallButtonClass, 'mt-4')}>
@@ -778,7 +778,7 @@ export default function StudentsPage() {
         <div className="space-y-5 pb-16">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-foreground">
+                    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
                         Alunos
                         {isValidating && data && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Atualizando" />}
                     </h1>
@@ -791,7 +791,7 @@ export default function StudentsPage() {
                     </button>
                     <Link
                         href="/personal/students/new"
-                        className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#F88022] px-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#F88022]/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-3.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                         <UserPlus className="h-4 w-4" />
                         Cadastrar aluno
@@ -856,7 +856,7 @@ export default function StudentsPage() {
                         aria-selected={tab === item.id}
                         onClick={() => setParams({ tab: item.id })}
                         className={cn(
-                            'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                            'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                             tab === item.id ? 'bg-background font-semibold text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                         )}
                     >
@@ -868,7 +868,7 @@ export default function StudentsPage() {
                             <span
                                 className={cn(
                                     'rounded-full px-1.5 text-xs font-semibold',
-                                    tab === item.id ? 'bg-[#F88022]/15 text-[#F88022]' : 'bg-background/60 text-muted-foreground'
+                                    tab === item.id ? 'bg-primary/15 text-primary' : 'bg-background/60 text-muted-foreground'
                                 )}
                             >
                                 {tabCounts[item.id]}
@@ -902,7 +902,7 @@ export default function StudentsPage() {
                         }}
                         placeholder="Buscar por nome, e-mail ou telefone"
                         aria-label="Buscar aluno"
-                        className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/30"
+                        className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                     />
                     <Kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">/</Kbd>
                 </div>
@@ -958,8 +958,8 @@ export default function StudentsPage() {
                             onClick={() => setView('table')}
                             aria-pressed={view === 'table'}
                             className={cn(
-                                'rounded-md p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
-                                view === 'table' ? 'bg-card text-[#F88022] shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                'rounded-md p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                                view === 'table' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
                             )}
                             title="Tabela"
                             aria-label="Visualizar em tabela"
@@ -971,8 +971,8 @@ export default function StudentsPage() {
                             onClick={() => setView('cards')}
                             aria-pressed={view === 'cards'}
                             className={cn(
-                                'rounded-md p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
-                                view === 'cards' ? 'bg-card text-[#F88022] shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                                'rounded-md p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                                view === 'cards' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
                             )}
                             title="Cards"
                             aria-label="Visualizar em cards"
@@ -998,7 +998,7 @@ export default function StudentsPage() {
             ) : error && !data ? (
                 <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-10 text-center" role="alert">
                     <AlertTriangle className="mx-auto h-8 w-8 text-red-500" />
-                    <h3 className="mt-3 text-base font-bold text-foreground">Não foi possível carregar os alunos</h3>
+                    <h3 className="mt-3 text-base font-semibold text-foreground">Não foi possível carregar os alunos</h3>
                     <p className="mt-1 text-sm text-muted-foreground">{error.message}</p>
                     <button type="button" onClick={() => mutate()} className={cn(smallButtonClass, 'mt-4 h-9')}>
                         <RefreshCw className={cn('h-4 w-4', isValidating && 'animate-spin')} />
@@ -1021,7 +1021,7 @@ export default function StudentsPage() {
                                                 if (element) element.indeterminate = someSelected;
                                             }}
                                             onChange={toggleAll}
-                                            className="h-4 w-4 cursor-pointer rounded accent-[#F88022]"
+                                            className="h-4 w-4 cursor-pointer rounded accent-primary"
                                             aria-label={allSelected ? 'Desmarcar todos' : `Selecionar os ${filtered.length} alunos do filtro`}
                                             title={allSelected ? 'Desmarcar todos' : `Selecionar os ${filtered.length} alunos do filtro`}
                                         />
@@ -1029,7 +1029,7 @@ export default function StudentsPage() {
                                     <SortableHeader label="Aluno" column="name" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                     <SortableHeader label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                     <SortableHeader label="Treino ativo" column="workout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
-                                    <th scope="col" className="hidden px-3 py-2.5 text-left font-semibold uppercase tracking-wider 2xl:table-cell">
+                                    <th scope="col" className="hidden px-3 py-2.5 text-left font-medium 2xl:table-cell">
                                         Dieta ativa
                                     </th>
                                     <SortableHeader label="Último treino" column="lastWorkout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
@@ -1055,13 +1055,13 @@ export default function StudentsPage() {
                                             aria-selected={isSelected}
                                             className={cn(
                                                 'group cursor-pointer transition-colors',
-                                                isOpen ? 'bg-[#F88022]/10' : isSelected ? 'bg-[#F88022]/5' : isHighlighted ? 'bg-muted/60' : 'hover:bg-muted/50'
+                                                isOpen ? 'bg-primary/10' : isSelected ? 'bg-primary/5' : isHighlighted ? 'bg-muted/60' : 'hover:bg-muted/50'
                                             )}
                                         >
                                             <td
                                                 className={cn(
                                                     'relative px-3 py-2',
-                                                    (isHighlighted || isOpen) && 'before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-[#F88022]'
+                                                    (isHighlighted || isOpen) && 'before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-primary'
                                                 )}
                                             >
                                                 <input
@@ -1072,7 +1072,7 @@ export default function StudentsPage() {
                                                         event.stopPropagation();
                                                         toggleSelected(row.id, event.shiftKey);
                                                     }}
-                                                    className="h-4 w-4 cursor-pointer rounded accent-[#F88022]"
+                                                    className="h-4 w-4 cursor-pointer rounded accent-primary"
                                                     aria-label={`Selecionar ${row.name}`}
                                                 />
                                             </td>
@@ -1083,7 +1083,7 @@ export default function StudentsPage() {
                                                         <Link
                                                             href={`/personal/students/${row.id}`}
                                                             onClick={(event) => handleNameClick(event, row)}
-                                                            className="block truncate font-semibold text-foreground hover:text-[#F88022] focus:outline-none focus-visible:underline"
+                                                            className="block truncate font-semibold text-foreground hover:text-primary focus:outline-none focus-visible:underline"
                                                         >
                                                             {row.name}
                                                         </Link>
@@ -1148,8 +1148,8 @@ export default function StudentsPage() {
                                     onAuxClick={(event) => handleRowAuxClick(event, row)}
                                     className={cn(
                                         'cursor-pointer space-y-3 rounded-2xl border bg-card p-4 transition-colors',
-                                        row.id === drawerRow?.id ? 'border-[#F88022]' : isSelected ? 'border-[#F88022]/50' : 'border-border hover:border-[#F88022]/40',
-                                        row.id === highlightId && 'ring-2 ring-[#F88022]/50'
+                                        row.id === drawerRow?.id ? 'border-primary' : isSelected ? 'border-primary/50' : 'border-border hover:border-primary/40',
+                                        row.id === highlightId && 'ring-2 ring-primary/50'
                                     )}
                                 >
                                     <div className="flex items-start gap-3">
@@ -1161,7 +1161,7 @@ export default function StudentsPage() {
                                                 event.stopPropagation();
                                                 toggleSelected(row.id, event.shiftKey);
                                             }}
-                                            className="mt-1 h-4 w-4 cursor-pointer rounded accent-[#F88022]"
+                                            className="mt-1 h-4 w-4 cursor-pointer rounded accent-primary"
                                             aria-label={`Selecionar ${row.name}`}
                                         />
                                         <Avatar name={row.name} src={row.student.user?.avatar || undefined} size="md" />
@@ -1169,7 +1169,7 @@ export default function StudentsPage() {
                                             <Link
                                                 href={`/personal/students/${row.id}`}
                                                 onClick={(event) => handleNameClick(event, row)}
-                                                className="block truncate font-bold text-foreground hover:text-[#F88022] focus:outline-none focus-visible:underline"
+                                                className="block truncate font-bold text-foreground hover:text-primary focus:outline-none focus-visible:underline"
                                             >
                                                 {row.name}
                                             </Link>
@@ -1317,7 +1317,7 @@ export default function StudentsPage() {
                                     })
                                 }
                             >
-                                <RefreshCw className="h-3.5 w-3.5 text-[#F88022]" />
+                                <RefreshCw className="h-3.5 w-3.5 text-primary" />
                                 Renovar +1 período
                             </button>
                             <button
@@ -1360,7 +1360,7 @@ export default function StudentsPage() {
                                 disabled={bulkBusy}
                                 onClick={() => setReminderTargets(selectedRows.map((row) => ({ id: row.id, name: row.name })))}
                             >
-                                <BellRing className="h-3.5 w-3.5 text-[#F88022]" />
+                                <BellRing className="h-3.5 w-3.5 text-primary" />
                                 Enviar lembrete
                             </button>
                             <button type="button" className={smallButtonClass} onClick={() => exportCsv(selectedRows)}>
@@ -1371,7 +1371,7 @@ export default function StudentsPage() {
                             <button
                                 type="button"
                                 onClick={() => setSelected(new Set())}
-                                className="ml-1 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40"
+                                className="ml-1 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                                 title="Limpar seleção (Esc)"
                                 aria-label="Limpar seleção"
                             >

@@ -62,8 +62,8 @@ function planEndText(endDate: string | null | undefined): { text: string; tone: 
 function Section({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
     return (
         <section className="space-y-1.5 border-t border-border px-4 py-3.5">
-            <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                <Icon className="h-3.5 w-3.5 text-[#F88022]" />
+            <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Icon className="h-3.5 w-3.5 text-primary" />
                 {title}
             </h3>
             {children}
@@ -73,7 +73,7 @@ function Section({ title, icon: Icon, children }: { title: string; icon: LucideI
 
 function ShortcutLink({ href, icon: Icon, label, external }: { href: string; icon: LucideIcon; label: string; external?: boolean }) {
     const className =
-        'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted hover:text-[#F88022] lg:min-h-0';
+        'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted hover:text-primary lg:min-h-0';
     if (external) {
         return (
             <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
@@ -117,7 +117,7 @@ export function StudentContextPanel({ studentId, name, avatar, phone, onClose }:
     return (
         <div className="flex h-full flex-col">
             <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sobre o aluno</span>
+                <span className="text-xs font-medium text-muted-foreground">Sobre o aluno</span>
                 <button
                     type="button"
                     onClick={onClose}
@@ -132,7 +132,7 @@ export function StudentContextPanel({ studentId, name, avatar, phone, onClose }:
             <div className="flex items-center gap-3 px-4 pb-3.5">
                 <Avatar src={avatar ?? undefined} name={name} size="lg" />
                 <div className="min-w-0">
-                    <Link href={personalLinks.student(studentId)} className="block truncate font-semibold text-foreground hover:text-[#F88022] lg:min-h-0 lg:min-w-0">
+                    <Link href={personalLinks.student(studentId)} className="block truncate font-semibold text-foreground hover:text-primary lg:min-h-0 lg:min-w-0">
                         {name}
                     </Link>
                     <p className="truncate text-xs text-muted-foreground">
@@ -145,7 +145,7 @@ export function StudentContextPanel({ studentId, name, avatar, phone, onClose }:
             <div className="min-h-0 flex-1 overflow-y-auto">
                 {isLoading && !student ? (
                     <div className="flex justify-center py-8">
-                        <Loader2 className="h-5 w-5 animate-spin text-[#F88022]" />
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     </div>
                 ) : !student ? (
                     <p className="border-t border-border px-4 py-4 text-sm text-muted-foreground">
@@ -201,7 +201,7 @@ export function StudentContextPanel({ studentId, name, avatar, phone, onClose }:
                                     </p>
                                     {workoutEnd && <p className={cn('text-xs', workoutEnd.tone)}>{workoutEnd.text}</p>}
                                 </div>
-                                <Link href={studentPaths.workoutEditor(studentId)} className="shrink-0 text-xs font-semibold text-[#F88022] hover:underline lg:min-h-0 lg:min-w-0">
+                                <Link href={studentPaths.workoutEditor(studentId)} className="shrink-0 text-xs font-semibold text-primary hover:underline lg:min-h-0 lg:min-w-0">
                                     {workoutPlan ? 'Editar' : 'Prescrever'}
                                 </Link>
                             </div>
@@ -213,7 +213,7 @@ export function StudentContextPanel({ studentId, name, avatar, phone, onClose }:
                                     </p>
                                     {dietEnd && <p className={cn('text-xs', dietEnd.tone)}>{dietEnd.text}</p>}
                                 </div>
-                                <Link href={studentPaths.dietEditor(studentId)} className="shrink-0 text-xs font-semibold text-[#F88022] hover:underline lg:min-h-0 lg:min-w-0">
+                                <Link href={studentPaths.dietEditor(studentId)} className="shrink-0 text-xs font-semibold text-primary hover:underline lg:min-h-0 lg:min-w-0">
                                     {dietPlan ? 'Editar' : 'Prescrever'}
                                 </Link>
                             </div>

@@ -379,7 +379,7 @@ export function ResetPasswordDialog({
             <DialogContent className="max-w-md rounded-2xl border-border bg-card">
                 <DialogHeader className="text-left">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                        <KeyRound className="h-4 w-4 text-[#F88022]" />
+                        <KeyRound className="h-4 w-4 text-muted-foreground" />
                         Redefinir senha
                     </DialogTitle>
                     <DialogDescription>

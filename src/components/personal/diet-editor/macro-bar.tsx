@@ -48,7 +48,7 @@ function Metric({ label, unit, actual, target, isKcal, compact }: { label: strin
     return (
         <div className="min-w-0" title={target ? `${label}: ${format(actual)} de ${format(target)} ${unit} (${statusLabel})` : `${label}: ${format(actual)} ${unit} (sem meta definida)`}>
             <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+                <span className="truncate text-xs font-medium text-muted-foreground">{label}</span>
                 {target ? (
                     <span className={cn('text-xs font-semibold tabular-nums', statusText[status])}>
                         {status === 'ok' ? '✓' : `${diff > 0 ? '+' : '−'}${isKcal ? formatInteger(Math.abs(diff)) : formatGrams(Math.abs(diff))}`}

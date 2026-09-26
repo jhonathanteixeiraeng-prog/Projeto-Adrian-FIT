@@ -51,7 +51,7 @@ function PlanHeader({
     return (
         <div className="space-y-2">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-lg font-bold text-foreground">{title}</h3>
+                <h3 className="text-lg font-semibold text-foreground">{title}</h3>
                 <p className="text-sm text-muted-foreground">
                     {formatDate(startDate)} – {formatDate(endDate)}
                     {end && <span className={cn('ml-2 font-semibold', toneText[end.tone])}>{end.label}</span>}
@@ -94,7 +94,7 @@ export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; 
                         <section key={day.id} className="overflow-hidden rounded-xl border border-border">
                             <header className="flex items-center justify-between gap-2 bg-muted/60 px-3 py-2">
                                 <h4 className="min-w-0 truncate text-sm font-bold text-foreground">
-                                    <span className="mr-2 text-xs font-bold uppercase tracking-wider text-[#F88022]">
+                                    <span className="mr-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                         {getDayOfWeekName(day.dayOfWeek)}
                                     </span>
                                     {day.name}
@@ -253,7 +253,7 @@ export function DietPlanView({ plan, activeCount }: { plan: DietPlanFull; active
             <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="dieta" />
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
-                    { label: 'Calorias', value: `${formatNumber(totals.calories)} kcal`, className: 'text-[#F88022]' },
+                    { label: 'Calorias', value: `${formatNumber(totals.calories)} kcal`, className: 'text-primary' },
                     { label: 'Proteínas', value: `${formatNumber(totals.protein)} g`, className: 'text-red-500' },
                     { label: 'Carboidratos', value: `${formatNumber(totals.carbs)} g`, className: 'text-amber-500' },
                     { label: 'Gorduras', value: `${formatNumber(totals.fat)} g`, className: 'text-blue-500' },

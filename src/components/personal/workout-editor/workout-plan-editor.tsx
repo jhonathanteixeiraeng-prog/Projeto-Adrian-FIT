@@ -1106,7 +1106,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                     <ArrowLeft className="h-4 w-4" />
                 </Link>
                 <div className="min-w-0 flex-1">
-                    <h1 className="truncate text-base font-bold text-foreground">{heading}</h1>
+                    <h1 className="truncate text-base font-semibold text-foreground">{heading}</h1>
                     <p className="truncate text-xs text-muted-foreground">{subheading}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1137,7 +1137,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                                 type="checkbox"
                                 checked={notifyStudent}
                                 onChange={(e) => setNotifyStudent(e.target.checked)}
-                                className="rounded border-border text-[#F88022] focus:ring-[#F88022]/25"
+                                className="rounded border-border text-primary focus:ring-primary/25"
                             />
                             Avisar o aluno
                         </label>
@@ -1146,7 +1146,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                         type="button"
                         onClick={() => void save()}
                         disabled={saving}
-                        className="inline-flex items-center gap-2 rounded-lg bg-[#F88022] px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-[#F88022]/90 disabled:opacity-70"
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-70"
                         title={`Salvar sem sair da tela (${mod}S)`}
                     >
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -1281,7 +1281,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                     <button
                         type="button"
                         onClick={addDay}
-                        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-[#F88022]/60 hover:text-[#F88022]"
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border py-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
                     >
                         <Plus className="h-4 w-4" /> Adicionar dia de treino
                     </button>
@@ -1299,7 +1299,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                     <button
                         type="button"
                         onClick={undo}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-[#F88022] hover:bg-[#F88022]/10"
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-primary hover:bg-primary/10"
                     >
                         <Undo2 className="h-4 w-4" /> Desfazer
                         <kbd className="hidden rounded border border-border px-1 text-xs font-medium text-muted-foreground lg:inline">{mod}Z</kbd>
@@ -1331,7 +1331,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                     type="button"
                     onClick={() => void save()}
                     disabled={saving}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#F88022] py-2 text-sm font-semibold text-white disabled:opacity-70"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-2 text-sm font-semibold text-primary-foreground disabled:opacity-70"
                 >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isDirty ? <AlertCircle className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                     Salvar
@@ -1359,7 +1359,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                         <button
                             type="button"
                             onClick={() => setMobileLibraryOpen(false)}
-                            className="w-full rounded-lg bg-[#F88022] py-2 text-sm font-semibold text-white"
+                            className="w-full rounded-lg bg-primary py-2 text-sm font-semibold text-primary-foreground"
                         >
                             Concluir
                         </button>

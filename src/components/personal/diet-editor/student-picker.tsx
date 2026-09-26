@@ -144,7 +144,7 @@ export function StudentPicker({
                     }}
                     onKeyDown={onKeyDown}
                     className={cn(
-                        'h-10 w-full rounded-xl border bg-background pl-10 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25 disabled:opacity-60',
+                        'h-10 w-full rounded-xl border bg-background pl-10 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 disabled:opacity-60',
                         invalid ? 'border-red-500' : 'border-border'
                     )}
                 />

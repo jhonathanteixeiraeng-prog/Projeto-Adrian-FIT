@@ -22,17 +22,17 @@ function KpiCard({ label, value, hint, icon: Icon, tone, href, onClick, title }:
     const content = (
         <>
             <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+                <span className="text-xs font-medium text-muted-foreground">{label}</span>
                 <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', tone)}>
                     <Icon className="h-4 w-4" />
                 </span>
             </div>
-            <p className="mt-1.5 text-2xl font-extrabold tabular-nums text-foreground">{value}</p>
+            <p className="mt-1.5 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</p>
         </>
     );
     const className =
-        'block rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-[#F88022]/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/50';
+        'block rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50';
 
     if (href) {
         return (
@@ -85,7 +85,7 @@ export function KpiRow({ kpis, onShowBilling }: KpiRowProps) {
                 value={kpis.activeStudents}
                 hint={`de ${kpis.totalStudents} cadastrados`}
                 icon={Users}
-                tone="bg-blue-500/10 text-blue-500"
+                tone="bg-muted text-muted-foreground"
                 href="/personal/students"
             />
             <KpiCard
@@ -93,7 +93,7 @@ export function KpiRow({ kpis, onShowBilling }: KpiRowProps) {
                 value={kpis.workoutsLast7Days}
                 hint="concluídos pelos alunos"
                 icon={Dumbbell}
-                tone="bg-[#F88022]/10 text-[#F88022]"
+                tone="bg-muted text-muted-foreground"
             />
             <KpiCard
                 label={hasRealAdherence ? 'Adesão · 7 dias' : 'Adesão (último check-in)'}
@@ -109,7 +109,7 @@ export function KpiRow({ kpis, onShowBilling }: KpiRowProps) {
                         : 'Média da adesão informada no último check-in de cada aluno ativo.'
                 }
                 icon={Target}
-                tone="bg-emerald-500/10 text-emerald-500"
+                tone="bg-muted text-muted-foreground"
             />
             <KpiCard
                 label="Receita mensal"
@@ -117,7 +117,7 @@ export function KpiRow({ kpis, onShowBilling }: KpiRowProps) {
                 hint="MRR dos alunos ativos"
                 title="Soma do valor mensal equivalente dos planos dos alunos ativos (planos trimestrais, semestrais e anuais divididos por mês)."
                 icon={Wallet}
-                tone="bg-violet-500/10 text-violet-500"
+                tone="bg-muted text-muted-foreground"
             />
             <KpiCard
                 label="Cobranças"

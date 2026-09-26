@@ -34,7 +34,7 @@ function renderText(text: string, fromMe: boolean) {
                 href={part}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={cn('break-all underline underline-offset-2', fromMe ? 'text-white' : 'text-[#F88022]')}
+                className={cn('break-all underline underline-offset-2', fromMe ? 'text-foreground' : 'text-primary')}
             >
                 {part}
             </a>
@@ -146,7 +146,7 @@ export function MessageList({
     if (status === 'loading' && messages.length === 0) {
         return (
             <div className="flex flex-1 items-center justify-center bg-muted">
-                <Loader2 className="h-6 w-6 animate-spin text-[#F88022]" />
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
         );
     }
@@ -194,7 +194,7 @@ export function MessageList({
 
                 {messages.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#F88022]/10 text-[#F88022]">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
                             <MessageCircle className="h-7 w-7" />
                         </div>
                         <p className="text-sm font-semibold text-foreground">Nenhuma mensagem ainda</p>
@@ -225,7 +225,7 @@ export function MessageList({
                                         className={cn(
                                             'max-w-[85%] rounded-2xl px-3.5 py-2 shadow-sm sm:max-w-[70%]',
                                             message.fromMe
-                                                ? 'rounded-br-md bg-[#F88022] text-white'
+                                                ? 'rounded-br-md bg-primary/15 text-foreground'
                                                 : 'rounded-bl-md border border-border bg-card text-foreground',
                                             message.status === 'failed' && 'opacity-70 ring-2 ring-red-500/60'
                                         )}
@@ -233,12 +233,7 @@ export function MessageList({
                                         <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">
                                             {renderText(message.text, message.fromMe)}
                                         </p>
-                                        <div
-                                            className={cn(
-                                                'mt-0.5 flex items-center justify-end gap-1 text-xs',
-                                                message.fromMe ? 'text-white/80' : 'text-muted-foreground'
-                                            )}
-                                        >
+                                        <div className="mt-0.5 flex items-center justify-end gap-1 text-xs text-muted-foreground">
                                             <time dateTime={message.createdAt} title={formatFullDateTime(message.createdAt)}>
                                                 {formatClock(message.createdAt)}
                                             </time>
@@ -248,7 +243,7 @@ export function MessageList({
                                                 ) : message.status === 'failed' ? (
                                                     <AlertCircle className="h-3.5 w-3.5" aria-label="Não enviada" />
                                                 ) : message.read ? (
-                                                    <CheckCheck className="h-3.5 w-3.5 text-sky-200" aria-label="Lida" />
+                                                    <CheckCheck className="h-3.5 w-3.5 text-primary" aria-label="Lida" />
                                                 ) : (
                                                     <Check className="h-3.5 w-3.5" aria-label="Enviada" />
                                                 ))}
@@ -257,7 +252,7 @@ export function MessageList({
                                     {message.status === 'failed' && (
                                         <div className="mt-1 flex items-center gap-2 text-xs">
                                             <span className="text-red-500">Não enviada.</span>
-                                            <button type="button" onClick={() => onRetry(message.id)} className="font-semibold text-[#F88022] hover:underline lg:min-h-0 lg:min-w-0">
+                                            <button type="button" onClick={() => onRetry(message.id)} className="font-semibold text-primary hover:underline lg:min-h-0 lg:min-w-0">
                                                 Tentar de novo
                                             </button>
                                             <button type="button" onClick={() => onDiscard(message.id)} className="text-muted-foreground hover:text-foreground hover:underline lg:min-h-0 lg:min-w-0">
@@ -279,7 +274,7 @@ export function MessageList({
                     className={cn(
                         'absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold shadow-lg transition-colors',
                         unseen > 0
-                            ? 'bg-[#F88022] text-white hover:bg-[#F88022]/90'
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                             : 'border border-border bg-card text-muted-foreground hover:text-foreground'
                     )}
                     aria-label={unseen > 0 ? `${unseen} novas mensagens. Ir para o fim` : 'Ir para a mensagem mais recente'}

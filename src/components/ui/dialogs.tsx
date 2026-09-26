@@ -55,7 +55,7 @@ export function useDialogs(): DialogsContextValue {
 }
 
 const buttonBase =
-    'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022] focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50';
+    'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50';
 
 export function DialogsProvider({ children }: { children: React.ReactNode }) {
     const [pending, setPending] = useState<PendingDialog | null>(null);
@@ -164,7 +164,7 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
                                             setPromptValue(event.target.value);
                                             if (promptError) setPromptError(null);
                                         }}
-                                        className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/30"
+                                        className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                                     />
                                     {promptError && <p className="text-xs text-red-500">{promptError}</p>}
                                 </div>
@@ -185,7 +185,7 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
                                         buttonBase,
                                         isDanger
                                             ? 'bg-red-500 text-white hover:bg-red-600'
-                                            : 'bg-[#F88022] text-white hover:bg-[#F88022]/90'
+                                            : 'bg-primary text-primary-foreground hover:bg-primary/90'
                                     )}
                                 >
                                     {options.confirmText ?? (pending.kind === 'confirm' ? 'Confirmar' : 'Salvar')}

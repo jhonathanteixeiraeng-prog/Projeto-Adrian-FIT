@@ -16,7 +16,7 @@ import {
 } from './exercise-constants';
 
 export const fieldClass =
-    'w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25 disabled:opacity-60';
+    'w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 disabled:opacity-60';
 
 const OTHER = '__other__';
 
@@ -190,7 +190,7 @@ export function ExerciseFormDialog({
 
                         <div>
                             <label htmlFor="exercise-form-name" className={labelClass}>
-                                Nome do exercício <span className="text-[#F88022]">*</span>
+                                Nome do exercício <span className="text-primary">*</span>
                             </label>
                             <input
                                 id="exercise-form-name"
@@ -206,7 +206,7 @@ export function ExerciseFormDialog({
                         <div className="grid gap-3 sm:grid-cols-2">
                             <div>
                                 <label htmlFor="exercise-form-muscle" className={labelClass}>
-                                    Grupo muscular <span className="text-[#F88022]">*</span>
+                                    Grupo muscular <span className="text-primary">*</span>
                                 </label>
                                 <select
                                     id="exercise-form-muscle"
@@ -322,7 +322,7 @@ export function ExerciseFormDialog({
                         <button
                             type="submit"
                             disabled={saving}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                         >
                             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                             {isEdit ? 'Salvar alterações' : variant === 'quick' ? 'Criar e adicionar' : 'Criar exercício'}

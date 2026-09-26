@@ -100,13 +100,13 @@ function StatCard({
             onClick={onClick}
             title={title}
             className={cn(
-                'flex items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-3 text-left transition-colors hover:border-[#F88022]/50',
-                active ? 'border-[#F88022]/60' : 'border-border'
+                'flex items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-3 text-left transition-colors hover:border-primary/50',
+                active ? 'border-primary/60' : 'border-border'
             )}
         >
             <span>
-                <span className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-                <span className="mt-0.5 block text-2xl font-bold text-foreground">{value}</span>
+                <span className="block text-xs font-medium text-muted-foreground">{label}</span>
+                <span className="mt-0.5 block text-2xl font-semibold tabular-nums text-foreground">{value}</span>
             </span>
             <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl', tone)}>
                 <Icon className="h-4 w-4" />
@@ -421,17 +421,17 @@ export default function WorkoutsPage() {
             onClick={() => setFilters({ tab: value })}
             className={cn(
                 'relative flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors',
-                tab === value ? 'text-[#F88022]' : 'text-muted-foreground hover:text-foreground'
+                tab === value ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
             )}
         >
             <Icon className="h-4 w-4" />
             {label}
             {count !== null && (
-                <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', tab === value ? 'bg-[#F88022]/15 text-[#F88022]' : 'bg-muted text-muted-foreground')}>
+                <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', tab === value ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground')}>
                     {count}
                 </span>
             )}
-            {tab === value && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#F88022]" />}
+            {tab === value && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />}
         </button>
     );
 
@@ -442,7 +442,7 @@ export default function WorkoutsPage() {
         <div className="space-y-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Fichas de treino</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fichas de treino</h1>
                     <p className="text-sm text-muted-foreground">Fichas dos alunos e modelos reutilizáveis</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -454,7 +454,7 @@ export default function WorkoutsPage() {
                     </Link>
                     <Link
                         href="/personal/workouts/new"
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#F88022]/90"
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
                     >
                         <Plus className="h-4 w-4" /> Nova ficha
                     </Link>
@@ -466,7 +466,7 @@ export default function WorkoutsPage() {
                     label="Fichas ativas"
                     value={plansLoading ? '—' : counts.active}
                     icon={CheckCircle2}
-                    tone="bg-emerald-500/10 text-emerald-500"
+                    tone="bg-muted text-muted-foreground"
                     active={tab === 'plans' && filters.status === 'active'}
                     onClick={() => setFilters({ tab: 'plans', status: 'active' })}
                 />
@@ -474,7 +474,7 @@ export default function WorkoutsPage() {
                     label={`Vencem em ${EXPIRING_DAYS} dias`}
                     value={plansLoading ? '—' : counts.expiring}
                     icon={CalendarClock}
-                    tone="bg-amber-500/10 text-amber-500"
+                    tone={counts.expiring > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-muted text-muted-foreground'}
                     active={tab === 'plans' && filters.status === 'expiring'}
                     onClick={() => setFilters({ tab: 'plans', status: 'expiring', sort: 'end' })}
                     title="Fichas ativas que terminam nos próximos dias ou já venceram"
@@ -483,7 +483,7 @@ export default function WorkoutsPage() {
                     label="Alunos sem ficha"
                     value={studentsApi.isLoading ? '—' : studentsWithoutPlan.length}
                     icon={Users}
-                    tone="bg-red-500/10 text-red-500"
+                    tone={studentsWithoutPlan.length > 0 ? 'bg-red-500/10 text-red-500' : 'bg-muted text-muted-foreground'}
                     onClick={() => setNoPlanOpen(true)}
                     title="Alunos ativos sem ficha de treino ativa"
                 />
@@ -491,7 +491,7 @@ export default function WorkoutsPage() {
                     label="Modelos"
                     value={templatesLoading ? '—' : templates.length}
                     icon={BookOpen}
-                    tone="bg-blue-500/10 text-blue-500"
+                    tone="bg-muted text-muted-foreground"
                     active={tab === 'library'}
                     onClick={() => setFilters({ tab: 'library' })}
                 />
@@ -512,7 +512,7 @@ export default function WorkoutsPage() {
                         onKeyDown={onSearchKeyDown}
                         placeholder={tab === 'plans' ? 'Buscar por aluno, ficha ou treino' : 'Buscar modelo'}
                         aria-label="Buscar"
-                        className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25"
+                        className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                     />
                     {query ? (
                         <button
@@ -553,7 +553,7 @@ export default function WorkoutsPage() {
                             aria-label="Ordenar"
                             value={filters.sort}
                             onChange={(event) => setFilters({ sort: event.target.value })}
-                            className="h-9 rounded-lg border border-border bg-card px-2.5 text-sm text-muted-foreground focus:border-[#F88022] focus:outline-none"
+                            className="h-9 rounded-lg border border-border bg-card px-2.5 text-sm text-muted-foreground focus:border-primary focus:outline-none"
                         >
                             <option value="recent">Atualizadas recentemente</option>
                             <option value="student">Aluno (A–Z)</option>
@@ -575,7 +575,7 @@ export default function WorkoutsPage() {
                     <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card px-6 py-12 text-center">
                         <AlertCircle className="h-6 w-6 text-red-500" />
                         <p className="text-sm text-muted-foreground">Não foi possível carregar as fichas. {plansApi.error.message}</p>
-                        <button type="button" onClick={() => void plansApi.mutate()} className="text-sm font-semibold text-[#F88022] hover:underline">
+                        <button type="button" onClick={() => void plansApi.mutate()} className="text-sm font-semibold text-primary hover:underline">
                             Tentar novamente
                         </button>
                     </div>
@@ -607,7 +607,7 @@ export default function WorkoutsPage() {
                             )}
                             <Link
                                 href="/personal/workouts/new"
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground"
                             >
                                 <Plus className="h-4 w-4" /> Nova ficha
                             </Link>
@@ -615,7 +615,7 @@ export default function WorkoutsPage() {
                     </div>
                 ) : (
                     <div className="overflow-hidden rounded-2xl border border-border bg-card">
-                        <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.3fr)_90px_80px] items-center gap-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
+                        <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.3fr)_90px_80px] items-center gap-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground md:grid">
                             <span>Ficha</span>
                             <span>Aluno</span>
                             <span>Período</span>
@@ -640,7 +640,7 @@ export default function WorkoutsPage() {
                                         <div className="min-w-0">
                                             <Link
                                                 href={`/personal/workouts/${plan.id}`}
-                                                className="block truncate text-sm font-semibold text-foreground after:absolute after:inset-0 hover:text-[#F88022]"
+                                                className="block truncate text-sm font-semibold text-foreground after:absolute after:inset-0 hover:text-primary"
                                             >
                                                 {plan.title}
                                             </Link>
@@ -653,7 +653,7 @@ export default function WorkoutsPage() {
                                         </div>
                                         <Link
                                             href={personalLinks.student(plan.studentId, 'workout')}
-                                            className="relative z-10 flex min-w-0 items-center gap-2 justify-self-start text-sm text-foreground hover:text-[#F88022]"
+                                            className="relative z-10 flex min-w-0 items-center gap-2 justify-self-start text-sm text-foreground hover:text-primary"
                                         >
                                             <Avatar name={studentNameOf(plan)} src={plan.student?.user?.avatar ?? undefined} size="sm" />
                                             <span className="truncate">{studentNameOf(plan)}</span>
@@ -705,7 +705,7 @@ export default function WorkoutsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setLimit((current) => current + PAGE_SIZE)}
-                                    className="rounded-lg px-3 py-1.5 text-sm font-semibold text-[#F88022] hover:bg-[#F88022]/10"
+                                    className="rounded-lg px-3 py-1.5 text-sm font-semibold text-primary hover:bg-primary/10"
                                 >
                                     Mostrar mais ({filteredPlans.length - visiblePlans.length} restantes)
                                 </button>
@@ -723,7 +723,7 @@ export default function WorkoutsPage() {
                 <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card px-6 py-12 text-center">
                     <AlertCircle className="h-6 w-6 text-red-500" />
                     <p className="text-sm text-muted-foreground">Não foi possível carregar os modelos. {templatesApi.error.message}</p>
-                    <button type="button" onClick={() => void templatesApi.mutate()} className="text-sm font-semibold text-[#F88022] hover:underline">
+                    <button type="button" onClick={() => void templatesApi.mutate()} className="text-sm font-semibold text-primary hover:underline">
                         Tentar novamente
                     </button>
                 </div>
@@ -738,7 +738,7 @@ export default function WorkoutsPage() {
                     </p>
                     <Link
                         href="/personal/workouts/new?kind=template"
-                        className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white"
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground"
                     >
                         <Plus className="h-4 w-4" /> Novo modelo
                     </Link>
@@ -748,10 +748,10 @@ export default function WorkoutsPage() {
                     {filteredTemplates.map((template) => {
                         const exerciseCount = template.templateDays.reduce((sum, day) => sum + day.items.length, 0);
                         return (
-                            <div key={template.id} className="flex flex-col rounded-2xl border border-border bg-card p-4 transition-colors hover:border-[#F88022]/40">
+                            <div key={template.id} className="flex flex-col rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/40">
                                 <div className="flex items-start justify-between gap-2">
                                     <button type="button" onClick={() => setPreviewTemplate(template)} className="min-w-0 text-left">
-                                        <h3 className="truncate text-sm font-semibold text-foreground hover:text-[#F88022]">{template.title}</h3>
+                                        <h3 className="truncate text-sm font-semibold text-foreground hover:text-primary">{template.title}</h3>
                                         <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                                             {template.description || 'Modelo para prescrição rápida.'}
                                         </p>
@@ -780,7 +780,7 @@ export default function WorkoutsPage() {
                                     <button
                                         type="button"
                                         onClick={() => setAssignTemplate(template)}
-                                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                                     >
                                         <UserPlus className="h-4 w-4" /> Atribuir
                                     </button>
@@ -822,7 +822,7 @@ export default function WorkoutsPage() {
                                     <Link
                                         href={`/personal/students/${student.id}/workout`}
                                         onClick={() => setNoPlanOpen(false)}
-                                        className="shrink-0 rounded-lg bg-[#F88022]/10 px-2.5 py-1 text-xs font-semibold text-[#F88022] hover:bg-[#F88022]/20"
+                                        className="shrink-0 rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
                                     >
                                         Criar ficha
                                     </Link>

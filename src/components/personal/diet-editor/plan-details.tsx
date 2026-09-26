@@ -20,7 +20,7 @@ import { StudentPicker, type StudentOption } from './student-picker';
 import { formatInteger } from './units';
 
 const fieldClass =
-    'h-10 w-full rounded-xl border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'h-10 w-full rounded-xl border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25';
 
 const TARGET_FIELDS: { key: MacroKey; label: string }[] = [
     { key: 'calories', label: 'Meta kcal' },
@@ -32,7 +32,7 @@ const TARGET_FIELDS: { key: MacroKey; label: string }[] = [
 function Field({ label, htmlFor, error, children, className }: { label: string; htmlFor?: string; error?: string | false; children: React.ReactNode; className?: string }) {
     return (
         <div className={cn('min-w-0 space-y-1.5', className)}>
-            <label htmlFor={htmlFor} className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <label htmlFor={htmlFor} className="block text-xs font-medium text-muted-foreground">
                 {label}
             </label>
             {children}
@@ -107,7 +107,7 @@ export function PlanDetails({
                             ) : (
                                 <Link
                                     href={`/personal/students/${studentId}?tab=diet`}
-                                    className="flex h-10 items-center gap-2 truncate rounded-xl border border-border bg-muted/40 px-3 text-sm font-medium text-foreground hover:border-[#F88022]/60"
+                                    className="flex h-10 items-center gap-2 truncate rounded-xl border border-border bg-muted/40 px-3 text-sm font-medium text-foreground hover:border-primary/60"
                                 >
                                     <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
                                     <span className="truncate">{studentName || 'Aluno'}</span>
@@ -193,7 +193,7 @@ export function PlanDetails({
                             className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-sm font-medium text-foreground hover:bg-muted"
                             title="Metas pelo gasto energético estimado e pelo objetivo do aluno"
                         >
-                            <Target className="h-4 w-4 text-[#F88022]" />
+                            <Target className="h-4 w-4 text-primary" />
                             Sugerir pelo gasto ({formatInteger(energy.targetCalories)} kcal)
                         </button>
                     )}
@@ -223,7 +223,7 @@ export function PlanDetails({
                         <>
                             {' '}
                             Cadastre peso, altura e data de nascimento na{' '}
-                            <Link href={`/personal/students/${student.id}`} className="font-medium text-[#F88022] hover:underline">
+                            <Link href={`/personal/students/${student.id}`} className="font-medium text-primary hover:underline">
                                 ficha do aluno
                             </Link>{' '}
                             para estimar o gasto energético.

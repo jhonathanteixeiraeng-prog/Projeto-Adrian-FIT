@@ -214,7 +214,7 @@ export function FoodSearch({
                         setHighlight(0);
                     }}
                     onKeyDown={onKeyDown}
-                    className="h-9 w-full rounded-lg border border-dashed border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-solid focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25"
+                    className="h-9 w-full rounded-lg border border-dashed border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-solid focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                 />
                 {status === 'loading' && (
                     <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden />
@@ -246,7 +246,7 @@ export function FoodSearch({
                         return (
                             <React.Fragment key={option.kind === 'food' ? `${section ?? 'r'}-${foodKey(option.food)}-${index}` : 'create'}>
                                 {showSection && (
-                                    <li role="presentation" className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <li role="presentation" className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">
                                         {section === 'Favoritos' ? <Star className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
                                         {section}
                                     </li>
@@ -267,7 +267,7 @@ export function FoodSearch({
                                 >
                                     {option.kind === 'create' ? (
                                         <>
-                                            <Plus className="h-4 w-4 shrink-0 text-[#F88022]" />
+                                            <Plus className="h-4 w-4 shrink-0 text-primary" />
                                             <span className="text-sm text-foreground">
                                                 Cadastrar alimento próprio “<strong>{option.name}</strong>”
                                             </span>
@@ -278,7 +278,7 @@ export function FoodSearch({
                                                 <span className="flex items-center gap-2">
                                                     <span className="truncate text-sm font-medium text-foreground">{option.food.name}</span>
                                                     {option.food.source === 'custom' && (
-                                                        <span className="shrink-0 rounded-md bg-[#F88022]/10 px-1.5 text-xs font-semibold text-[#F88022]">Próprio</span>
+                                                        <span className="shrink-0 rounded-md bg-primary/10 px-1.5 text-xs font-semibold text-primary">Próprio</span>
                                                     )}
                                                 </span>
                                                 <span className="block truncate text-xs text-muted-foreground">

@@ -120,7 +120,7 @@ export function AssignWorkoutTemplateDialog({
             <DialogContent className="max-w-xl rounded-2xl border-border bg-card">
                 <DialogHeader className="text-left">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                        <Library className="h-4 w-4 text-[#F88022]" />
+                        <Library className="h-4 w-4 text-muted-foreground" />
                         Atribuir modelo de treino
                     </DialogTitle>
                     <DialogDescription>O novo treino passa a ser o treino ativo de {studentName}.</DialogDescription>
@@ -150,7 +150,7 @@ export function AssignWorkoutTemplateDialog({
                     {!isLoading && templates.length === 0 && !loadError && (
                         <p className="text-xs text-muted-foreground">
                             Sua biblioteca está vazia.{' '}
-                            <Link href="/personal/workouts" className="font-semibold text-[#F88022] hover:underline">
+                            <Link href="/personal/workouts" className="font-semibold text-primary hover:underline">
                                 Criar modelos de treino
                             </Link>
                         </p>
@@ -163,7 +163,7 @@ export function AssignWorkoutTemplateDialog({
                             {days.map((day) => (
                                 <div key={day.id} className="text-sm">
                                     <p className="font-semibold text-foreground">
-                                        <span className="mr-1.5 text-xs font-bold uppercase text-[#F88022]">{getShortDayOfWeekName(day.dayOfWeek)}</span>
+                                        <span className="mr-1.5 text-xs font-bold uppercase text-muted-foreground">{getShortDayOfWeekName(day.dayOfWeek)}</span>
                                         {day.name}
                                         <span className="ml-1.5 text-xs font-normal text-muted-foreground">{day.items?.length ?? 0} exercícios</span>
                                     </p>
@@ -202,7 +202,7 @@ export function AssignWorkoutTemplateDialog({
                             type="checkbox"
                             checked={notifyStudent}
                             onChange={(event) => setNotifyStudent(event.target.checked)}
-                            className="rounded border-border text-[#F88022] focus:ring-[#F88022]/25"
+                            className="rounded border-border text-primary focus:ring-primary/25"
                         />
                         Avisar o aluno
                     </label>
@@ -292,7 +292,7 @@ export function CloneWorkoutDialog({
             <DialogContent className="max-w-xl rounded-2xl border-border bg-card">
                 <DialogHeader className="text-left">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                        <Sparkles className="h-4 w-4 text-[#F88022]" />
+                        <Sparkles className="h-4 w-4 text-primary" />
                         Clonar treino de outro aluno
                     </DialogTitle>
                     <DialogDescription>
@@ -325,7 +325,7 @@ export function CloneWorkoutDialog({
                                     key={student.id}
                                     className={cn(
                                         'flex cursor-pointer items-start gap-2 border-b border-border/60 px-3 py-2 text-sm last:border-0 focus-within:bg-muted',
-                                        sourceId === student.id ? 'bg-[#F88022]/10' : 'hover:bg-muted/60'
+                                        sourceId === student.id ? 'bg-primary/10' : 'hover:bg-muted/60'
                                     )}
                                 >
                                     <input
@@ -337,7 +337,7 @@ export function CloneWorkoutDialog({
                                             setSourceId(student.id);
                                             setError(null);
                                         }}
-                                        className="mt-1 accent-[#F88022]"
+                                        className="mt-1 accent-primary"
                                     />
                                     <span className="min-w-0">
                                         <span className="block truncate font-semibold text-foreground">{student.user?.name}</span>
@@ -349,12 +349,12 @@ export function CloneWorkoutDialog({
                         <div className="rounded-xl border border-border bg-muted/40 p-3">
                             {sourcePlan ? (
                                 <>
-                                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Prévia</p>
+                                    <p className="text-xs font-medium text-muted-foreground">Prévia</p>
                                     <p className="mt-1 font-semibold text-foreground">{sourcePlan.title}</p>
                                     <ul className="mt-2 space-y-1 text-sm">
                                         {(sourcePlan.workoutDays ?? []).map((day) => (
                                             <li key={day.id} className="flex items-center gap-1.5 text-foreground">
-                                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#F88022]" />
+                                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                                                 <span className="truncate">{day.name}</span>
                                             </li>
                                         ))}
@@ -504,7 +504,7 @@ export function AssignDietTemplateDialog({
             <DialogContent className="max-w-lg rounded-2xl border-border bg-card">
                 <DialogHeader className="text-left">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                        <Utensils className="h-4 w-4 text-emerald-500" />
+                        <Utensils className="h-4 w-4 text-muted-foreground" />
                         Atribuir modelo de dieta
                     </DialogTitle>
                     <DialogDescription>As quantidades do modelo são ajustadas para a meta calórica de {studentName}.</DialogDescription>
@@ -524,7 +524,7 @@ export function AssignDietTemplateDialog({
                     {!isLoading && templates.length === 0 && !loadError && (
                         <p className="text-xs text-muted-foreground">
                             Sua biblioteca está vazia.{' '}
-                            <Link href="/personal/diets" className="font-semibold text-[#F88022] hover:underline">
+                            <Link href="/personal/diets" className="font-semibold text-primary hover:underline">
                                 Criar modelos de dieta
                             </Link>
                         </p>
@@ -577,7 +577,7 @@ export function AssignDietTemplateDialog({
                             type="checkbox"
                             checked={notifyStudent}
                             onChange={(event) => setNotifyStudent(event.target.checked)}
-                            className="rounded border-border text-[#F88022] focus:ring-[#F88022]/25"
+                            className="rounded border-border text-primary focus:ring-primary/25"
                         />
                         Avisar o aluno
                     </label>

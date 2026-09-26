@@ -171,8 +171,8 @@ function ExerciseLibraryComponent({
         cn(
             'shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
             active
-                ? 'border-[#F88022] bg-[#F88022] text-white'
-                : 'border-border bg-background text-muted-foreground hover:border-[#F88022]/50 hover:text-foreground'
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground'
         );
 
     const tabButton = (value: LibraryTab, label: string, count?: number) => (
@@ -194,12 +194,12 @@ function ExerciseLibraryComponent({
         <div className={cn('flex min-h-0 flex-col', className)}>
             <div className="space-y-2.5 border-b border-border p-3">
                 <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-sm font-bold text-foreground">Biblioteca de exercícios</h2>
+                    <h2 className="text-sm font-semibold text-foreground">Biblioteca de exercícios</h2>
                     <button
                         type="button"
                         tabIndex={-1}
                         onClick={() => onRequestCreate(query.trim())}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-[#F88022] hover:bg-[#F88022]/10"
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
                     >
                         <Plus className="h-3.5 w-3.5" /> Novo
                     </button>
@@ -237,7 +237,7 @@ function ExerciseLibraryComponent({
                         onChange={(event) => setQuery(event.target.value)}
                         onKeyDown={onKeyDown}
                         placeholder="Buscar exercício, músculo ou equipamento"
-                        className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25"
+                        className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                     />
                     {query ? (
                         <button
@@ -288,8 +288,8 @@ function ExerciseLibraryComponent({
                         value={equipment}
                         onChange={(event) => setEquipment(event.target.value)}
                         className={cn(
-                            'h-8 min-w-0 flex-1 rounded-lg border bg-background px-2 text-xs focus:border-[#F88022] focus:outline-none',
-                            equipment ? 'border-[#F88022] text-foreground' : 'border-border text-muted-foreground'
+                            'h-8 min-w-0 flex-1 rounded-lg border bg-background px-2 text-xs focus:border-primary focus:outline-none',
+                            equipment ? 'border-primary text-foreground' : 'border-border text-muted-foreground'
                         )}
                     >
                         <option value="">Qualquer equipamento</option>
@@ -328,7 +328,7 @@ function ExerciseLibraryComponent({
                         <AlertCircle className="h-5 w-5 text-red-500" />
                         Não foi possível carregar os exercícios.
                         {onRetry && (
-                            <button type="button" onClick={onRetry} className="font-semibold text-[#F88022] hover:underline">
+                            <button type="button" onClick={onRetry} className="font-semibold text-primary hover:underline">
                                 Tentar novamente
                             </button>
                         )}
@@ -348,7 +348,7 @@ function ExerciseLibraryComponent({
                             <button
                                 type="button"
                                 onClick={() => onRequestCreate(query.trim())}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                             >
                                 <Plus className="h-4 w-4" />
                                 Criar exercício “{query.trim()}”
@@ -399,10 +399,10 @@ function ExerciseLibraryComponent({
                                 className={cn(
                                     'group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5',
                                     isHighlighted ? 'bg-muted' : 'hover:bg-muted/60',
-                                    isSelected && 'bg-[#F88022]/10'
+                                    isSelected && 'bg-primary/10'
                                 )}
                             >
-                                {isHighlighted && <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-[#F88022]" aria-hidden />}
+                                {isHighlighted && <span className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary" aria-hidden />}
                                 {!swapTargetName && (
                                     <input
                                         type="checkbox"
@@ -411,7 +411,7 @@ function ExerciseLibraryComponent({
                                         checked={isSelected}
                                         onClick={(event) => event.stopPropagation()}
                                         onChange={() => toggleSelected(exercise.id)}
-                                        className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border accent-[#F88022]"
+                                        className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-border accent-primary"
                                     />
                                 )}
                                 <div className="min-w-0 flex-1">
@@ -456,11 +456,11 @@ function ExerciseLibraryComponent({
             </div>
 
             {selected.length > 0 && !swapTargetName ? (
-                <div className="flex items-center gap-2 border-t border-border bg-[#F88022]/5 p-2">
+                <div className="flex items-center gap-2 border-t border-border bg-primary/5 p-2">
                     <button
                         type="button"
                         onClick={() => pick(selectedExercises)}
-                        className="flex-1 truncate rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                        className="flex-1 truncate rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                     >
                         Adicionar {selected.length} em {targetLabel}
                     </button>

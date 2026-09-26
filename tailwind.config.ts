@@ -81,9 +81,15 @@ const config: Config = {
                 border: withAlpha('--border'),
                 input: withAlpha('--input'),
                 ring: withAlpha('--ring'),
+                // Pure brand orange (logo); `primary` is the orange for actions, tuned per theme.
+                brand: {
+                    DEFAULT: withAlpha('--brand'),
+                    foreground: withAlpha('--brand-foreground'),
+                },
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],
+                brand: ['Montserrat', 'Poppins', 'sans-serif'],
             },
             borderRadius: {
                 lg: 'var(--radius)',

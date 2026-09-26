@@ -141,7 +141,7 @@ export function StudentPicker({
                                 'flex cursor-pointer items-center gap-3 px-3 py-2 text-sm',
                                 inline ? 'border-b border-border/60 last:border-0' : 'rounded-lg',
                                 index === highlight && 'bg-muted',
-                                isSelected && 'text-[#F88022]'
+                                isSelected && 'text-primary'
                             )}
                         >
                             <Avatar name={student.user.name} src={student.user.avatar ?? undefined} size="sm" />
@@ -189,7 +189,7 @@ export function StudentPicker({
                     }}
                     onKeyDown={onKeyDown}
                     className={cn(
-                        'h-9 w-full rounded-lg border bg-background pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25',
+                        'h-9 w-full rounded-lg border bg-background pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25',
                         invalid ? 'border-red-500' : 'border-border',
                         !inline && selected && !open && 'font-medium'
                     )}

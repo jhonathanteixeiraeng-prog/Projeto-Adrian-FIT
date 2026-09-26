@@ -16,7 +16,7 @@ interface AssignTemplateDialogProps {
 }
 
 const inputClass =
-    'h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25';
 
 /** Prescribes a library template to a student (no student preselected) and opens the new plan in the editor. */
 export function AssignTemplateDialog({ template, onOpenChange }: AssignTemplateDialogProps) {
@@ -83,7 +83,7 @@ export function AssignTemplateDialog({ template, onOpenChange }: AssignTemplateD
                 <form onSubmit={submit}>
                     <DialogHeader className="border-b border-border px-5 py-4 text-left">
                         <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                            <UserPlus className="h-5 w-5 text-[#F88022]" /> Atribuir modelo a um aluno
+                            <UserPlus className="h-5 w-5 text-primary" /> Atribuir modelo a um aluno
                         </DialogTitle>
                         <DialogDescription>
                             Cria uma ficha ativa com os treinos de “{template?.title}”. Você poderá ajustá-la em seguida.
@@ -135,7 +135,7 @@ export function AssignTemplateDialog({ template, onOpenChange }: AssignTemplateD
                                 type="checkbox"
                                 checked={notifyStudent}
                                 onChange={(event) => setNotifyStudent(event.target.checked)}
-                                className="rounded border-border text-[#F88022] focus:ring-[#F88022]/25"
+                                className="rounded border-border text-primary focus:ring-primary/25"
                             />
                             Avisar o aluno
                         </label>
@@ -157,7 +157,7 @@ export function AssignTemplateDialog({ template, onOpenChange }: AssignTemplateD
                         <button
                             type="submit"
                             disabled={saving}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                         >
                             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                             Criar ficha e abrir

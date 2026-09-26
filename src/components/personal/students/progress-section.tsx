@@ -236,7 +236,7 @@ function PhotoCompareDialog({ open, onOpenChange, photos }: { open: boolean; onO
             <DialogContent className="max-w-4xl rounded-2xl border-border bg-card">
                 <DialogHeader className="text-left">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                        <Columns2 className="h-4 w-4 text-[#F88022]" />
+                        <Columns2 className="h-4 w-4 text-muted-foreground" />
                         Comparar fotos
                     </DialogTitle>
                     <DialogDescription>Escolha duas datas para ver lado a lado.</DialogDescription>
@@ -298,8 +298,8 @@ export function PhotoGallery({ photos, total }: { photos: ProgressPhoto[]; total
                             onClick={() => setAngle(value)}
                             aria-pressed={angle === value}
                             className={cn(
-                                'rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
-                                angle === value ? 'bg-[#F88022]/15 text-[#F88022]' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                'rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                                angle === value ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                             )}
                         >
                             {value === 'ALL' ? 'Todas' : PHOTO_ANGLE_LABELS[value] ?? value}
@@ -324,7 +324,7 @@ export function PhotoGallery({ photos, total }: { photos: ProgressPhoto[]; total
                         key={photo.id}
                         type="button"
                         onClick={() => setLightboxIndex(photos.indexOf(photo))}
-                        className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]"
+                        className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         aria-label={`Ampliar foto de ${photoLabel(photo)}`}
                     >
                         <img

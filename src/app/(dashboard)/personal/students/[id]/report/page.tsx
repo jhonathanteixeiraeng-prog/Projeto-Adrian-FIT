@@ -201,7 +201,7 @@ export default function StudentEvolutionReportPage() {
                         id="report-period"
                         value={period}
                         onChange={(event) => setPeriod(event.target.value)}
-                        className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground focus:border-[#F88022] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/30"
+                        className="h-8 rounded-lg border border-border bg-background px-2 text-sm text-foreground focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
                     >
                         {PERIODS.map((item) => (
                             <option key={item.id} value={item.id}>
@@ -221,10 +221,10 @@ export default function StudentEvolutionReportPage() {
                 <div className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F88022] text-lg font-black text-white">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-lg font-black text-white">
                                 {brand.charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-xl font-black uppercase tracking-tight text-[#F88022]">{brand}</span>
+                            <span className="text-xl font-black uppercase tracking-tight text-brand">{brand}</span>
                         </div>
                         <h1 className="text-2xl font-bold text-foreground">Relatório de evolução</h1>
                         <p className="text-xs text-muted-foreground">Período: {periodLabel}</p>
@@ -279,7 +279,7 @@ export default function StudentEvolutionReportPage() {
                         detail={student.height ? `Inicial: ${formatNumber(report.initialBmi)}` : 'Altura não informada'}
                     />
                     <Kpi
-                        icon={<Dumbbell className="h-3.5 w-3.5 text-[#F88022]" />}
+                        icon={<Dumbbell className="h-3.5 w-3.5 text-brand" />}
                         label="Adesão média ao treino"
                         value={report.avgWorkout === null ? '—' : `${report.avgWorkout}%`}
                         detail={`${report.inPeriod.length} ${report.inPeriod.length === 1 ? 'check-in' : 'check-ins'} no período`}
@@ -344,7 +344,7 @@ export default function StudentEvolutionReportPage() {
                                     <div className="grid grid-cols-2 gap-2">
                                         {[pair.before, pair.after].map((photo: ProgressPhoto | null, index) => (
                                             <div key={index} className="space-y-1">
-                                                <span className={cn('block text-center text-xs font-semibold', index === 1 ? 'text-[#F88022]' : 'text-muted-foreground')}>
+                                                <span className={cn('block text-center text-xs font-semibold', index === 1 ? 'text-brand' : 'text-muted-foreground')}>
                                                     {photo ? formatDate(photo.createdAt) : 'Sem foto posterior'}
                                                 </span>
                                                 <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border border-border bg-white">
@@ -391,7 +391,7 @@ export default function StudentEvolutionReportPage() {
                                             <td className="whitespace-nowrap p-3 font-medium text-foreground">{formatDate(checkin.date)}</td>
                                             <td className="p-3 text-center font-semibold text-foreground">{formatNumber(checkin.weight, ' kg')}</td>
                                             <td className="p-3 text-center text-muted-foreground">{formatNumber(checkin.sleepHours, ' h')}</td>
-                                            <td className="p-3 text-center font-semibold text-[#F88022]">{checkin.workoutAdherence}%</td>
+                                            <td className="p-3 text-center font-semibold text-brand">{checkin.workoutAdherence}%</td>
                                             <td className="p-3 text-center font-semibold text-emerald-600">{checkin.dietAdherence}%</td>
                                             <td className="p-3 text-muted-foreground">{checkin.notes || '—'}</td>
                                         </tr>

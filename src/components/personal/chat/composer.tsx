@@ -109,7 +109,7 @@ export function Composer({ conversationKey, studentName, onSend }: ComposerProps
                             type="button"
                             onClick={() => insertReply(reply)}
                             title={index < 9 ? `${filled}  (Alt+${index + 1})` : filled}
-                            className="max-w-[240px] shrink-0 truncate rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-[#F88022]/40 hover:text-foreground lg:min-h-0 lg:min-w-0"
+                            className="max-w-[240px] shrink-0 truncate rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground lg:min-h-0 lg:min-w-0"
                         >
                             {filled}
                         </button>
@@ -141,13 +141,13 @@ export function Composer({ conversationKey, studentName, onSend }: ComposerProps
                     rows={1}
                     placeholder={placeholder}
                     aria-label="Mensagem"
-                    className="max-h-44 min-h-[44px] flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-base leading-snug text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#F88022]/60"
+                    className="max-h-44 min-h-[44px] flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-base leading-snug text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary/60"
                 />
                 <button
                     type="submit"
                     disabled={!text.trim()}
                     className={cn(
-                        'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F88022] text-white transition-colors hover:bg-[#F88022]/90',
+                        'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90',
                         'disabled:cursor-not-allowed disabled:opacity-40'
                     )}
                     aria-label="Enviar mensagem"

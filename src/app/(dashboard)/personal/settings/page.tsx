@@ -8,6 +8,7 @@ import {
     Lock,
     LogOut,
     MessageSquareText,
+    Monitor,
     Moon,
     PanelRight,
     Save,
@@ -19,6 +20,7 @@ import {
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, useToast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/providers';
+import type { ThemePreference } from '@/lib/theme';
 import { modKeyLabel } from '@/hooks/use-hotkey';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { QuickRepliesForm } from '@/components/personal/chat/quick-replies';
@@ -49,13 +51,14 @@ function PreferenceToggle({ icon: Icon, label, description, checked, onChange }:
                 aria-label={label}
                 onClick={() => onChange(!checked)}
                 className={cn(
-                    'relative h-6 min-h-0 w-11 min-w-0 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                    checked ? 'bg-[#F88022]' : 'bg-neutral-300 dark:bg-neutral-700'
+                    'relative h-6 min-h-0 w-11 min-w-0 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                    checked ? 'bg-primary' : 'bg-neutral-300 dark:bg-neutral-700'
                 )}
             >
                 <span
                     className={cn(
-                        'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                        // left-0: a button centers its content, so without it the knob starts mid-track.
+                        'absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
                         checked ? 'translate-x-[22px]' : 'translate-x-0.5'
                     )}
                 />
@@ -64,10 +67,54 @@ function PreferenceToggle({ icon: Icon, label, description, checked, onChange }:
     );
 }
 
+const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; icon: LucideIcon }> = [
+    { value: 'system', label: 'Automático', icon: Monitor },
+    { value: 'light', label: 'Claro', icon: Sun },
+    { value: 'dark', label: 'Escuro', icon: Moon },
+];
+
+/** Automático follows the computer (light by day, dark at night); Claro/Escuro fix the theme. */
+function ThemePreferenceRow() {
+    const { theme, preference, setTheme } = useTheme();
+    const description =
+        preference === 'system'
+            ? `Segue o computador (agora ${theme === 'dark' ? 'escuro' : 'claro'})`
+            : preference === 'dark'
+              ? 'Sempre escuro'
+              : 'Sempre claro';
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-muted p-4">
+            <div className="flex min-w-0 items-center gap-3">
+                {theme === 'dark' ? <Moon className="h-5 w-5 shrink-0 text-muted-foreground" /> : <Sun className="h-5 w-5 shrink-0 text-muted-foreground" />}
+                <div className="min-w-0">
+                    <p className="font-medium text-foreground">Tema</p>
+                    <p className="text-sm text-muted-foreground">{description}</p>
+                </div>
+            </div>
+            <div role="group" aria-label="Tema" className="flex shrink-0 rounded-lg border border-border bg-card p-0.5">
+                {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+                    <button
+                        key={value}
+                        type="button"
+                        aria-pressed={preference === value}
+                        onClick={() => setTheme(value)}
+                        className={cn(
+                            'inline-flex min-h-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                            preference === value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+                        )}
+                    >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function SettingsPage() {
     const { data: session, update } = useSession();
     const { toast } = useToast();
-    const { theme, setTheme } = useTheme();
     const [enterSends, setEnterSends] = useEnterSends();
     const [isContextPanelOpen, setIsContextPanelOpen] = useContextPanelOpen();
     const [quickReplies, setQuickReplies] = useQuickReplies();
@@ -168,14 +215,14 @@ export default function SettingsPage() {
     return (
         <div className="mx-auto max-w-3xl space-y-6 pb-8 animate-in">
             <div>
-                <h1 className="text-2xl font-bold text-foreground lg:text-3xl">Configurações</h1>
+                <h1 className="text-2xl font-semibold text-foreground">Configurações</h1>
                 <p className="mt-1 text-muted-foreground">Perfil, segurança e preferências de trabalho</p>
             </div>
 
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <User className="h-5 w-5 text-[#F88022]" />
+                        <User className="h-5 w-5 text-primary" />
                         Informações do perfil
                     </CardTitle>
                 </CardHeader>
@@ -217,7 +264,7 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <Lock className="h-5 w-5 text-[#F88022]" />
+                        <Lock className="h-5 w-5 text-primary" />
                         Alterar senha
                     </CardTitle>
                 </CardHeader>
@@ -264,19 +311,13 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <SlidersHorizontal className="h-5 w-5 text-[#F88022]" />
+                        <SlidersHorizontal className="h-5 w-5 text-primary" />
                         Preferências
                     </CardTitle>
                     <p className="mt-1 text-sm text-muted-foreground">Salvas neste navegador.</p>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    <PreferenceToggle
-                        icon={theme === 'dark' ? Moon : Sun}
-                        label="Modo escuro"
-                        description={theme === 'dark' ? 'Tema escuro ativado' : 'Tema claro ativado'}
-                        checked={theme === 'dark'}
-                        onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                    />
+                    <ThemePreferenceRow />
                     <PreferenceToggle
                         icon={CornerDownLeft}
                         label="Enter envia a mensagem no chat"
@@ -319,7 +360,7 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <MessageSquareText className="h-5 w-5 text-[#F88022]" />
+                        <MessageSquareText className="h-5 w-5 text-primary" />
                         Respostas rápidas do chat
                     </CardTitle>
                     <p className="mt-1 text-sm text-muted-foreground">

@@ -12,7 +12,7 @@ export const FOOD_GRID =
     'lg:grid lg:grid-cols-[minmax(11rem,1.5fr)_4.75rem_minmax(7rem,10.5rem)_3.75rem_3.25rem_3.25rem_3.25rem_minmax(9rem,1fr)_4.75rem] lg:items-center lg:gap-x-2';
 
 const SOURCE_BADGES: Record<string, { label: string; className: string; title: string }> = {
-    custom: { label: 'Próprio', className: 'bg-[#F88022]/10 text-[#F88022]', title: 'Alimento cadastrado por você' },
+    custom: { label: 'Próprio', className: 'bg-primary/10 text-primary', title: 'Alimento cadastrado por você' },
     ai: { label: 'IA', className: 'bg-violet-500/10 text-violet-500', title: 'Sugerido pela IA — revise os valores' },
     rules: { label: 'Auto', className: 'bg-sky-500/10 text-sky-500', title: 'Sugerido pelo gerador automático' },
 };
@@ -40,7 +40,7 @@ interface FoodRowProps {
 }
 
 const inputClass =
-    'h-8 w-full rounded-md border border-transparent bg-muted/60 px-2 text-sm text-foreground placeholder:text-muted-foreground hover:border-border focus:border-[#F88022] focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#F88022]/25';
+    'h-8 w-full rounded-md border border-transparent bg-muted/60 px-2 text-sm text-foreground placeholder:text-muted-foreground hover:border-border focus:border-primary focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/25';
 
 function FoodRowComponent({
     food,
@@ -109,7 +109,7 @@ function FoodRowComponent({
             aria-label={food.name}
             data-row={food.uid}
             onKeyDown={onKeyDown}
-            className="group/row rounded-lg px-1.5 py-1 transition-colors focus-within:bg-[#F88022]/[0.04] hover:bg-muted/40"
+            className="group/row rounded-lg px-1.5 py-1 transition-colors focus-within:bg-primary/[0.04] hover:bg-muted/40"
         >
             <div className={cn('flex flex-wrap items-center gap-x-2 gap-y-1.5', FOOD_GRID)}>
                 <div className="flex min-w-0 basis-full items-center gap-2 lg:basis-auto" title={`${food.name} — porção base: ${food.portion}`}>
@@ -192,7 +192,7 @@ function FoodRowComponent({
                         }}
                         className={cn(
                             'rounded-md p-1.5 transition-colors hover:bg-muted',
-                            food.substitutionNote ? 'text-[#F88022]' : 'text-muted-foreground'
+                            food.substitutionNote ? 'text-primary' : 'text-muted-foreground'
                         )}
                     >
                         <ArrowLeftRight className="h-4 w-4" />
@@ -219,7 +219,7 @@ function FoodRowComponent({
 
             {showSubstitution && (
                 <div className="mt-1 flex items-center gap-2 lg:pl-4">
-                    <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-[#F88022]" aria-hidden />
+                    <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
                     <input
                         data-field="substitution"
                         data-focus-id={`${food.uid}:substitution`}

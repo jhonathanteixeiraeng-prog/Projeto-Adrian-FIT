@@ -61,7 +61,7 @@ export default function PersonalDashboard() {
         <div className="space-y-6 animate-in">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground lg:text-3xl">
+                    <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                         Olá{firstName ? `, ${firstName}` : ''}! 👋
                     </h1>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -78,11 +78,11 @@ export default function PersonalDashboard() {
                         title="Atualizar agora"
                         aria-label="Atualizar dashboard"
                     >
-                        <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin text-[#F88022]')} />
+                        <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin text-primary')} />
                     </button>
                     <Link
                         href="/personal/students/new"
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[#F88022]/20 transition-all hover:bg-[#F88022]/90"
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/20 transition-all hover:bg-primary/90"
                     >
                         <UserPlus className="h-4 w-4" />
                         Novo aluno

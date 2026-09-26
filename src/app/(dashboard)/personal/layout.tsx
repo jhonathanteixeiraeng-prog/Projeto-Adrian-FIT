@@ -95,7 +95,7 @@ const formatBadge = (count: number) => (count > 99 ? '99+' : String(count));
 function PageFallback() {
     return (
         <div className="flex min-h-[40vh] items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-[#F88022]" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
     );
 }
@@ -168,14 +168,14 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
             >
                 {/* Logo & Brand Header */}
                 <div className={cn('h-16 flex items-center gap-3 border-b border-border bg-card', collapsed ? 'justify-center px-2' : 'px-6')}>
-                    <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-tr from-[#F88022] to-amber-500 flex items-center justify-center shadow-xs">
-                        <Dumbbell className="w-5 h-5 text-white" />
+                    <div className="w-9 h-9 shrink-0 rounded-lg bg-brand flex items-center justify-center">
+                        <Dumbbell className="w-5 h-5 text-brand-foreground" />
                     </div>
                     {!collapsed && (
                         <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                                <h1 className="font-extrabold text-foreground tracking-tight text-sm">ADRIAN FIT</h1>
-                                <span className="text-xs font-bold px-1.5 rounded-md bg-[#F88022]/15 text-[#F88022]">PRO</span>
+                                <h1 className="font-brand font-extrabold text-foreground tracking-tight text-sm">ADRIAN FIT</h1>
+                                <span className="text-xs font-semibold px-1.5 rounded-md bg-muted text-muted-foreground">PRO</span>
                             </div>
                             <p className="text-xs text-muted-foreground">Consultoria & Treino</p>
                         </div>
@@ -189,7 +189,7 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
                             {collapsed ? (
                                 <div className="mx-auto mb-2 h-px w-8 bg-border" aria-hidden />
                             ) : (
-                                <p className="px-3 text-xs font-bold text-muted-foreground/80 uppercase tracking-wider">
+                                <p className="px-3 text-xs font-medium text-muted-foreground/80">
                                     {group.title}
                                 </p>
                             )}
@@ -206,21 +206,21 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
                                             title={collapsed ? item.label : undefined}
                                             aria-label={collapsed ? item.label : undefined}
                                             className={cn(
-                                                'relative flex items-center rounded-xl text-sm font-semibold transition-all duration-150',
+                                                'relative flex items-center rounded-lg text-sm font-medium transition-all duration-150',
                                                 collapsed ? 'h-10 justify-center' : 'justify-between px-3 py-2',
                                                 isActive
-                                                    ? 'bg-[#F88022]/10 text-[#F88022]'
+                                                    ? 'bg-muted text-foreground'
                                                     : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
                                             )}
                                         >
                                             {isActive && !collapsed && (
-                                                <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-[#F88022]" aria-hidden />
+                                                <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary" aria-hidden />
                                             )}
                                             <div className="flex items-center gap-2.5 min-w-0">
                                                 <Icon
                                                     className={cn(
                                                         'w-4 h-4 shrink-0',
-                                                        isActive ? 'text-[#F88022]' : 'text-muted-foreground'
+                                                        isActive ? 'text-primary' : 'text-muted-foreground'
                                                     )}
                                                 />
                                                 {!collapsed && <span className="truncate">{item.label}</span>}
@@ -228,9 +228,9 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
 
                                             {count > 0 &&
                                                 (collapsed ? (
-                                                    <span className="absolute top-1.5 right-2.5 h-2 w-2 rounded-full bg-[#F88022]" aria-hidden />
+                                                    <span className="absolute top-1.5 right-2.5 h-2 w-2 rounded-full bg-primary" aria-hidden />
                                                 ) : (
-                                                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#F88022] text-white text-xs font-bold flex items-center justify-center">
+                                                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
                                                         {formatBadge(count)}
                                                     </span>
                                                 ))}
@@ -295,12 +295,12 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
             {/* Mobile Header */}
             <header className="lg:hidden fixed top-0 inset-x-0 h-16 bg-card border-b border-border flex items-center justify-between px-4 z-50">
                 <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#F88022] to-amber-500 flex items-center justify-center">
-                        <Dumbbell className="w-5 h-5 text-white" />
+                    <div className="w-9 h-9 rounded-lg bg-brand flex items-center justify-center">
+                        <Dumbbell className="w-5 h-5 text-brand-foreground" />
                     </div>
                     <div>
-                        <span className="font-extrabold text-foreground text-sm tracking-tight">ADRIAN FIT</span>
-                        <p className="text-xs text-[#F88022] font-semibold">COACH PRO</p>
+                        <span className="font-brand font-extrabold text-foreground text-sm tracking-tight">ADRIAN FIT</span>
+                        <p className="text-xs text-muted-foreground font-medium">Coach PRO</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
                     >
                         <Bell className="w-5 h-5" />
                         {unreadNotifications > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F88022] text-white text-[10px] font-bold flex items-center justify-center">
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                                 {formatBadge(unreadNotifications)}
                             </span>
                         )}
@@ -348,11 +348,11 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
                             href={item.href}
                             className={cn(
                                 'relative flex flex-col items-center gap-1 p-2 transition-colors',
-                                isActive ? 'text-[#F88022]' : 'text-muted-foreground'
+                                isActive ? 'text-primary' : 'text-muted-foreground'
                             )}
                         >
                             <Icon className="w-5 h-5" />
-                            {count > 0 && <span className="absolute top-1 right-2 h-2 w-2 rounded-full bg-[#F88022]" aria-hidden />}
+                            {count > 0 && <span className="absolute top-1 right-2 h-2 w-2 rounded-full bg-primary" aria-hidden />}
                             <span className="text-[11px] font-medium">{item.label}</span>
                         </Link>
                     );
@@ -362,7 +362,7 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
                     className={cn(
                         'flex flex-col items-center gap-1 p-2 transition-colors',
                         isMoreMenuOpen || mobileMoreItems.some((item) => pathname === item.href || pathname.startsWith(item.href + '/'))
-                            ? 'text-[#F88022]'
+                            ? 'text-primary'
                             : 'text-muted-foreground'
                     )}
                 >
@@ -382,7 +382,7 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-foreground text-sm">Mais opções</h3>
+                            <h3 className="font-semibold text-foreground text-sm">Mais opções</h3>
                             <button
                                 onClick={() => setIsMoreMenuOpen(false)}
                                 className="p-2 rounded-lg hover:bg-muted transition-colors"
@@ -401,7 +401,7 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
                                         className={cn(
                                             'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors',
                                             isActive
-                                                ? 'bg-[#F88022]/15 text-[#F88022]'
+                                                ? 'bg-primary/15 text-primary'
                                                 : 'bg-muted text-muted-foreground hover:text-foreground'
                                         )}
                                         onClick={() => setIsMoreMenuOpen(false)}

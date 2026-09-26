@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
     title: "Adrian Santos | Personal Trainer",
@@ -40,6 +41,10 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="pt-BR" className="dark" suppressHydrationWarning>
+            <head>
+                {/* Theme and personal palette before the first paint (ThemeProvider takes over after mount). */}
+                <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+            </head>
             <body className="antialiased">
                 <Providers>{children}</Providers>
             </body>

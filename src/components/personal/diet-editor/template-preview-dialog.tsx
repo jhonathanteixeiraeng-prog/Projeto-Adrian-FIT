@@ -56,7 +56,7 @@ export function TemplatePreviewDialog({
                     <>
                         <DialogHeader className="text-left">
                             <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-                                <Utensils className="h-5 w-5 text-[#F88022]" />
+                                <Utensils className="h-5 w-5 text-primary" />
                                 {template.title}
                             </DialogTitle>
                             <DialogDescription className="tabular-nums">
@@ -71,13 +71,13 @@ export function TemplatePreviewDialog({
                                 <section key={meal.id || index} className="rounded-xl border border-border bg-muted/30 p-3">
                                     <header className="flex items-center justify-between gap-2">
                                         <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                                            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#F88022]/15 text-xs font-bold text-[#F88022]">
+                                            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/15 text-xs font-bold text-primary">
                                                 {index + 1}
                                             </span>
                                             {meal.name}
                                         </h4>
                                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                            <Clock className="h-3.5 w-3.5 text-[#F88022]" />
+                                            <Clock className="h-3.5 w-3.5 text-primary" />
                                             {meal.time}
                                         </span>
                                     </header>
@@ -91,7 +91,7 @@ export function TemplatePreviewDialog({
                                                         {quantityLabel(food)}
                                                         {food.notes ? ` · ${food.notes}` : ''}
                                                     </p>
-                                                    {food.substitutionNote && <p className="text-xs text-[#F88022]">↔ {food.substitutionNote}</p>}
+                                                    {food.substitutionNote && <p className="text-xs text-primary">↔ {food.substitutionNote}</p>}
                                                 </div>
                                                 <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
                                                     {formatKcal(Number(food.totalCalories) || 0)} kcal
@@ -122,7 +122,7 @@ export function TemplatePreviewDialog({
                             <button
                                 type="button"
                                 onClick={() => onAssign(template)}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-[#F88022] px-3 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                             >
                                 <UserPlus className="h-4 w-4" />
                                 Atribuir a aluno

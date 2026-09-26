@@ -202,7 +202,7 @@ export function TopHeader() {
                         onClick={() => setIsCommandOpen(true)}
                         className="flex items-center gap-3 px-3.5 py-1.5 rounded-xl bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/80 transition-all w-64 xl:w-72 text-left group shadow-xs"
                     >
-                        <Search className="w-4 h-4 text-muted-foreground group-hover:text-[#F88022] transition-colors" />
+                        <Search className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                         <span className="text-sm flex-1">Buscar aluno ou ação...</span>
                         <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-semibold text-muted-foreground bg-card rounded border border-border">
                             {modLabel} K
@@ -215,9 +215,10 @@ export function TopHeader() {
                             size="sm"
                             onClick={() => setIsQuickActionOpen(!isQuickActionOpen)}
                             aria-expanded={isQuickActionOpen}
-                            className="bg-[#F88022] hover:bg-[#F88022]/90 text-white font-semibold text-sm h-9 px-3 gap-1.5 rounded-xl shadow-xs"
+                            // Neutral: it's on every page, the page's own main action keeps the orange fill.
+                            className="border border-border bg-card hover:bg-muted text-foreground font-semibold text-sm h-9 px-3 gap-1.5 rounded-lg"
                         >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-4 h-4 text-primary" />
                             <span>Criar</span>
                             <ChevronDown className="w-3.5 h-3.5 opacity-80" />
                         </Button>
@@ -225,7 +226,7 @@ export function TopHeader() {
                         {isQuickActionOpen && (
                             <div className="absolute right-0 mt-2 w-60 bg-card border border-border rounded-2xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                                 <div className="px-3 py-1.5 border-b border-border/60">
-                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                                    <p className="text-xs font-medium text-muted-foreground">
                                         Novo Cadastro
                                     </p>
                                 </div>
@@ -237,17 +238,17 @@ export function TopHeader() {
                                     <Link
                                         key={item.href}
                                         href={item.href}
-                                        className="flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-foreground hover:bg-[#F88022]/10 hover:text-[#F88022] transition-colors"
+                                        className="flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
                                         onClick={() => setIsQuickActionOpen(false)}
                                     >
-                                        <item.icon className="w-4 h-4 text-[#F88022]" />
+                                        <item.icon className="w-4 h-4 text-primary" />
                                         <span>{item.label}</span>
                                     </Link>
                                 ))}
                                 <div className="my-1 border-t border-border/60" />
                                 <Link
                                     href="/personal/exercises"
-                                    className="flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-foreground hover:bg-[#F88022]/10 hover:text-[#F88022] transition-colors"
+                                    className="flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
                                     onClick={() => setIsQuickActionOpen(false)}
                                 >
                                     <Library className="w-4 h-4 text-muted-foreground" />
@@ -265,7 +266,7 @@ export function TopHeader() {
                         title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
                         aria-label={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
                     >
-                        {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-blue-500" />}
+                        {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                     </button>
 
                     {/* Notifications Dropdown */}
@@ -280,7 +281,7 @@ export function TopHeader() {
                         >
                             <Bell className="w-4 h-4" />
                             {unreadNotifications > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F88022] text-white text-[10px] font-bold flex items-center justify-center">
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                                     {unreadNotifications > 9 ? '9+' : unreadNotifications}
                                 </span>
                             )}
@@ -290,10 +291,10 @@ export function TopHeader() {
                             <div className="absolute right-0 mt-2 w-96 bg-card border border-border rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                                 <div className="flex items-center justify-between px-4 py-2 border-b border-border/60">
                                     <div className="flex items-center gap-1.5">
-                                        <Bell className="w-4 h-4 text-[#F88022]" />
+                                        <Bell className="w-4 h-4 text-primary" />
                                         <h4 className="text-sm font-bold text-foreground">Notificações</h4>
                                         {unreadNotifications > 0 && (
-                                            <span className="text-xs px-1.5 rounded-full bg-[#F88022]/15 text-[#F88022] font-semibold">
+                                            <span className="text-xs px-1.5 rounded-full bg-primary/15 text-primary font-semibold">
                                                 {unreadNotifications} nova{unreadNotifications > 1 ? 's' : ''}
                                             </span>
                                         )}
@@ -301,7 +302,7 @@ export function TopHeader() {
                                     {unreadNotifications > 0 && (
                                         <button
                                             onClick={markAllRead}
-                                            className="flex items-center gap-1 text-xs text-[#F88022] hover:underline font-medium"
+                                            className="flex items-center gap-1 text-xs text-primary hover:underline font-medium"
                                         >
                                             <CheckCheck className="w-3.5 h-3.5" />
                                             Marcar todas como lidas
@@ -313,7 +314,7 @@ export function TopHeader() {
                                     <Link
                                         href="/personal/chat"
                                         onClick={() => setIsNotificationsOpen(false)}
-                                        className="mx-2 mt-2 flex items-center gap-3 rounded-xl bg-[#F88022]/10 px-3 py-2.5 text-sm font-semibold text-[#F88022] hover:bg-[#F88022]/15 transition-colors"
+                                        className="mx-2 mt-2 flex items-center gap-3 rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-semibold text-primary hover:bg-primary/15 transition-colors"
                                     >
                                         <MessageCircle className="w-4 h-4" />
                                         {unreadMessages} mensage{unreadMessages > 1 ? 'ns' : 'm'} não lida{unreadMessages > 1 ? 's' : ''} no chat
@@ -334,13 +335,13 @@ export function TopHeader() {
                                                 onClick={() => openNotification(notif.id, notif.link)}
                                                 className={cn(
                                                     'w-full text-left px-4 py-2.5 hover:bg-muted/60 transition-colors flex gap-3',
-                                                    !notif.read && 'bg-[#F88022]/5'
+                                                    !notif.read && 'bg-primary/5'
                                                 )}
                                             >
                                                 <span
                                                     className={cn(
                                                         'mt-1.5 h-2 w-2 shrink-0 rounded-full',
-                                                        notif.read ? 'bg-transparent' : 'bg-[#F88022]'
+                                                        notif.read ? 'bg-transparent' : 'bg-primary'
                                                     )}
                                                     aria-hidden
                                                 />
@@ -362,7 +363,7 @@ export function TopHeader() {
                                 <div className="pt-2 px-3 border-t border-border/60">
                                     <Link
                                         href="/personal/notifications"
-                                        className="block text-center text-sm font-semibold text-[#F88022] hover:bg-[#F88022]/10 py-1.5 rounded-xl transition-colors"
+                                        className="block text-center text-sm font-semibold text-primary hover:bg-primary/10 py-1.5 rounded-xl transition-colors"
                                         onClick={() => setIsNotificationsOpen(false)}
                                     >
                                         Ver todas as notificações

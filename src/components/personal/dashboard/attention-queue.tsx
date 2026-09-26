@@ -86,7 +86,7 @@ const STATUS_LABELS: Record<string, string> = { PAUSED: 'Pausado', INACTIVE: 'In
 const actionClass =
     'inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-50 lg:min-h-0 lg:min-w-0';
 const primaryActionClass =
-    'inline-flex items-center gap-1.5 rounded-lg bg-[#F88022] px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#F88022]/90 lg:min-h-0 lg:min-w-0';
+    'inline-flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 lg:min-h-0 lg:min-w-0';
 const iconActionClass =
     'inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:min-h-0 lg:min-w-0';
 
@@ -334,7 +334,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
         <section className="rounded-2xl border border-border bg-card shadow-sm" aria-labelledby="attention-queue-title">
             <div className="flex flex-col gap-3 border-b border-border px-4 py-3.5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
-                    <h2 id="attention-queue-title" className="text-base font-bold text-foreground">
+                    <h2 id="attention-queue-title" className="text-base font-semibold text-foreground">
                         Precisa da sua atenção hoje
                     </h2>
                     <p className="text-xs text-muted-foreground">
@@ -381,7 +381,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                             }}
                             className={cn(
                                 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors lg:min-h-0 lg:min-w-0',
-                                selected ? 'bg-[#F88022]/10 text-[#F88022]' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                                selected ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                                 !selected && chip.count === 0 && chip.key !== 'ALL' && 'opacity-60'
                             )}
                         >
@@ -406,7 +406,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                             : `Nada em ${ATTENTION_CATEGORIES.find((category) => category.key === filter)?.label.toLowerCase()} agora.`}
                     </p>
                     {filter !== 'ALL' && (
-                        <button type="button" onClick={() => onFilterChange('ALL')} className="text-sm font-semibold text-[#F88022] hover:underline lg:min-h-0">
+                        <button type="button" onClick={() => onFilterChange('ALL')} className="text-sm font-semibold text-primary hover:underline lg:min-h-0">
                             Ver todos os motivos
                         </button>
                     )}
@@ -439,7 +439,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                                     }}
                                     onKeyDown={(event) => handleRowKeyDown(event, item, index)}
                                     aria-label={`${item.name}: ${item.reasons.map((reason) => reason.label).join(', ')}`}
-                                    className="flex flex-col gap-3 px-4 py-3.5 outline-none transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#F88022]/50 lg:flex-row lg:items-start"
+                                    className="flex flex-col gap-3 px-4 py-3.5 outline-none transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50 lg:flex-row lg:items-start"
                                 >
                                     <div className="flex min-w-0 flex-1 items-start gap-3">
                                         <div className="relative shrink-0">
@@ -454,7 +454,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                                             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                                 <Link
                                                     href={studentPaths.crm(item.studentId)}
-                                                    className="truncate text-sm font-semibold text-foreground hover:text-[#F88022] lg:min-h-0 lg:min-w-0"
+                                                    className="truncate text-sm font-semibold text-foreground hover:text-primary lg:min-h-0 lg:min-w-0"
                                                     title="Abrir no CRM"
                                                 >
                                                     {item.name}
@@ -526,7 +526,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                                         )}
                                         {hasReason(item, 'NO_WORKOUT_PLAN', 'WORKOUT_PLAN_ENDING', 'WORKOUT_PLAN_ENDED') && (
                                             <Link href={studentPaths.workoutEditor(item.studentId)} className={actionClass}>
-                                                <Dumbbell className="h-3.5 w-3.5 text-[#F88022]" />
+                                                <Dumbbell className="h-3.5 w-3.5 text-primary" />
                                                 Treino
                                             </Link>
                                         )}
@@ -579,7 +579,7 @@ export function AttentionQueue({ items, failed, filter, onFilterChange, onChange
                         <button
                             type="button"
                             onClick={() => setExpanded((current) => !current)}
-                            className="text-sm font-semibold text-[#F88022] hover:underline lg:min-h-0"
+                            className="text-sm font-semibold text-primary hover:underline lg:min-h-0"
                         >
                             {expanded ? 'Mostrar menos' : `Ver todos (${filtered.length})`}
                         </button>

@@ -91,7 +91,7 @@ function SwitcherPanel({ currentId, onPick, onClose }: { currentId: string; onPi
                         onClick={() => onPick(student.id)}
                         className={cn(
                             'flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition-colors',
-                            index === activeIndex ? 'bg-[#F88022]/10 text-[#F88022]' : 'text-foreground'
+                            index === activeIndex ? 'bg-primary/10 text-primary' : 'text-foreground'
                         )}
                     >
                         <Avatar name={student.user?.name || ''} src={student.user?.avatar || undefined} size="sm" />

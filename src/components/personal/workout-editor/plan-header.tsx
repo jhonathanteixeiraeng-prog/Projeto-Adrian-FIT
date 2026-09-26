@@ -38,7 +38,7 @@ function InlineField({ label, htmlFor, invalid, children, className }: { label: 
     return (
         <div
             className={cn(
-                'flex h-9 items-center overflow-hidden rounded-lg border bg-background focus-within:border-[#F88022] focus-within:ring-2 focus-within:ring-[#F88022]/25',
+                'flex h-9 items-center overflow-hidden rounded-lg border bg-background focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25',
                 invalid ? 'border-red-500' : 'border-border',
                 className
             )}
@@ -89,7 +89,7 @@ export function PlanHeader({
                     aria-invalid={Boolean(issues.title) || undefined}
                     title={issues.title ?? (mode === 'template' ? 'Nome do modelo' : 'Título da ficha')}
                     className={cn(
-                        'h-9 min-w-[220px] flex-1 rounded-lg border bg-transparent px-2.5 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground hover:border-border focus:border-[#F88022] focus:bg-background focus:outline-none focus:ring-2 focus:ring-[#F88022]/25',
+                        'h-9 min-w-[220px] flex-1 rounded-lg border bg-transparent px-2.5 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground hover:border-border focus:border-primary focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/25',
                         issues.title ? 'border-red-500' : 'border-transparent'
                     )}
                 />
@@ -113,7 +113,7 @@ export function PlanHeader({
                                 type="button"
                                 onClick={onActivate}
                                 disabled={activating}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-[#F88022]/40 px-2.5 py-1 text-xs font-semibold text-[#F88022] hover:bg-[#F88022]/10 disabled:opacity-60"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
                             >
                                 {activating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}
                                 Ativar esta ficha
@@ -141,7 +141,7 @@ export function PlanHeader({
                                 {state.studentId ? (
                                     <Link
                                         href={personalLinks.student(state.studentId, 'workout')}
-                                        className="min-h-0 truncate px-2.5 text-sm font-semibold text-foreground hover:text-[#F88022]"
+                                        className="min-h-0 truncate px-2.5 text-sm font-semibold text-foreground hover:text-primary"
                                         title="Abrir a ficha do aluno"
                                     >
                                         {studentName ?? 'Aluno'}

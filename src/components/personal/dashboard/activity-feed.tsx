@@ -22,7 +22,7 @@ const INITIAL_VISIBLE = 8;
 const REFRESH_MS = 60000;
 
 const TYPE_CONFIG: Record<ActivityType, { icon: LucideIcon; tone: string; action: string; filterLabel: string }> = {
-    WORKOUT_COMPLETED: { icon: Dumbbell, tone: 'bg-[#F88022]/15 text-[#F88022]', action: 'concluiu o treino', filterLabel: 'Treinos' },
+    WORKOUT_COMPLETED: { icon: Dumbbell, tone: 'bg-primary/15 text-primary', action: 'concluiu o treino', filterLabel: 'Treinos' },
     CHECKIN_SUBMITTED: { icon: CheckCircle2, tone: 'bg-emerald-500/15 text-emerald-500', action: 'enviou o check-in', filterLabel: 'Check-ins' },
     FOOD_SUBSTITUTED: { icon: Utensils, tone: 'bg-blue-500/15 text-blue-500', action: 'substituiu um alimento', filterLabel: 'Dieta' },
     MESSAGE_RECEIVED: { icon: MessageCircle, tone: 'bg-purple-500/15 text-purple-500', action: 'enviou uma mensagem', filterLabel: 'Mensagens' },
@@ -87,11 +87,11 @@ export function ActivityFeed() {
         <section className="flex flex-col rounded-2xl border border-border bg-card shadow-sm" aria-labelledby="activity-feed-title">
             <div className="space-y-3 border-b border-border px-4 py-3.5">
                 <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F88022]/10 text-[#F88022]">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                         <Activity className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                        <h2 id="activity-feed-title" className="text-base font-bold text-foreground">
+                        <h2 id="activity-feed-title" className="text-base font-semibold text-foreground">
                             Atividade recente
                         </h2>
                         <p className="text-xs text-muted-foreground">Últimos 7 dias · atualiza a cada minuto</p>
@@ -111,7 +111,7 @@ export function ActivityFeed() {
                             className={cn(
                                 'rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors lg:min-h-0 lg:min-w-0',
                                 filter === item.key
-                                    ? 'bg-[#F88022]/10 text-[#F88022]'
+                                    ? 'bg-primary/10 text-primary'
                                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                             )}
                         >
@@ -124,7 +124,7 @@ export function ActivityFeed() {
             <div className="flex-1 p-2">
                 {isLoading && !payload ? (
                     <div className="flex justify-center py-10">
-                        <Loader2 className="h-6 w-6 animate-spin text-[#F88022]" />
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
                 ) : error && !payload ? (
                     <p className="px-3 py-8 text-center text-sm text-muted-foreground">Não foi possível carregar as atividades.</p>
@@ -144,7 +144,7 @@ export function ActivityFeed() {
                                 <li key={event.id}>
                                     <Link
                                         href={hrefFor(event)}
-                                        className="flex items-start gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/50"
+                                        className="flex items-start gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                                     >
                                         <span className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', config.tone)}>
                                             <Icon className="h-4 w-4" />
@@ -177,7 +177,7 @@ export function ActivityFeed() {
                         type="button"
                         onClick={showMore}
                         disabled={isLoadingMore}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold text-[#F88022] transition-colors hover:bg-[#F88022]/10 disabled:opacity-60"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
                     >
                         {isLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
                         Ver mais

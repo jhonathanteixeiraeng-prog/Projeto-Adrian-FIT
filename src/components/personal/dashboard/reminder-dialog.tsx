@@ -112,7 +112,7 @@ export function ReminderDialog({ open, onOpenChange, targets, defaultType, onSen
                 <form ref={formRef} onSubmit={submit} className="space-y-4">
                     <DialogHeader className="text-left">
                         <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                            <Bell className="h-4 w-4 text-[#F88022]" />
+                            <Bell className="h-4 w-4 text-primary" />
                             {isBulk ? `Lembrar ${targets.length} alunos` : `Lembrete para ${single?.name ?? 'aluno'}`}
                         </DialogTitle>
                         <DialogDescription>
@@ -135,7 +135,7 @@ export function ReminderDialog({ open, onOpenChange, targets, defaultType, onSen
                                     className={cn(
                                         'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors lg:min-h-0 lg:min-w-0',
                                         type === item.value
-                                            ? 'border-[#F88022] bg-[#F88022]/10 text-[#F88022]'
+                                            ? 'border-primary bg-primary/10 text-primary'
                                             : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
                                     )}
                                 >
@@ -161,7 +161,7 @@ export function ReminderDialog({ open, onOpenChange, targets, defaultType, onSen
                             }}
                             rows={4}
                             maxLength={2000}
-                            className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/30"
+                            className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                         />
                         <p className="text-xs text-muted-foreground">
                             <code className="rounded bg-muted px-1 font-semibold text-foreground">{'{nome}'}</code> vira o primeiro nome do aluno.
@@ -186,7 +186,7 @@ export function ReminderDialog({ open, onOpenChange, targets, defaultType, onSen
                         <button
                             type="submit"
                             disabled={sending || !message.trim() || targets.length === 0}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#F88022]/90 disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                         >
                             {sending && <Loader2 className="h-4 w-4 animate-spin" />}
                             {isBulk ? `Enviar para ${targets.length} alunos` : 'Enviar lembrete'}

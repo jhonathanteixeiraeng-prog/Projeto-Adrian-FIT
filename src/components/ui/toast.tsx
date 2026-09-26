@@ -114,7 +114,7 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: (id: string)
                 return <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />;
             case 'info':
             default:
-                return <Info className="w-5 h-5 text-[#F88022] shrink-0" />;
+                return <Info className="w-5 h-5 text-primary shrink-0" />;
         }
     };
 
@@ -128,7 +128,7 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: (id: string)
                 return 'border-amber-500/30 bg-amber-500/5';
             case 'info':
             default:
-                return 'border-[#F88022]/30 bg-[#F88022]/5';
+                return 'border-primary/30 bg-primary/5';
         }
     };
 

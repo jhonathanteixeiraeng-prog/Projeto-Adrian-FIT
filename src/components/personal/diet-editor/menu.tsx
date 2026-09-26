@@ -159,7 +159,7 @@ export function DropdownMenu({
                         if (entry.type === 'separator') return <div key={entry.key} role="separator" className="my-1 h-px bg-border" />;
                         if (entry.type === 'label') {
                             return (
-                                <p key={entry.key} className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                <p key={entry.key} className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">
                                     {entry.label}
                                 </p>
                             );

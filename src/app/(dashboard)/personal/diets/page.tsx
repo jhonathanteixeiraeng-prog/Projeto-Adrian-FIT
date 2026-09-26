@@ -88,8 +88,8 @@ function StatCard({ label, value, icon: Icon, tone }: { label: string; value: Re
     return (
         <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
             <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-                <p className="mt-0.5 text-xl font-bold tabular-nums text-foreground">{value}</p>
+                <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                <p className="mt-0.5 text-xl font-semibold tabular-nums text-foreground">{value}</p>
             </div>
             <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', tone)}>
                 <Icon className="h-4 w-4" />
@@ -117,7 +117,7 @@ function RowsSkeleton() {
 function EmptyState({ icon: Icon, title, description, action }: { icon: React.ComponentType<{ className?: string }>; title: string; description: string; action?: React.ReactNode }) {
     return (
         <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-12 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F88022]/10 text-[#F88022]">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                 <Icon className="h-6 w-6" />
             </div>
             <h3 className="text-base font-semibold text-foreground">{title}</h3>
@@ -141,7 +141,7 @@ function LoadError({ message, onRetry }: { message: string; onRetry: () => void 
 
 const menuButtonClass = 'rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground';
 const rowLinkClass =
-    'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#F88022] focus-visible:ring-offset-2 focus-visible:ring-offset-card';
+    'flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-card';
 
 export default function DietsPage() {
     const router = useRouter();
@@ -392,15 +392,15 @@ export default function DietsPage() {
             onClick={() => setFilters({ tab: value })}
             className={cn(
                 'relative flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors',
-                tab === value ? 'text-[#F88022]' : 'text-muted-foreground hover:text-foreground'
+                tab === value ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
             )}
         >
             <Icon className="h-4 w-4" />
             {label}
-            <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold tabular-nums', tab === value ? 'bg-[#F88022]/15 text-[#F88022]' : 'bg-muted text-muted-foreground')}>
+            <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold tabular-nums', tab === value ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground')}>
                 {count ?? '–'}
             </span>
-            {tab === value && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#F88022]" aria-hidden />}
+            {tab === value && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary" aria-hidden />}
         </button>
     );
 
@@ -408,7 +408,7 @@ export default function DietsPage() {
         <div className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Planos de dieta</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight text-foreground">Planos de dieta</h1>
                     <p className="text-sm text-muted-foreground">Prescrições dos alunos e biblioteca de modelos reutilizáveis.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -421,7 +421,7 @@ export default function DietsPage() {
                     </Link>
                     <Link
                         href="/personal/diets/new"
-                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#F88022] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#F88022]/90"
+                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
                     >
                         <Plus className="h-4 w-4" />
                         Nova dieta
@@ -430,7 +430,7 @@ export default function DietsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatCard label="Dietas ativas" value={plansApi.isLoading ? '–' : counts.active} icon={CheckCircle2} tone="bg-emerald-500/10 text-emerald-500" />
+                <StatCard label="Dietas ativas" value={plansApi.isLoading ? '–' : counts.active} icon={CheckCircle2} tone="bg-muted text-muted-foreground" />
                 <StatCard
                     label="Vencem em 7 dias"
                     value={plansApi.isLoading ? '–' : counts.expiring}
@@ -441,9 +441,9 @@ export default function DietsPage() {
                     label="Média das ativas"
                     value={plansApi.isLoading ? '–' : counts.averageCalories ? `${formatKcal(counts.averageCalories)} kcal` : '–'}
                     icon={Flame}
-                    tone="bg-orange-500/10 text-orange-500"
+                    tone="bg-muted text-muted-foreground"
                 />
-                <StatCard label="Modelos" value={templatesApi.isLoading ? '–' : templates.length} icon={BookOpen} tone="bg-[#F88022]/10 text-[#F88022]" />
+                <StatCard label="Modelos" value={templatesApi.isLoading ? '–' : templates.length} icon={BookOpen} tone="bg-muted text-muted-foreground" />
             </div>
 
             <div role="tablist" aria-label="Seções" className="flex items-center gap-1 border-b border-border">
@@ -462,7 +462,7 @@ export default function DietsPage() {
                         onKeyDown={onSearchKeyDown}
                         placeholder={tab === 'plans' ? 'Buscar por aluno ou título da dieta…' : 'Buscar modelos…'}
                         aria-label="Buscar"
-                        className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#F88022] focus:outline-none focus:ring-2 focus:ring-[#F88022]/25"
+                        className="h-10 w-full rounded-xl border border-border bg-card pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                     />
                     <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-border bg-muted px-1.5 text-xs font-semibold text-muted-foreground">
                         /
@@ -504,7 +504,7 @@ export default function DietsPage() {
                             title="Nenhum plano alimentar ainda"
                             description="Crie a primeira dieta de um aluno do zero, a partir de um modelo ou com um rascunho gerado."
                             action={
-                                <Link href="/personal/diets/new" className="inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90">
+                                <Link href="/personal/diets/new" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
                                     <Plus className="h-4 w-4" />
                                     Nova dieta
                                 </Link>
@@ -596,7 +596,7 @@ export default function DietsPage() {
                         action={
                             <Link
                                 href="/personal/diets/templates/new"
-                                className="inline-flex items-center gap-2 rounded-xl bg-[#F88022] px-4 py-2 text-sm font-semibold text-white hover:bg-[#F88022]/90"
+                                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                             >
                                 <Plus className="h-4 w-4" />
                                 Novo modelo
@@ -646,7 +646,7 @@ export default function DietsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setAssignTemplate(template)}
-                                    className="hidden items-center gap-1.5 rounded-lg bg-[#F88022] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#F88022]/90 sm:inline-flex"
+                                    className="hidden items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 sm:inline-flex"
                                 >
                                     <UserPlus className="h-4 w-4" />
                                     Atribuir a aluno

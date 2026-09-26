@@ -7,7 +7,7 @@ import { STATUS_LABELS } from './lib';
 
 /** Dense form controls used by the student screens (visible keyboard focus, 14px text). */
 export const inputClass =
-    'w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:outline-none focus:border-[#F88022] focus-visible:ring-2 focus-visible:ring-[#F88022]/30 disabled:opacity-60';
+    'w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 disabled:opacity-60';
 export const selectClass = cn(inputClass, 'pr-8 cursor-pointer');
 export const textareaClass = cn(inputClass, 'h-auto min-h-[72px] py-2 resize-y leading-relaxed');
 
@@ -124,7 +124,7 @@ export function SectionCard({
     return (
         <section className={cn('rounded-2xl border border-border bg-card', className)}>
             <header className="flex items-center justify-between gap-2 border-b border-border/70 px-4 py-2.5">
-                <h2 className="flex min-w-0 items-center gap-2 text-sm font-bold text-foreground">
+                <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
                     {icon}
                     <span className="truncate">{title}</span>
                 </h2>
@@ -146,6 +146,6 @@ export function InfoRow({ label, children }: { label: React.ReactNode; children:
 
 /** Small outline button used in dense toolbars (drawer, side column, bulk bar). */
 export const smallButtonClass =
-    'inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 h-8 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40 disabled:opacity-50 disabled:pointer-events-none';
+    'inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 h-8 text-xs font-semibold text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 disabled:pointer-events-none';
 export const primarySmallButtonClass =
-    'inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#F88022] px-3 h-8 text-xs font-semibold text-white transition-colors hover:bg-[#F88022]/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none';
+    'inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 h-8 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none';

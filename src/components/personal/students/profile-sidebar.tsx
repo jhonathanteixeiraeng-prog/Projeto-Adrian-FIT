@@ -41,7 +41,7 @@ import type { StudentProfile } from './types';
 import { BillingBadge, InfoRow, SectionCard, primarySmallButtonClass, smallButtonClass } from './ui';
 
 const editButtonClass =
-    'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[#F88022] hover:bg-[#F88022]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40';
+    'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-primary hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
 
 export function ContactCard({ student }: { student: StudentProfile }) {
     const { toast } = useToast();
@@ -59,7 +59,7 @@ export function ContactCard({ student }: { student: StudentProfile }) {
             <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <a href={`mailto:${student.user.email}`} className="min-w-0 flex-1 truncate text-foreground hover:text-[#F88022]">
+                    <a href={`mailto:${student.user.email}`} className="min-w-0 flex-1 truncate text-foreground hover:text-primary">
                         {student.user.email}
                     </a>
                     <button type="button" onClick={() => copy(student.user.email, 'E-mail')} className="rounded p-1 text-muted-foreground hover:text-foreground" aria-label="Copiar e-mail">
@@ -93,7 +93,7 @@ export function ContactCard({ student }: { student: StudentProfile }) {
                     </span>
                 )}
                 <Link href={`/personal/chat/${student.id}`} className={smallButtonClass}>
-                    <MessageCircle className="h-3.5 w-3.5 text-blue-500" />
+                    <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
                     Chat no app
                 </Link>
             </div>
@@ -145,7 +145,7 @@ export function ContractCard({ student, onEdit }: { student: StudentProfile; onE
     return (
         <SectionCard
             title="Contrato"
-            icon={<CreditCard className="h-4 w-4 text-[#F88022]" />}
+            icon={<CreditCard className="h-4 w-4 text-muted-foreground" />}
             action={
                 <button type="button" onClick={onEdit} className={editButtonClass}>
                     <Pencil className="h-3 w-3" />
@@ -205,7 +205,7 @@ export function StatusCard({ student }: { student: StudentProfile }) {
     };
 
     return (
-        <SectionCard title="Status do aluno" icon={<Zap className="h-4 w-4 text-amber-500" />}>
+        <SectionCard title="Status do aluno" icon={<Zap className="h-4 w-4 text-muted-foreground" />}>
             <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Status do aluno">
                 {STATUS_OPTIONS.map((option) => (
                     <button
@@ -216,7 +216,7 @@ export function StatusCard({ student }: { student: StudentProfile }) {
                         disabled={busy}
                         onClick={() => change(option.value)}
                         className={cn(
-                            'rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F88022]/40',
+                            'rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                             student.status === option.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                         )}
                     >
@@ -295,22 +295,22 @@ export function QuickActionsCard({
 }) {
     const actionClass = cn(smallButtonClass, 'justify-start');
     return (
-        <SectionCard title="Ações rápidas" icon={<Zap className="h-4 w-4 text-[#F88022]" />}>
+        <SectionCard title="Ações rápidas" icon={<Zap className="h-4 w-4 text-muted-foreground" />}>
             <div className="grid grid-cols-2 gap-2">
                 <Link href={`/personal/students/${student.id}/workout`} className={actionClass}>
-                    <Dumbbell className="h-3.5 w-3.5 text-[#F88022]" />
+                    <Dumbbell className="h-3.5 w-3.5 text-muted-foreground" />
                     Editar treino
                 </Link>
                 <Link href={`/personal/students/${student.id}/diet`} className={actionClass}>
-                    <Utensils className="h-3.5 w-3.5 text-emerald-500" />
+                    <Utensils className="h-3.5 w-3.5 text-muted-foreground" />
                     Editar dieta
                 </Link>
                 <Link href={`/personal/students/${student.id}/report`} className={actionClass}>
-                    <FileText className="h-3.5 w-3.5 text-purple-500" />
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                     Relatório
                 </Link>
                 <button type="button" onClick={onRemind} className={actionClass}>
-                    <BellRing className="h-3.5 w-3.5 text-[#F88022]" />
+                    <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
                     Lembrete
                 </button>
                 <button type="button" onClick={onResetPassword} className={actionClass}>

@@ -106,7 +106,7 @@ export default function PersonalNotificationsPage() {
         <div className="mx-auto max-w-3xl space-y-5 pb-8 animate-in">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Notificações</h1>
+                    <h1 className="text-2xl font-semibold text-foreground">Notificações</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
                         {unreadNotifications === 0
                             ? 'Nenhuma notificação não lida'
@@ -127,16 +127,16 @@ export default function PersonalNotificationsPage() {
             {unreadMessages > 0 && (
                 <Link
                     href="/personal/chat"
-                    className="flex items-center gap-3 rounded-2xl border border-[#F88022]/30 bg-[#F88022]/10 px-4 py-3 transition-colors hover:bg-[#F88022]/15"
+                    className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 transition-colors hover:bg-primary/15"
                 >
-                    <MessageCircle className="h-5 w-5 shrink-0 text-[#F88022]" />
+                    <MessageCircle className="h-5 w-5 shrink-0 text-primary" />
                     <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold text-foreground">
                             {unreadMessages} {unreadMessages === 1 ? 'mensagem não lida' : 'mensagens não lidas'} no chat
                         </span>
                         <span className="block text-xs text-muted-foreground">Mensagens ficam no chat e são lidas ao abrir a conversa.</span>
                     </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-[#F88022]" />
+                    <ChevronRight className="h-4 w-4 shrink-0 text-primary" />
                 </Link>
             )}
 
@@ -150,7 +150,7 @@ export default function PersonalNotificationsPage() {
                         className={cn(
                             'rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors lg:min-h-0 lg:min-w-0',
                             filters.status === chip.key
-                                ? 'bg-[#F88022]/10 text-[#F88022]'
+                                ? 'bg-primary/10 text-primary'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         )}
                     >
@@ -183,7 +183,7 @@ export default function PersonalNotificationsPage() {
 
             {isLoading && notifications.length === 0 ? (
                 <div className="flex justify-center rounded-2xl border border-border bg-card py-12">
-                    <Loader2 className="h-6 w-6 animate-spin text-[#F88022]" />
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
             ) : error && notifications.length === 0 ? (
                 <div className="space-y-3 rounded-2xl border border-border bg-card px-6 py-10 text-center">
@@ -211,7 +211,7 @@ export default function PersonalNotificationsPage() {
                         <button
                             type="button"
                             onClick={() => setFilters({ status: 'todas', tipo: 'todos' })}
-                            className="text-sm font-semibold text-[#F88022] hover:underline lg:min-h-0"
+                            className="text-sm font-semibold text-primary hover:underline lg:min-h-0"
                         >
                             Ver todas
                         </button>
@@ -221,22 +221,22 @@ export default function PersonalNotificationsPage() {
                 <div className="space-y-4" onKeyDown={handleListKeyDown}>
                     {days.map((day) => (
                         <section key={day.key} aria-label={day.label}>
-                            <h2 className="mb-1.5 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{day.label}</h2>
+                            <h2 className="mb-1.5 px-1 text-xs font-medium text-muted-foreground">{day.label}</h2>
                             <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
                                 {day.items.map((item) => {
                                     const Icon = TYPE_ICONS[item.type] ?? Bell;
                                     return (
-                                        <li key={item.id} className={cn('flex items-stretch', !item.read && 'bg-[#F88022]/5')}>
+                                        <li key={item.id} className={cn('flex items-stretch', !item.read && 'bg-primary/5')}>
                                             <button
                                                 type="button"
                                                 data-notification-item
                                                 onClick={() => open(item)}
-                                                className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted focus:outline-none focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#F88022]/50"
+                                                className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted focus:outline-none focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50"
                                             >
                                                 <span
                                                     className={cn(
                                                         'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
-                                                        item.read ? 'bg-muted text-muted-foreground' : 'bg-[#F88022]/15 text-[#F88022]'
+                                                        item.read ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary'
                                                     )}
                                                 >
                                                     <Icon className="h-4 w-4" />
@@ -246,7 +246,7 @@ export default function PersonalNotificationsPage() {
                                                         <span className={cn('truncate text-sm text-foreground', item.read ? 'font-medium' : 'font-semibold')}>
                                                             {item.title}
                                                         </span>
-                                                        {!item.read && <span className="h-2 w-2 shrink-0 rounded-full bg-[#F88022]" aria-label="Não lida" />}
+                                                        {!item.read && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Não lida" />}
                                                     </span>
                                                     <span className="mt-0.5 block text-sm text-muted-foreground">{item.body}</span>
                                                     <time

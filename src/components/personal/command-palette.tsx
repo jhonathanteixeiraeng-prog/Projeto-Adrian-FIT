@@ -339,13 +339,13 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                 <div ref={listRef} id="palette-list" role="listbox" className="flex-1 overflow-y-auto p-2">
                     {groups.map((group) => (
                         <div key={group.name} className="py-1.5">
-                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1 flex items-center gap-1.5">
+                            <p className="text-xs font-medium text-muted-foreground px-3 mb-1 flex items-center gap-1.5">
                                 {group.name === 'Recentes' ? (
-                                    <History className="w-3 h-3 text-[#F88022]" />
+                                    <History className="w-3 h-3 text-primary" />
                                 ) : group.name === 'Alunos' ? (
-                                    <User className="w-3 h-3 text-[#F88022]" />
+                                    <User className="w-3 h-3 text-primary" />
                                 ) : (
-                                    <CommandIcon className="w-3 h-3 text-[#F88022]" />
+                                    <CommandIcon className="w-3 h-3 text-primary" />
                                 )}
                                 {group.name}
                             </p>
@@ -364,7 +364,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                                             onMouseMove={() => setSelectedIndex(index)}
                                             className={cn(
                                                 'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl text-left transition-colors',
-                                                isSelected ? 'bg-[#F88022]/15 text-[#F88022]' : 'text-foreground hover:bg-muted/60'
+                                                isSelected ? 'bg-primary/15 text-primary' : 'text-foreground hover:bg-muted/60'
                                             )}
                                         >
                                             <div className="flex items-center gap-3 min-w-0">
@@ -372,7 +372,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                                                     <Avatar name={item.avatarName} size="sm" />
                                                 ) : (
                                                     <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                                                        {Icon && <Icon className="w-4 h-4 text-[#F88022]" />}
+                                                        {Icon && <Icon className="w-4 h-4 text-primary" />}
                                                     </div>
                                                 )}
                                                 <div className="min-w-0">
