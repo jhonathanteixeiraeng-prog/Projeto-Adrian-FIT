@@ -364,7 +364,8 @@ export function prismaErrorResponse(error: unknown) {
 export const planDetailInclude = {
     student: {
         include: {
-            user: { select: { name: true, email: true } },
+            // phone: WhatsApp link when the trainer exports the plan as PDF.
+            user: { select: { name: true, email: true, phone: true } },
         },
     },
     workoutDays: {

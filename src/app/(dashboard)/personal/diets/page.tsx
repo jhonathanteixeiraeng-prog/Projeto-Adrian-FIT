@@ -8,6 +8,7 @@ import {
     CheckCircle2,
     Copy,
     Eye,
+    FileDown,
     FilePlus2,
     Flame,
     MoreVertical,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Avatar, useDialogs, useToast } from '@/components/ui';
 import { usePageMeta } from '@/components/personal/page-meta';
+import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
 import { AssignTemplateDialog, type AssignableTemplate } from '@/components/personal/diet-editor/assign-template-dialog';
 import { DropdownMenu, type MenuEntry } from '@/components/personal/diet-editor/menu';
 import { dateInputFromDate, dateInputFromIso, formatDateBR } from '@/components/personal/diet-editor/model';
@@ -159,6 +161,7 @@ export default function DietsPage() {
     const listRef = useRef<HTMLDivElement>(null);
     const [assignTemplate, setAssignTemplate] = useState<AssignableTemplate | null>(null);
     const [previewTemplate, setPreviewTemplate] = useState<TemplateRow | null>(null);
+    const [pdfTarget, setPdfTarget] = useState<PdfExportTarget | null>(null);
 
     const plansApi = useApi<PlanRow[]>('/api/diets');
     const templatesApi = useApi<TemplateRow[]>('/api/diet-templates');
@@ -366,6 +369,7 @@ export default function DietsPage() {
 
     const planMenu = (plan: PlanRow): MenuEntry[] => [
         { key: 'edit', label: 'Editar', icon: Pencil, href: `/personal/diets/${plan.id}` },
+        { key: 'pdf', label: 'Exportar PDF', icon: FileDown, onSelect: () => setPdfTarget({ kind: 'diet', planId: plan.id }) },
         { key: 'duplicate', label: 'Duplicar para aluno…', icon: Copy, href: `/personal/diets/new?fromPlanId=${plan.id}` },
         { key: 'template', label: 'Salvar como modelo…', icon: BookmarkPlus, onSelect: () => void savePlanAsTemplate(plan) },
         { key: 'toggle', label: plan.active ? 'Desativar' : 'Ativar', icon: Power, onSelect: () => void togglePlanActive(plan) },
@@ -674,6 +678,7 @@ export default function DietsPage() {
                 }}
             />
             <AssignTemplateDialog template={assignTemplate} onClose={() => setAssignTemplate(null)} />
+            <ExportPdfDialog target={pdfTarget} onOpenChange={(open) => !open && setPdfTarget(null)} />
         </div>
     );
 }

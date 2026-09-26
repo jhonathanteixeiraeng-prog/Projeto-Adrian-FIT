@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
                 email: true,
                 phone: true,
                 role: true,
+                personal: { select: { brandName: true } },
             },
         });
 
@@ -33,7 +34,9 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        return NextResponse.json({ success: true, data: user });
+        const { personal, ...profile } = user;
+        // brandName: header of the PDFs the trainer exports (null for students).
+        return NextResponse.json({ success: true, data: { ...profile, brandName: personal?.brandName ?? null } });
     } catch (error) {
         console.error('Error fetching profile:', error);
         return NextResponse.json(

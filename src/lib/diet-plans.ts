@@ -246,7 +246,7 @@ export async function getDietPlanForPersonal(planId: string, personalId: string)
         include: {
             student: {
                 include: {
-                    user: { select: { name: true, email: true, avatar: true } },
+                    user: { select: { name: true, email: true, avatar: true, phone: true } },
                     anamnesis: true,
                 },
             },

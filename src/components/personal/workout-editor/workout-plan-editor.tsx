@@ -8,6 +8,7 @@ import {
     ArrowLeft,
     BookmarkPlus,
     CheckCircle2,
+    FileDown,
     History,
     Library,
     Loader2,
@@ -28,6 +29,7 @@ import { useLocalStorageState } from '@/hooks/use-local-storage';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { rememberRecentStudent } from '@/components/personal/command-palette';
+import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
 import { ExerciseFormDialog } from '@/components/personal/exercises/exercise-form-dialog';
 import {
     apiDaysToEditor,
@@ -164,6 +166,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
     const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
     const [createName, setCreateName] = useState<string | null>(null);
     const [importDayKey, setImportDayKey] = useState<string | null>(null);
+    const [pdfTarget, setPdfTarget] = useState<PdfExportTarget | null>(null);
     const [dragActive, setDragActive] = useState(false);
     const [dropTarget, setDropTargetState] = useState<{ dayKey: string; index: number } | null>(null);
     const dropTargetRef = useRef<{ dayKey: string; index: number } | null>(null);
@@ -913,6 +916,12 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
         [mode, focusIssue, toast, performSave, confirm]
     );
 
+    /** The PDF is built from the saved plan, so pending changes are saved first. */
+    const exportPdf = useCallback(async () => {
+        const id = isDirtyRef.current ? await save() : entityIdRef.current;
+        if (id) setPdfTarget({ kind: 'workout', planId: id });
+    }, [save]);
+
     const saveAsTemplate = useCallback(async () => {
         const hasPerSetRest = stateRef.current.days.some((day) =>
             day.items.some((item) => parsePerSetReps(item.rest).length > 1)
@@ -1129,6 +1138,18 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                         >
                             <BookmarkPlus className="h-4 w-4" />
                             <span className="hidden sm:inline">Salvar como modelo</span>
+                        </button>
+                    )}
+                    {mode === 'plan' && entityId && (
+                        <button
+                            type="button"
+                            onClick={() => void exportPdf()}
+                            disabled={saving}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+                            title={isDirty ? 'Salvar as alterações e gerar o PDF para enviar ao aluno' : 'Gerar o PDF da ficha para enviar ao aluno'}
+                        >
+                            <FileDown className="h-4 w-4" />
+                            <span className="hidden sm:inline">Exportar PDF</span>
                         </button>
                     )}
                     {mode === 'plan' && !entityId && (
@@ -1366,6 +1387,13 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <ExportPdfDialog
+                target={pdfTarget}
+                onOpenChange={(open) => {
+                    if (!open) setPdfTarget(null);
+                }}
+            />
 
             <ExerciseFormDialog
                 open={createName !== null}

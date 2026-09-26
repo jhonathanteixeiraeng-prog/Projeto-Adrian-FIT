@@ -2,37 +2,14 @@
 
 import React, { useMemo } from 'react';
 import { AlertTriangle, Clock, Dumbbell, Utensils } from 'lucide-react';
+import { describeFoodAmount } from '@/components/personal/diet-editor/units';
 import { groupChipLabel, groupPositionLabel, groupRestHint, groupTone } from '@/components/personal/workout-editor/group-ui';
 import { normalizeDietFood, type NormalizedDietFood } from '@/lib/diet-normalizer';
+import { formatIntensity, formatRest, formatSubstitution, formatVolume } from '@/lib/plan-format';
 import { cn, getDayOfWeekName } from '@/lib/utils';
 import { describeGroups } from '@/lib/workout-groups';
-import { formatLoad, formatRpe } from '@/lib/workout-load';
-import { parsePerSetReps, parseRestBySetJson } from '@/lib/workout-reps';
 import { formatDate, formatNumber, planEndInfo, toneText } from './lib';
-import type { DietPlanFull, WorkoutItem, WorkoutPlanFull } from './types';
-
-/** "1 min 30 s", or the rest of each set ("60/90/120 s") when they differ. */
-function formatRest(item: WorkoutItem): string {
-    const perSet = parseRestBySetJson(item.restBySet);
-    if (perSet && perSet.some((value) => value !== perSet[0])) return `${perSet.join('/')} s`;
-    const seconds = item.rest;
-    if (!seconds) return '—';
-    if (seconds < 60) return `${seconds} s`;
-    const minutes = Math.floor(seconds / 60);
-    const rest = seconds % 60;
-    return rest ? `${minutes} min ${rest} s` : `${minutes} min`;
-}
-
-function formatVolume(item: WorkoutItem): string {
-    const perSet = parsePerSetReps(item.reps);
-    if (perSet.length > 1) return `${item.sets} × (${perSet.join(' / ')})`;
-    return `${item.sets} × ${item.reps || '—'}`;
-}
-
-/** Prescribed carga/RPE ("20 kg · RPE 8", "20/22,5/25 kg"); '' when the item has none. */
-function formatIntensity(item: WorkoutItem & { load?: string | null; rpe?: string | null }): string {
-    return [formatLoad(item.load), formatRpe(item.rpe)].filter(Boolean).join(' · ');
-}
+import type { DietPlanFull, WorkoutPlanFull } from './types';
 
 function PlanHeader({
     title,
@@ -213,15 +190,6 @@ function parseFoods(raw: string): NormalizedDietFood[] {
     }
 }
 
-/** "150 g" for mass portions, otherwise "2 × 1 unidade (50g)". */
-function describeAmount(food: NormalizedDietFood): string {
-    const portion = (food.portion || '').trim();
-    const mass = portion.replace(',', '.').match(/^(\d+(?:\.\d+)?)\s*(g|ml)$/i);
-    if (mass) return `${formatNumber(Number(mass[1]) * food.quantity)} ${mass[2].toLowerCase()}`;
-    if (Math.abs(food.quantity - 1) < 0.001) return portion;
-    return `${formatNumber(food.quantity)} × ${portion}`;
-}
-
 export function DietPlanView({ plan, activeCount }: { plan: DietPlanFull; activeCount: number }) {
     const meals = useMemo(
         () =>
@@ -290,8 +258,11 @@ export function DietPlanView({ plan, activeCount }: { plan: DietPlanFull; active
                                     <li key={`${meal.id}-${index}`} className="flex items-start justify-between gap-3 px-3 py-1.5 text-sm">
                                         <span className="min-w-0">
                                             <span className="font-medium text-foreground">{food.name}</span>
-                                            <span className="ml-1.5 text-muted-foreground">{describeAmount(food)}</span>
+                                            <span className="ml-1.5 text-muted-foreground">{describeFoodAmount(food)}</span>
                                             {food.notes && <span className="block text-xs italic text-muted-foreground">{food.notes}</span>}
+                                            {food.substitutionNote && (
+                                                <span className="block text-xs text-muted-foreground">{formatSubstitution(food.substitutionNote)}</span>
+                                            )}
                                         </span>
                                         <span className="shrink-0 text-xs text-muted-foreground">{Math.round(food.totalCalories)} kcal</span>
                                     </li>

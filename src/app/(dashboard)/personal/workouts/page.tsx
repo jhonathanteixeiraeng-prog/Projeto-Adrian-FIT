@@ -13,6 +13,7 @@ import {
     Copy,
     CopyPlus,
     Eye,
+    FileDown,
     Pencil,
     Plus,
     Power,
@@ -31,6 +32,7 @@ import { invalidateApi, useApi } from '@/hooks/use-api';
 import { isModalOpen, useHotkey } from '@/hooks/use-hotkey';
 import { useUrlStateGroup } from '@/hooks/use-url-state';
 import { usePageMeta } from '@/components/personal/page-meta';
+import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
 import { ActionMenu, type ActionMenuEntry } from '@/components/personal/workout-editor/action-menu';
 import { AssignTemplateDialog } from '@/components/personal/workout-editor/assign-template-dialog';
 import { daysUntilPlanEnd, formatPlanDate } from '@/components/personal/workout-editor/plan-dates';
@@ -129,6 +131,7 @@ export default function WorkoutsPage() {
     const [previewTemplate, setPreviewTemplate] = useState<TemplateSummary | null>(null);
     const [assignTemplate, setAssignTemplate] = useState<TemplateSummary | null>(null);
     const [noPlanOpen, setNoPlanOpen] = useState(false);
+    const [pdfTarget, setPdfTarget] = useState<PdfExportTarget | null>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
 
@@ -396,6 +399,7 @@ export default function WorkoutsPage() {
         { label: 'Editar ficha', icon: Pencil, href: `/personal/workouts/${plan.id}` },
         { label: 'Abrir aluno', icon: UserRound, href: personalLinks.student(plan.studentId, 'workout') },
         { type: 'separator' },
+        { label: 'Exportar PDF', icon: FileDown, onSelect: () => setPdfTarget({ kind: 'workout', planId: plan.id }) },
         { label: 'Duplicar para aluno…', icon: Copy, href: `/personal/workouts/new?fromPlanId=${plan.id}` },
         { label: 'Salvar como modelo', icon: BookmarkPlus, onSelect: () => void savePlanAsTemplate(plan) },
         plan.active
@@ -804,6 +808,7 @@ export default function WorkoutsPage() {
                 }}
             />
             <AssignTemplateDialog template={assignTemplate} onOpenChange={(open) => !open && setAssignTemplate(null)} />
+            <ExportPdfDialog target={pdfTarget} onOpenChange={(open) => !open && setPdfTarget(null)} />
 
             <Dialog open={noPlanOpen} onOpenChange={setNoPlanOpen}>
                 <DialogContent className="flex max-h-[80dvh] max-w-md flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0">

@@ -140,6 +140,57 @@ export function formatAmount(value: number, unit: UnitKey): string {
     return String(Number(value.toFixed(decimals))).replace('.', ',');
 }
 
+const SINGULAR_TO_PLURAL: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(PLURALS).map(([plural, singular]) => [singular, plural])),
+    'pão': 'pães',
+    'grão': 'grãos',
+};
+
+const PREPOSITIONS = new Set(['de', 'do', 'da', 'dos', 'das', 'com', 'sem', 'em', 'para']);
+
+function pluralWord(word: string): string {
+    const known = SINGULAR_TO_PLURAL[word.toLowerCase()];
+    if (known) return known;
+    if (/ão$/.test(word)) return word.replace(/ão$/, 'ões');
+    if (/ês$/.test(word)) return word.replace(/ês$/, 'eses');
+    if (/[aeo]l$/.test(word)) return word.replace(/l$/, 'is');
+    if (/[rz]$/.test(word)) return `${word}es`;
+    if (/[aeiouáéêóô]$/.test(word)) return `${word}s`;
+    return word;
+}
+
+/**
+ * Household measure in the plural: the noun and an adjective right after it change
+ * ("unidade média" → "unidades médias", "pão francês" → "pães franceses"), a complement
+ * doesn't ("colher de sopa" → "colheres de sopa").
+ */
+function pluralizeLabel(label: string): string {
+    const [first, second, ...rest] = label.split(/\s+/);
+    const words = [pluralWord(first)];
+    if (second !== undefined) words.push(PREPOSITIONS.has(second.toLowerCase()) || second.startsWith('(') ? second : pluralWord(second));
+    return [...words, ...rest].join(' ');
+}
+
+/**
+ * Amount as the student reads it, in the unit the trainer typed: "150 g", "200 ml",
+ * "2 fatias (50 g)", "1 unidade", "1,5 porções". Falls back to the base portion text.
+ */
+export function describeFoodAmount(food: { portion?: string | null; quantity: number; displayUnit?: string | null }): string {
+    const info = describePortion(food.portion);
+    const option = resolveUnit(info, food.displayUnit);
+    const amount = quantityToAmount(food.quantity, option);
+    if (!Number.isFinite(amount) || amount <= 0) return (food.portion ?? '').trim();
+
+    if (option.key === 'g' || option.key === 'ml') return `${formatAmount(amount, option.key)} ${option.key}`;
+    const count = formatAmount(amount, option.key);
+    if (option.key === 'x') return `${count} ${amount > 1 ? 'porções' : 'porção'}`;
+
+    const text = `${count} ${amount > 1 ? pluralizeLabel(option.label) : option.label}`;
+    if (!info.mass) return text;
+    const mass = food.quantity * info.mass.amount;
+    return `${text} (${formatAmount(mass, info.mass.unit)} ${info.mass.unit})`;
+}
+
 const integerFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const oneDecimalFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 

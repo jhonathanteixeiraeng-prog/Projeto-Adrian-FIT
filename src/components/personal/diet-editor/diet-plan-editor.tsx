@@ -11,6 +11,7 @@ import {
     Check,
     ChevronDown,
     Copy,
+    FileDown,
     FilePlus2,
     History,
     Info,
@@ -29,6 +30,7 @@ import {
 import { useDialogs, useToast } from '@/components/ui';
 import { usePageMeta, type PageMeta } from '@/components/personal/page-meta';
 import { rememberRecentStudent } from '@/components/personal/command-palette';
+import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
 import { invalidateApi, useApi } from '@/hooks/use-api';
 import { isModalOpen, modKeyLabel, useHotkey } from '@/hooks/use-hotkey';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
@@ -158,6 +160,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
     const [datesSuggested, setDatesSuggested] = useState(false);
     const [generateMode, setGenerateMode] = useState<DraftSource | null>(null);
     const [customFood, setCustomFood] = useState<{ mealUid: string; name: string } | null>(null);
+    const [pdfTarget, setPdfTarget] = useState<PdfExportTarget | null>(null);
 
     const stateRef = useRef(state);
     stateRef.current = state;
@@ -739,6 +742,13 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
         { enabled: status === 'ready' }
     );
 
+    /** The PDF is built from the saved plan, so pending changes are saved first. */
+    const exportPdf = async () => {
+        if (kind !== 'plan' || !planIdRef.current) return;
+        if (snapshotOf(stateRef.current, kind) !== baselineRef.current && !(await save())) return;
+        if (planIdRef.current) setPdfTarget({ kind: 'diet', planId: planIdRef.current });
+    };
+
     const saveAsTemplate = async () => {
         const current = stateRef.current;
         if (!current.meals.some((meal) => meal.foods.length > 0)) {
@@ -961,6 +971,18 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                         Gerar rascunho
                         <ChevronDown className="h-4 w-4 opacity-70" />
                     </DropdownMenu>
+                    {kind === 'plan' && planId && (
+                        <button
+                            type="button"
+                            onClick={() => void exportPdf()}
+                            disabled={saving}
+                            title={isDirty ? 'Salvar as alterações e gerar o PDF para enviar ao aluno' : 'Gerar o PDF do plano para enviar ao aluno'}
+                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+                        >
+                            <FileDown className="h-4 w-4" />
+                            Exportar PDF
+                        </button>
+                    )}
                     <DropdownMenu
                         label="Mais ações"
                         items={moreItems}
@@ -1149,6 +1171,12 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 hasFoods={hasFoods}
                 mealCount={hasFoods ? state.meals.length : 0}
                 onDraft={applyDraft}
+            />
+            <ExportPdfDialog
+                target={pdfTarget}
+                onOpenChange={(open) => {
+                    if (!open) setPdfTarget(null);
+                }}
             />
         </div>
     );

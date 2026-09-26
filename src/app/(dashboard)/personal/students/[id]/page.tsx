@@ -12,6 +12,7 @@ import {
     Clock,
     Copy,
     Dumbbell,
+    FileDown,
     History,
     Library,
     Loader2,
@@ -27,6 +28,7 @@ import {
 import { Avatar, useDialogs, useToast } from '@/components/ui';
 import { rememberRecentStudent } from '@/components/personal/command-palette';
 import { usePageMeta } from '@/components/personal/page-meta';
+import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
 import { ContractDialog } from '@/components/personal/students/contract-form';
 import {
     GENDER_LABELS,
@@ -154,6 +156,7 @@ export default function StudentProfilePage() {
     const asideRef = useRef<HTMLElement>(null);
     const stickyAside = useStickySupported(asideRef);
     const [savingTemplate, setSavingTemplate] = useState<'workout' | 'diet' | null>(null);
+    const [pdfTarget, setPdfTarget] = useState<PdfExportTarget | null>(null);
 
     const [backHref, setBackHref] = useState('/personal/students');
     useEffect(() => setBackHref(crmHref()), []);
@@ -354,6 +357,12 @@ export default function StudentProfilePage() {
                 <Pencil className="h-3.5 w-3.5" />
                 {workout ? 'Editar treino' : 'Criar treino'}
             </Link>
+            {workout && (
+                <button type="button" onClick={() => setPdfTarget({ kind: 'workout', planId: workout.id })} className={smallButtonClass}>
+                    <FileDown className="h-3.5 w-3.5" />
+                    Exportar PDF
+                </button>
+            )}
             <button type="button" onClick={() => setDialog('assignWorkout')} className={smallButtonClass}>
                 <Library className="h-3.5 w-3.5" />
                 Atribuir modelo
@@ -371,6 +380,12 @@ export default function StudentProfilePage() {
                 <Pencil className="h-3.5 w-3.5" />
                 {diet ? 'Editar dieta' : 'Criar dieta'}
             </Link>
+            {diet && (
+                <button type="button" onClick={() => setPdfTarget({ kind: 'diet', planId: diet.id })} className={smallButtonClass}>
+                    <FileDown className="h-3.5 w-3.5" />
+                    Exportar PDF
+                </button>
+            )}
             <button type="button" onClick={() => setDialog('assignDiet')} className={smallButtonClass}>
                 <Library className="h-3.5 w-3.5" />
                 Atribuir modelo
@@ -811,6 +826,12 @@ export default function StudentProfilePage() {
                 studentId={student.id}
                 studentName={student.user.name}
                 currentCalories={diet?.calories ?? null}
+            />
+            <ExportPdfDialog
+                target={pdfTarget}
+                onOpenChange={(open) => {
+                    if (!open) setPdfTarget(null);
+                }}
             />
         </div>
     );
