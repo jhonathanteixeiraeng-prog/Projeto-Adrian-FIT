@@ -338,7 +338,7 @@ export default function StudentProfilePage() {
         const ok = await confirm({
             title: `Excluir ${student.user.name}?`,
             description:
-                'Remove o aluno com treinos, dietas, check-ins e fotos. Esta ação não pode ser desfeita. Para apenas interromper o acompanhamento, altere o status para "Inativo".',
+                'Remove o aluno com treinos, dietas, avaliações, fotos, mensagens e o acesso ao app. Esta ação não pode ser desfeita. Para apenas interromper o acompanhamento, altere o status para "Inativo".',
             confirmText: 'Excluir aluno',
             variant: 'danger',
         });

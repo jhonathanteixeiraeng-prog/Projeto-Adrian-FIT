@@ -490,9 +490,15 @@ export async function DELETE(
 
         // Photos go with the student (cascade); their files are removed right after.
         const photos = await prisma.progressPhoto.findMany({ where: { studentId: student.id }, select: { url: true } });
-        await prisma.student.delete({
-            where: { id: params.id },
-        });
+        const account = await prisma.user.findUnique({ where: { id: student.userId }, select: { personal: { select: { id: true } } } });
+        if (account && !account.personal) {
+            // The login and personal data go too: the student profile, plans, assessments, messages and
+            // notifications cascade from the account, and any open session ends (see passwordStamp).
+            await prisma.user.delete({ where: { id: student.userId } });
+        } else {
+            // An account that is also a trainer's keeps existing; only the student profile goes.
+            await prisma.student.delete({ where: { id: params.id } });
+        }
         await deleteUnusedPhotoFiles(photos.map((photo) => photo.url));
 
         return NextResponse.json({

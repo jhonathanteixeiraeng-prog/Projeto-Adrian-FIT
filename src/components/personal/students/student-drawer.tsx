@@ -133,7 +133,7 @@ export function StudentDrawer({ row, open, onOpenChange, position, onPrev, onNex
         if (!row) return;
         const ok = await confirm({
             title: `Excluir ${row.name}?`,
-            description: 'Remove o aluno com treinos, dietas, check-ins e fotos. Esta ação não pode ser desfeita. Para apenas interromper o acompanhamento, prefira "Inativo".',
+            description: 'Remove o aluno com treinos, dietas, avaliações, fotos, mensagens e o acesso ao app. Esta ação não pode ser desfeita. Para apenas interromper o acompanhamento, prefira "Inativo".',
             confirmText: 'Excluir aluno',
             variant: 'danger',
         });
