@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { CHECKIN_EXPECTED_DAYS, monthlyValue } from '@/lib/student-status';
 import { parseTzOffset } from '@/lib/viewer-time';
+import { whatsappLink } from '@/lib/whatsapp';
 import { getConversationSummaries } from '@/app/api/personal/conversations/summary';
 import {
     attentionReasons,
@@ -270,12 +271,10 @@ export async function GET(request: NextRequest) {
                 riskLevel = riskLevel || 'WARNING';
             }
 
-            const cleanPhone = (student.user.phone || '').replace(/\D/g, '');
-
             if (riskLevel && reasons.length > 0) {
                 // Generate WhatsApp pre-filled link
                 let whatsappUrl: string | null = null;
-                if (cleanPhone) {
+                if (student.user.phone) {
                     const studentFirstName = student.user.name.split(' ')[0];
                     let text = '';
                     if (daysSinceLastWorkout && daysSinceLastWorkout >= 3) {
@@ -287,8 +286,7 @@ export async function GET(request: NextRequest) {
                     } else {
                         text = `Fala ${studentFirstName}, tudo bem? Como estão os treinos e a alimentação por aí? Qualquer dúvida, estou por aqui! 💪`;
                     }
-                    const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-                    whatsappUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`;
+                    whatsappUrl = whatsappLink(student.user.phone, text);
                 }
 
                 radarStudents.push({

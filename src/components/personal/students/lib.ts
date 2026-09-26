@@ -1,5 +1,6 @@
 import { invalidateApi, setApiData } from '@/hooks/use-api';
 import { PLAN_TYPE_LABELS, PLAN_TYPE_MONTHS, monthlyValue } from '@/lib/student-status';
+import { whatsappLink } from '@/lib/whatsapp';
 import type { StudentListItem, StudentPatch, StudentProfile, StudentUpdateResult } from './types';
 
 // ---------------------------------------------------------------------------
@@ -224,13 +225,8 @@ export function dateInputToIso(value: string): string | null {
 
 export const onlyDigits = (value: string | null | undefined) => (value || '').replace(/\D/g, '');
 
-/** wa.me link with the Brazilian country code; null when the phone is too short to be valid. */
-export function whatsappUrl(phone: string | null | undefined, text?: string): string | null {
-    const digits = onlyDigits(phone);
-    if (digits.length < 10) return null;
-    const full = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`;
-    return `https://wa.me/${full}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
-}
+/** wa.me link (country-code rules in lib/whatsapp); null when the phone can't be a WhatsApp number. */
+export const whatsappUrl = whatsappLink;
 
 export const firstName = (name: string | null | undefined) => (name || 'Aluno').trim().split(/\s+/)[0];
 
