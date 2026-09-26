@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
@@ -170,6 +171,9 @@ export default function LoginPage() {
                                 <input type="checkbox" className="w-4 h-4 rounded border-border accent-[#F88022]" />
                                 <span className="text-muted-foreground">Lembrar de mim</span>
                             </label>
+                            <Link href="/forgot-password" className="font-medium text-[#F88022] hover:underline">
+                                Esqueci minha senha
+                            </Link>
                         </div>
 
                         <Button

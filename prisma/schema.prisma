@@ -19,6 +19,8 @@ model User {
   name      String
   email     String   @unique
   password  String
+  // Last "esqueci minha senha" e-mail: at most one every few minutes per account (src/lib/password-reset.ts).
+  passwordResetSentAt DateTime?
   role      String   @default("STUDENT") // PERSONAL | STUDENT
   phone     String?
   avatar    String?
