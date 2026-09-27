@@ -1,7 +1,7 @@
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { compare } from 'bcryptjs';
+import { compare, hash } from 'bcryptjs';
 import prisma from '@/lib/prisma';
 
 /**
@@ -13,6 +13,11 @@ export function passwordStamp(passwordHash: string): string {
 }
 
 const SESSION_REVOKED = 'SESSION_REVOKED';
+
+// An unknown e-mail and a wrong password get the same answer, after about the same time (a bcrypt check
+// either way), so the login doesn't tell which e-mails have an account. "Esqueci minha senha" doesn't either.
+const INVALID_LOGIN = 'E-mail ou senha incorretos';
+let unknownAccountHash: Promise<string> | null = null;
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -55,13 +60,14 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!user) {
-                    throw new Error('Usuário não encontrado');
+                    await compare(credentials.password, await (unknownAccountHash ??= hash(randomUUID(), 12)));
+                    throw new Error(INVALID_LOGIN);
                 }
 
                 const isPasswordValid = await compare(credentials.password, user.password);
 
                 if (!isPasswordValid) {
-                    throw new Error('Senha incorreta');
+                    throw new Error(INVALID_LOGIN);
                 }
 
                 return {

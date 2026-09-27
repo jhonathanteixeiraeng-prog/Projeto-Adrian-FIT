@@ -149,3 +149,20 @@ describe('"Criar acesso ao app"', () => {
         expect((await create({ email: 'ana2@example.test', password: 'abcdef' })).status).toBe(409);
     });
 });
+
+describe('login', () => {
+    it('answers the same for an unknown e-mail and a wrong password', async () => {
+        const trainer = await createPersonal({ password: 'senha-certa' });
+        const provider = authOptions.providers[0] as unknown as { options: { authorize: (credentials: Record<string, string>, req: never) => Promise<unknown> } };
+        const attempt = (email: string, password: string) =>
+            provider.options.authorize({ email, password }, {} as never).then(
+                () => 'ok',
+                (error: Error) => error.message
+            );
+
+        const unknown = await attempt('ninguem@example.test', 'senha-certa');
+        expect(unknown).toBe('E-mail ou senha incorretos');
+        expect(await attempt(trainer.user.email, 'senha-errada')).toBe(unknown);
+        expect(await attempt(trainer.user.email.toUpperCase(), 'senha-certa')).toBe('ok');
+    });
+});
