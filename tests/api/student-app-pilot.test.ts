@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('next-auth', async (importOriginal) => ({ ...(await importOriginal<typeof import('next-auth')>()), getServerSession: vi.fn() }));
 
 import { GET as dashboard } from '@/app/api/dashboard/route';
+import { GET as listConversations } from '@/app/api/personal/conversations/route';
 import { GET as trainerNotifications } from '@/app/api/personal/notifications/route';
 import { POST as sendReminders } from '@/app/api/personal/reminders/route';
+import { GET as studentNotifications } from '@/app/api/student/notifications/route';
 import { PUT as updateStudent } from '@/app/api/students/[id]/route';
 import { POST as clonePlan } from '@/app/api/workout-plans/clone/route';
 import { STUDENTS_USE_APP } from '@/lib/features';
@@ -175,5 +177,48 @@ describe.skipIf(STUDENTS_USE_APP)('student area pilot (Student.usesApp)', () => 
         const notified = await prisma.notification.findMany({ select: { userId: true } });
         expect(notified).toEqual([{ userId: atRisk.id }]);
         expect(notified.some((row) => row.userId === justJoined.id || row.userId === pdfOnly.id)).toBe(false);
+    });
+
+    it('the chat inbox lists students in the pilot, and the others only with an earlier conversation', async () => {
+        const trainer = await createPersonal();
+        const pilot = await createStudent(trainer.personal.id, { name: 'Aluno Piloto' });
+        const withHistory = await createStudent(trainer.personal.id, { name: 'Aluno Com Conversa' });
+        const pdfOnly = await createStudent(trainer.personal.id, { name: 'Aluno Só PDF' });
+        signIn(trainer.session);
+        expect((await setUsesApp(pilot.student.id, { usesApp: true })).status).toBe(200);
+        await prisma.message.create({ data: { fromUserId: trainer.user.id, toUserId: withHistory.user.id, text: 'Oi!' } });
+
+        const inbox = await json(await listConversations());
+        expect(inbox.status).toBe(200);
+        expect(inbox.body.data.map((row: { name: string }) => row.name).sort()).toEqual(['Aluno Com Conversa', 'Aluno Piloto']);
+        expect(JSON.stringify(inbox.body)).not.toContain(pdfOnly.student.id);
+    });
+
+    it("the first check-in reminder welcomes the student instead of calling the check-in overdue", async () => {
+        const trainer = await createPersonal();
+        const newcomer = await createStudent(trainer.personal.id);
+        const rejoined = await createStudent(trainer.personal.id);
+        const regular = await createStudent(trainer.personal.id);
+        const checkin = (studentId: string, daysAgo: number) =>
+            prisma.checkin.create({
+                data: { studentId, date: new Date(Date.now() - daysAgo * DAY_MS), weight: 80, sleepHours: 7, energyLevel: 3, hungerLevel: 3, stressLevel: 3, workoutAdherence: 80, dietAdherence: 80 },
+            });
+        // Registered long ago with an old check-in, joined the student area today: that check-in doesn't count.
+        await prisma.student.update({ where: { id: rejoined.student.id }, data: { createdAt: new Date(Date.now() - 60 * DAY_MS), usesApp: true, usesAppSince: new Date() } });
+        await checkin(rejoined.student.id, 20);
+        // In the student area for a month, last check-in 10 days ago: overdue.
+        const joined = new Date(Date.now() - 30 * DAY_MS);
+        await prisma.student.update({ where: { id: regular.student.id }, data: { createdAt: joined, usesApp: true, usesAppSince: joined } });
+        await checkin(regular.student.id, 10);
+
+        const checkinReminder = async (student: { session: Parameters<typeof signIn>[0] & object; user: { id: string } }) => {
+            signIn(student.session);
+            expect((await studentNotifications(request('GET', '/api/student/notifications?tz=180'))).status).toBe(200);
+            const reminder = await prisma.notification.findFirst({ where: { userId: student.user.id, type: 'CHECKIN_REMINDER' } });
+            return reminder?.title;
+        };
+        expect(await checkinReminder(newcomer)).toBe('Faça seu primeiro check-in 📋');
+        expect(await checkinReminder(rejoined)).toBe('Faça seu primeiro check-in 📋');
+        expect(await checkinReminder(regular)).toBe('Check-in Semanal Pendente 📋');
     });
 });

@@ -2,13 +2,15 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { usesStudentApp } from '@/lib/student-app';
 import { getConversationSummaries } from './summary';
 
 export const dynamic = 'force-dynamic';
 
 const PREVIEW_LENGTH = 160;
 
-// GET /api/personal/conversations - Chat inbox: one entry per student, most recent conversation first
+// GET /api/personal/conversations - Chat inbox: one entry per student who uses the student area (or has an
+// earlier conversation to read), most recent conversation first
 export async function GET() {
     try {
         const session = await getServerSession(authOptions);
@@ -26,6 +28,7 @@ export async function GET() {
                 id: true,
                 userId: true,
                 status: true,
+                usesApp: true,
                 user: { select: { name: true, email: true, phone: true, avatar: true } },
             },
         });
@@ -35,7 +38,11 @@ export async function GET() {
             students.map((student) => student.userId)
         );
 
-        const conversations = students.map((student) => {
+        // A message only reaches a student who uses the student area (usesStudentApp); the others get their
+        // plans over WhatsApp, so they're listed only when there's an earlier conversation to read.
+        const reachable = students.filter((student) => usesStudentApp(student) || summaries.get(student.userId)?.lastMessage);
+
+        const conversations = reachable.map((student) => {
             const summary = summaries.get(student.userId);
             const last = summary?.lastMessage ?? null;
             return {

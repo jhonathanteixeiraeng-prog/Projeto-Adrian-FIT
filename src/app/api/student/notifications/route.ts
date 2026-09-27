@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { studentLinkFor } from '@/lib/notifications';
+import { appClockStart, sinceAppStart } from '@/lib/student-app';
 import { parseTzOffset, viewerClock } from '@/lib/viewer-time';
 
 export const dynamic = 'force-dynamic';
@@ -97,17 +98,32 @@ export async function GET(request: NextRequest) {
                 });
 
                 if (!recentCheckinReminder) {
-                    const latestCheckin = await prisma.checkin.findFirst({
-                        where: { studentId },
-                        orderBy: { date: 'desc' },
-                    });
+                    const [latestCheckin, student] = await Promise.all([
+                        prisma.checkin.findFirst({
+                            where: { studentId },
+                            orderBy: { date: 'desc' },
+                        }),
+                        prisma.student.findUnique({
+                            where: { id: studentId },
+                            select: { createdAt: true, usesAppSince: true },
+                        }),
+                    ]);
 
-                    if (!latestCheckin || new Date(latestCheckin.date) < sevenDaysAgo) {
-                        await createDailyReminder(userId, clock.day, {
-                            type: 'CHECKIN_REMINDER',
-                            title: 'Check-in Semanal Pendente 📋',
-                            body: 'Atualize seu peso, medidas e fotos para seu personal acompanhar sua evolução!',
-                        });
+                    if (student && (!latestCheckin || new Date(latestCheckin.date) < sevenDaysAgo)) {
+                        // No check-in since the student started using the app (registered, or joined the student
+                        // area later): welcome them to their first one instead of calling it overdue.
+                        const first = !sinceAppStart(latestCheckin?.date, appClockStart(student));
+                        await createDailyReminder(userId, clock.day, first
+                            ? {
+                                type: 'CHECKIN_REMINDER',
+                                title: 'Faça seu primeiro check-in 📋',
+                                body: 'Registre seu peso, medidas e fotos: é o ponto de partida para seu personal acompanhar sua evolução.',
+                            }
+                            : {
+                                type: 'CHECKIN_REMINDER',
+                                title: 'Check-in Semanal Pendente 📋',
+                                body: 'Atualize seu peso, medidas e fotos para seu personal acompanhar sua evolução!',
+                            });
                     }
                 }
             } catch (error) {
