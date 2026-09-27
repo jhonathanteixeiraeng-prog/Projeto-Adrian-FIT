@@ -57,7 +57,7 @@ describe('photo uploads (A20)', () => {
         big.set(JPEG);
         const tooBig = await json(await send(big, 'image/jpeg'));
         expect(tooBig.status).toBe(400);
-        expect(tooBig.body.error).toContain('4 MB');
+        expect(tooBig.body.error).toContain('4,5 MB');
         expect((await send(JPEG, 'image/jpeg')).status).toBe(200);
 
         signIn(null);

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
         if (file.size > MAX_PHOTO_BYTES) {
             return NextResponse.json(
-                { success: false, error: 'A foto passa de 4 MB. Envie uma foto menor.' },
+                { success: false, error: 'A foto passa de 4,5 MB. Envie uma foto menor.' },
                 { status: 400 }
             );
         }
