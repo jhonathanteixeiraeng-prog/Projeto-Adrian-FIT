@@ -36,16 +36,35 @@ Em **Build & Output Settings**:
 - Build Command: `npm run vercel-build`
 - Install Command: `npm ci`
 
-## 5) Criar estrutura do banco (Neon)
+## 5) Criar estrutura do banco (Neon) — só num banco novo
 
 Após o primeiro deploy, rode local apontando para o Neon:
 
 ```bash
-DATABASE_URL="SUA_URL_NEON" npm run db:push:neon
-DATABASE_URL="SUA_URL_NEON" npm run db:seed
+export DATABASE_URL="SUA_URL_NEON"
+npx prisma generate --schema prisma/schema.postgres.prisma
+npm run db:migrate:deploy
+npm run db:seed
+npm run trainer:create -- --email email@do-personal.com --name "Nome do Personal"
+npx prisma generate
 ```
 
+- `db:migrate:deploy` cria as tabelas aplicando `prisma/migrations` em ordem.
+- `db:seed` cria só a biblioteca global de exercícios (pode rodar de novo, atualiza pelo nome).
+- `trainer:create` cria a conta do personal. A senha inicial aparece uma única vez na tela (ou use
+  `TRAINER_PASSWORD="..."` antes do comando); troque em Configurações depois de entrar. Nenhuma senha fica no código.
+- O último `prisma generate` volta o cliente para o SQLite do desenvolvimento local.
+
 Depois clique em **Redeploy** na Vercel.
+
+## Mudanças no banco (produção)
+
+- Toda mudança em `prisma/schema.postgres.prisma` (igual em `prisma/schema.prisma`) vem com uma pasta nova em
+  `prisma/migrations` com o SQL. Para gerar o SQL a partir da versão anterior do schema:
+  `npx prisma migrate diff --from-schema-datamodel <schema anterior> --to-schema-datamodel prisma/schema.postgres.prisma --script`.
+- O GitHub Actions aplica todas as migrações num PostgreSQL vazio e falha se o resultado for diferente do schema.
+- Em produção, a migração entra **antes** do código que a usa: `npm run db:migrate:status` mostra o que falta e
+  `npm run db:migrate:deploy` aplica (com `DATABASE_URL` de produção). Nunca use `prisma db push` em produção.
 
 ## 6) Checklist final
 

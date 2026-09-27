@@ -1,10 +1,10 @@
-# Types, lint, Prisma schemas, tests (tests/) and the production build on every push to main and every PR.
-# The same checks run locally with `npm run check` (+ `npm run build`).
+# Types, lint, Prisma schemas, tests (tests/) and the production build, and the PostgreSQL migrations, on every
+# push (any branch, so a branch is checked before it's published) and every PR.
+# The same checks run locally with `npm run check` (+ `npm run build`); the migrations need a PostgreSQL.
 name: Check
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
@@ -26,3 +26,37 @@ jobs:
         run: npx prisma generate && npx prisma db push --skip-generate
       - run: npm run check
       - run: npm run build
+
+  # prisma/migrations must rebuild production's schema from nothing (audit A18): every migration applies to an
+  # empty PostgreSQL, in order, and the result is exactly prisma/schema.postgres.prisma. A schema change without
+  # its migration (or a migration that doesn't match) fails here.
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: migrations
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d migrations"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://ci:ci-only@localhost:5432/migrations
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Every migration applies to an empty PostgreSQL
+        run: npm run db:migrate:deploy
+      - name: The result is exactly prisma/schema.postgres.prisma
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.postgres.prisma --exit-code
