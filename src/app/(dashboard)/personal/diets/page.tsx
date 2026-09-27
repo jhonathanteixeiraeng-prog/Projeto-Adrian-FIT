@@ -575,7 +575,8 @@ export default function DietsPage() {
                                                     ? `${formatDateBR(plan.startDate) || '…'} – ${formatDateBR(plan.endDate) || '…'}`
                                                     : 'Sem período definido'}
                                             </div>
-                                            <div className="hidden w-60 shrink-0 items-baseline gap-2 text-sm tabular-nums text-muted-foreground lg:flex">
+                                            {/* From 1280 px: between 1024 and 1279 the sidebar leaves no room for it next to the name. */}
+                                            <div className="hidden w-60 shrink-0 items-baseline gap-2 text-sm tabular-nums text-muted-foreground xl:flex">
                                                 <span className="font-semibold text-foreground">{formatKcal(plan.calories ?? 0)} kcal</span>
                                                 <span>P {plan.protein ?? 0}</span>
                                                 <span>C {plan.carbs ?? 0}</span>

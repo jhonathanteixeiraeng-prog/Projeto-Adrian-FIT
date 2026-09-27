@@ -131,7 +131,7 @@ export default function LoginPage() {
                     )}
 
                     {error && (
-                        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm">
+                        <div role="alert" className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm">
                             {error}
                         </div>
                     )}
@@ -141,6 +141,8 @@ export default function LoginPage() {
                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                             <Input
                                 type="email"
+                                aria-label="E-mail"
+                                autoComplete="email"
                                 placeholder="seu@email.com"
                                 className="pl-12"
                                 error={errors.email?.message}
@@ -152,6 +154,8 @@ export default function LoginPage() {
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                             <Input
                                 type={showPassword ? 'text' : 'password'}
+                                aria-label="Senha"
+                                autoComplete="current-password"
                                 placeholder="Sua senha"
                                 className="pl-12 pr-12"
                                 error={errors.password?.message}
@@ -159,6 +163,8 @@ export default function LoginPage() {
                             />
                             <button
                                 type="button"
+                                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                aria-pressed={showPassword}
                                 onClick={() => setShowPassword(!showPassword)}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                             >
@@ -166,11 +172,8 @@ export default function LoginPage() {
                             </button>
                         </div>
 
-                        <div className="flex items-center justify-between text-sm">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" className="w-4 h-4 rounded border-border accent-[#F88022]" />
-                                <span className="text-muted-foreground">Lembrar de mim</span>
-                            </label>
+                        {/* No "Lembrar de mim": every session already lasts 30 days, and the box changed nothing. */}
+                        <div className="flex items-center justify-end text-sm">
                             <Link href="/forgot-password" className="font-medium text-[#F88022] hover:underline">
                                 Esqueci minha senha
                             </Link>

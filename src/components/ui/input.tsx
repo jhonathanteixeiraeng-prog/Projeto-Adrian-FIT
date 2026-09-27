@@ -1,6 +1,6 @@
 'use client';
 
-import { InputHTMLAttributes, forwardRef } from 'react';
+import { InputHTMLAttributes, forwardRef, useId } from 'react';
 import { cn } from '@/lib/utils';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -11,7 +11,10 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
     ({ className, label, error, helperText, type, id, ...props }, ref) => {
-        const inputId = id || label?.toLowerCase().replace(/\s/g, '-');
+        const generatedId = useId();
+        const inputId = id || generatedId;
+        // The error (or the help text) is read with the field, and the field is marked invalid.
+        const noteId = error || helperText ? `${inputId}-note` : undefined;
 
         return (
             <div className="w-full">
@@ -24,6 +27,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                     ref={ref}
                     id={inputId}
                     type={type}
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={noteId}
                     className={cn(
                         'w-full px-4 py-3 bg-muted border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all duration-200',
                         error && 'border-red-500 focus:ring-red-500',
@@ -32,10 +37,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                     {...props}
                 />
                 {error && (
-                    <p className="mt-1.5 text-sm text-red-500">{error}</p>
+                    <p id={noteId} className="mt-1.5 text-sm text-red-500">{error}</p>
                 )}
                 {helperText && !error && (
-                    <p className="mt-1.5 text-sm text-muted-foreground">{helperText}</p>
+                    <p id={noteId} className="mt-1.5 text-sm text-muted-foreground">{helperText}</p>
                 )}
             </div>
         );
