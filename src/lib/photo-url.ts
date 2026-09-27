@@ -6,6 +6,12 @@
 
 export const PHOTO_ROUTE = '/api/photos/';
 
+/**
+ * Largest photo POST /api/upload takes. Vercel functions refuse request bodies above 4.5 MB before the
+ * app sees them, so this leaves room for the multipart envelope.
+ */
+export const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
+
 // "<owner>-<uuid>.<ext>": no slashes or extra dots, so it's safe as a URL segment and a file name.
 const PHOTO_NAME = /^([A-Za-z0-9]+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|heic|heif)$/;
 

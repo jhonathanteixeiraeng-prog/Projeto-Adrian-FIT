@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { PHOTO_EXTENSIONS, PhotoStorageUnavailableError, savePhoto } from '@/lib/photo-storage';
+import { PhotoStorageUnavailableError, photoTypeOf, savePhoto } from '@/lib/photo-storage';
+import { MAX_PHOTO_BYTES } from '@/lib/photo-url';
 
 export const dynamic = 'force-dynamic';
-
-const MAX_FILE_SIZE_BYTES = 12 * 1024 * 1024; // 12 MB
 
 // POST /api/upload - Stores a progress photo privately and returns its /api/photos/<name> URL,
 // which only the uploader can open until it's attached to a check-in, an assessment or the gallery.
@@ -23,15 +22,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'Nenhum arquivo enviado' }, { status: 400 });
         }
 
-        if (file.size > MAX_FILE_SIZE_BYTES) {
+        if (file.size > MAX_PHOTO_BYTES) {
             return NextResponse.json(
-                { success: false, error: 'O arquivo excede o limite máximo de 12 MB' },
+                { success: false, error: 'A foto passa de 4 MB. Envie uma foto menor.' },
                 { status: 400 }
             );
         }
 
-        const mimeType = (file.type || 'image/jpeg').toLowerCase();
-        if (!PHOTO_EXTENSIONS[mimeType]) {
+        // The file's first bytes say what it is; the declared type is whatever the client sent.
+        const mimeType = photoTypeOf(new Uint8Array(await file.slice(0, 12).arrayBuffer()));
+        if (!mimeType) {
             return NextResponse.json(
                 { success: false, error: 'Formato de imagem não suportado. Use JPG, PNG ou WEBP.' },
                 { status: 400 }

@@ -26,6 +26,26 @@ export const PHOTO_EXTENSIONS: Record<string, string> = {
 };
 const CONTENT_TYPES = Object.fromEntries(Object.entries(PHOTO_EXTENSIONS).map(([type, extension]) => [extension, type]));
 
+const HEIC_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs']);
+const HEIF_BRANDS = new Set(['mif1', 'msf1', 'heif']);
+
+/**
+ * The type of an image from its first 12 bytes (a PHOTO_EXTENSIONS key), or null when the file isn't a
+ * JPEG, PNG, WebP or HEIC/HEIF image. Uploads are stored as what they are, not as the type they declare.
+ */
+export function photoTypeOf(bytes: Uint8Array): string | null {
+    const head = Buffer.from(bytes.subarray(0, 12)).toString('latin1');
+    if (head.startsWith('\xff\xd8\xff')) return 'image/jpeg';
+    if (head.startsWith('\x89PNG\r\n\x1a\n')) return 'image/png';
+    if (head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP') return 'image/webp';
+    if (head.slice(4, 8) === 'ftyp') {
+        const brand = head.slice(8, 12);
+        if (HEIC_BRANDS.has(brand)) return 'image/heic';
+        if (HEIF_BRANDS.has(brand)) return 'image/heif';
+    }
+    return null;
+}
+
 export class PhotoStorageUnavailableError extends Error {}
 
 function backend(): 'blob' | 'local' | null {

@@ -4,10 +4,10 @@
  * the longest side keeps before/after comparisons sharp at a few hundred KB.
  */
 
+import { MAX_PHOTO_BYTES } from '@/lib/photo-url';
+
 const MAX_SIDE = 1600;
 const QUALITY = 0.85;
-/** When the browser can't decode the file (e.g. HEIC outside Safari), the original must fit the request limit. */
-const MAX_ORIGINAL_BYTES = 4 * 1024 * 1024;
 
 async function shrink(file: File): Promise<Blob> {
     try {
@@ -21,9 +21,9 @@ async function shrink(file: File): Promise<Blob> {
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
         if (blob) return blob;
     } catch {
-        // Not decodable here: fall back to the original file.
+        // Not decodable here (e.g. HEIC outside Safari): the original goes as is, so it must fit the upload limit.
     }
-    if (file.size > MAX_ORIGINAL_BYTES) throw new Error('Foto grande demais ou em formato não suportado. Use JPG ou PNG.');
+    if (file.size > MAX_PHOTO_BYTES) throw new Error('Foto grande demais ou em formato não suportado. Use JPG ou PNG.');
     return file;
 }
 
@@ -34,6 +34,8 @@ export async function uploadProgressPhoto(file: File): Promise<string> {
     const form = new FormData();
     form.append('file', blob instanceof File ? blob : new File([blob], 'avaliacao.jpg', { type: 'image/jpeg' }));
     const response = await fetch('/api/upload', { method: 'POST', body: form });
+    // Refused by the platform before reaching the app, so there's no JSON message.
+    if (response.status === 413) throw new Error('Foto grande demais para enviar. O limite é 4 MB.');
     const body = await response.json().catch(() => null);
     if (!response.ok || !body?.success || typeof body.url !== 'string') {
         throw new Error(body?.error || 'Não foi possível enviar a foto. Tente de novo.');
