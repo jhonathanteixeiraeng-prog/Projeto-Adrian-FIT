@@ -23,7 +23,7 @@ interface ExerciseLibraryProps {
     recentIds: string[];
     onPick: (exercises: LibraryExercise[]) => void;
     onRequestCreate: (name: string) => void;
-    inputRef: React.RefObject<HTMLInputElement>;
+    inputRef: React.RefObject<HTMLInputElement | null>;
     autoFocus?: boolean;
     onDragExercises?: (exercises: LibraryExercise[]) => void;
     onDragEnd?: () => void;

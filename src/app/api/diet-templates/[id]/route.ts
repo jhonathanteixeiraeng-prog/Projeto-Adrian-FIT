@@ -12,10 +12,8 @@ async function getPersonalId() {
 }
 
 // GET /api/diet-templates/[id] - Modelo com refeições e alimentos normalizados.
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const personalId = await getPersonalId();
         if (!personalId) {
@@ -38,10 +36,8 @@ export async function GET(
 }
 
 // PUT /api/diet-templates/[id] - Atualiza título, metas e refeições do modelo.
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const personalId = await getPersonalId();
         if (!personalId) {
@@ -94,10 +90,8 @@ export async function PUT(
 }
 
 // DELETE /api/diet-templates/[id] - Remove a model owned by the signed-in personal.
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const personalId = await getPersonalId();
         if (!personalId) {

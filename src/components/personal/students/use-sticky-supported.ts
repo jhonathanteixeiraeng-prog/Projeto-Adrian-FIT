@@ -8,7 +8,7 @@ import { RefObject, useEffect, useState } from 'react';
  * capture it, so a tall sticky column would just become a clipped box. Returns true only when
  * sticky can actually work; with `overflow-x-clip` ancestors it does.
  */
-export function useStickySupported(ref: RefObject<HTMLElement>): boolean {
+export function useStickySupported(ref: RefObject<HTMLElement | null>): boolean {
     const [supported, setSupported] = useState(false);
 
     useEffect(() => {

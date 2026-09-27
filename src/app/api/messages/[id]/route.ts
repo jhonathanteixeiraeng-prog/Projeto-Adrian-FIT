@@ -92,10 +92,8 @@ async function markConversationRead(currentUserId: string, otherUserId: string, 
 // ?limit=N: the latest N messages (+ `hasMore`); ?before=ISO&limit=N: older page (doesn't mark as read);
 // ?after=ISO: only messages newer than that date (polling). Paginated/polled responses also carry
 // `readUpTo`: date of the newest message sent by the current user that the other side has read.
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 
@@ -207,10 +205,8 @@ export async function GET(
 }
 
 // POST /api/messages/[id] - Send a message to a user
-export async function POST(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 

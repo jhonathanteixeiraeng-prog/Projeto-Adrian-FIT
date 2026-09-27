@@ -10,9 +10,10 @@ export const dynamic = 'force-dynamic';
 
 const NOT_FOUND = { success: false, error: 'Avaliação não encontrada' };
 
-type Params = { params: { id: string; assessmentId: string } };
+type Ids = { id: string; assessmentId: string };
+type Params = { params: Promise<Ids> };
 
-async function findAssessment(ids: Params['params'], personalId: string | undefined) {
+async function findAssessment(ids: Ids, personalId: string | undefined) {
     const student = await findOwnedStudent(ids.id, personalId);
     if (!student) return null;
     return prisma.assessment.findFirst({ where: { id: ids.assessmentId, studentId: student.id } });
@@ -20,7 +21,8 @@ async function findAssessment(ids: Params['params'], personalId: string | undefi
 
 // PUT /api/students/[id]/assessments/[assessmentId] - Edits measures, date, notes and photos.
 // A missing key keeps the stored value; null clears it.
-export async function PUT(request: NextRequest, { params }: Params) {
+export async function PUT(request: NextRequest, props: Params) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (session?.user?.role !== 'PERSONAL') {
@@ -74,7 +76,8 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 // DELETE /api/students/[id]/assessments/[assessmentId] - Removes the assessment and its photos.
-export async function DELETE(_request: NextRequest, { params }: Params) {
+export async function DELETE(_request: NextRequest, props: Params) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (session?.user?.role !== 'PERSONAL') {

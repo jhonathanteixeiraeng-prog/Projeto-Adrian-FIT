@@ -126,10 +126,8 @@ async function resolveNutritionInfo(foodName: string, userId: string): Promise<N
 }
 
 // GET /api/students/[id]/diet-plans - List diet plans for student
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 
@@ -190,10 +188,8 @@ export async function GET(
 }
 
 // POST /api/students/[id]/diet-plans - Create diet plan for student
-export async function POST(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 

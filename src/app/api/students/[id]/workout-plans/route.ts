@@ -50,10 +50,8 @@ function withLegacyDefaults(body: unknown) {
 }
 
 // GET /api/students/[id]/workout-plans - List workout plans for student
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 
@@ -110,10 +108,8 @@ export async function GET(
 }
 
 // POST /api/students/[id]/workout-plans - Create (and activate) a workout plan for the student
-export async function POST(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 

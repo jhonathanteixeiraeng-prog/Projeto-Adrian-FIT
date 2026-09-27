@@ -52,3 +52,5 @@ ios/**/DerivedData/
 .next_before_*
 tsconfig.api-check.json
 
+# Written by next dev/build/typegen (it points at the build's route types)
+next-env.d.ts

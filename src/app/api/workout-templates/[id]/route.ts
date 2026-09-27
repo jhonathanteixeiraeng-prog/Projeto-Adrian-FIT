@@ -34,10 +34,8 @@ async function getPersonalId() {
 }
 
 // GET /api/workout-templates/[id] - Template with its days, items and exercises
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const personalId = await getPersonalId();
         if (!personalId) {
@@ -61,10 +59,8 @@ export async function GET(
 }
 
 // PUT /api/workout-templates/[id] - Replace title, description and days (templates have no history to preserve)
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const personalId = await getPersonalId();
         if (!personalId) {
@@ -115,10 +111,8 @@ export async function PUT(
 }
 
 // DELETE /api/workout-templates/[id] - Remove a model owned by the signed-in personal.
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const personalId = await getPersonalId();
         if (!personalId) {

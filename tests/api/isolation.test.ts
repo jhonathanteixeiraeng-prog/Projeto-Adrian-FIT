@@ -45,7 +45,7 @@ describe('each account only sees its own data', () => {
         const other = await createPersonal();
         const theirs = await createStudent(other.personal.id);
         signIn(mine.session);
-        const response = await getStudent(request('GET', `/api/students/${theirs.student.id}?view=profile`), { params: { id: theirs.student.id } });
+        const response = await getStudent(request('GET', `/api/students/${theirs.student.id}?view=profile`), { params: Promise.resolve({ id: theirs.student.id }) });
         expect(response.status).toBe(403);
     });
 
@@ -80,7 +80,7 @@ describe('each account only sees its own data', () => {
         const url = await savePhoto(jpeg(), trainer.user.id, 'image/jpeg');
         const name = url.slice('/api/photos/'.length);
         await prisma.progressPhoto.create({ data: { studentId: student.student.id, url, angle: 'FRONT' } });
-        const open = async () => (await getPhoto(request('GET', url), { params: { name } })).status;
+        const open = async () => (await getPhoto(request('GET', url), { params: Promise.resolve({ name }) })).status;
 
         signIn(null);
         expect(await open()).toBe(401);

@@ -14,7 +14,8 @@ const EMAIL_IN_USE = { success: false, code: 'EMAIL_IN_USE', error: 'Este e-mail
 // PUT /api/students/[id]/access - "Criar acesso ao app": a student registered without e-mail gets a real
 // e-mail and a password to sign in with (see student-access). Students who already have access use
 // reset-password instead.
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (session?.user?.role !== 'PERSONAL' || !session.user.personalId) {

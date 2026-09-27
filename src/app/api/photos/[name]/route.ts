@@ -6,14 +6,15 @@ import { PHOTO_ROUTE, isPhotoName, photoOwner, photoOwnerKey } from '@/lib/photo
 
 export const dynamic = 'force-dynamic';
 
-type Params = { params: { name: string } };
+type Params = { params: Promise<{ name: string }> };
 
 const UNAUTHORIZED = { success: false, error: 'Não autorizado' };
 // Same answer for "doesn't exist" and "not yours", so names can't be probed.
 const notFound = () => NextResponse.json({ success: false, error: 'Foto não encontrada' }, { status: 404 });
 
 // GET /api/photos/[name] - Streams a progress photo to its uploader, the student in it or that student's trainer.
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, props: Params) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id) return NextResponse.json(UNAUTHORIZED, { status: 401 });
@@ -35,7 +36,8 @@ export async function GET(request: NextRequest, { params }: Params) {
 
 // DELETE /api/photos/[name] - The uploader discards a photo that was never attached (a cancelled assessment,
 // a replaced upload). Attached photos are deleted through their gallery or assessment.
-export async function DELETE(_request: NextRequest, { params }: Params) {
+export async function DELETE(_request: NextRequest, props: Params) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id) return NextResponse.json(UNAUTHORIZED, { status: 401 });

@@ -34,10 +34,8 @@ function versionConflict(currentVersion: number) {
 }
 
 // GET - Get single workout plan (raw plan object, used by the web editor and the iOS app)
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id) {
@@ -61,10 +59,8 @@ export async function GET(
 }
 
 // PUT - Update workout plan. Days are synced in place so their ids (and the students' history) survive edits.
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id || session.user.role !== 'PERSONAL' || !session.user.personalId) {
@@ -171,10 +167,8 @@ export async function PUT(
 }
 
 // DELETE - Delete workout plan (days, items and completions cascade)
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id || session.user.role !== 'PERSONAL' || !session.user.personalId) {

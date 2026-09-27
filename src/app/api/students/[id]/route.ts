@@ -103,10 +103,8 @@ async function loadAccess(id: string) {
 // GET /api/students/[id] - Get student details
 // ?view=profile → lean payload for the trainer's student hub (active plans in full, other plans as summaries)
 // ?view=report  → everything the evolution report needs (all check-ins and photos, trainer branding)
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 
@@ -353,10 +351,8 @@ export async function GET(
 }
 
 // PUT (and PATCH) /api/students/[id] - Update student data, contract, status and anamnesis
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 
@@ -463,10 +459,8 @@ export async function PUT(
 export const PATCH = PUT;
 
 // DELETE /api/students/[id] - Delete student
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 

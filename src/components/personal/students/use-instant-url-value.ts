@@ -14,8 +14,8 @@ const PENDING_WINDOW_MS = 2000;
 export function useInstantUrlValue(urlValue: string, setUrlValue: (value: string) => void, debounceMs = 0): [string, (value: string) => void] {
     const [value, setValue] = useState(urlValue);
     const pendingRef = useRef<string | null>(null);
-    const timerRef = useRef<number>();
-    const releaseRef = useRef<number>();
+    const timerRef = useRef<number | undefined>(undefined);
+    const releaseRef = useRef<number | undefined>(undefined);
     const setUrlRef = useRef(setUrlValue);
     setUrlRef.current = setUrlValue;
 
@@ -69,8 +69,8 @@ export function useSyncedUrlParams<T extends Record<string, string>>(defaults: T
     const [values, setValues] = useState<T>(urlValues);
     const valuesRef = useRef(values);
     const pendingRef = useRef<string | null>(null);
-    const timerRef = useRef<number>();
-    const releaseRef = useRef<number>();
+    const timerRef = useRef<number | undefined>(undefined);
+    const releaseRef = useRef<number | undefined>(undefined);
     const setUrlRef = useRef(setUrlValues);
     setUrlRef.current = setUrlValues;
 

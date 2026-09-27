@@ -15,10 +15,8 @@ import { notifyStudentAboutPlan } from '@/lib/plan-notifications';
 import { z } from 'zod';
 
 // GET /api/diets/[id] - Get a specific diet plan
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 
@@ -82,10 +80,8 @@ function optionalInt(value: unknown): number | null | undefined {
 }
 
 // PUT /api/diets/[id] - Update a diet plan (campos ausentes não são alterados)
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 
@@ -185,10 +181,8 @@ export async function PUT(
 }
 
 // DELETE /api/diets/[id] - Delete a diet plan
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
 

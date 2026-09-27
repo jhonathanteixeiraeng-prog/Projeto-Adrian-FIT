@@ -23,10 +23,8 @@ function plural(count: number, singular: string, pluralForm: string) {
 }
 
 // GET - Get single exercise
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id) {
@@ -66,10 +64,8 @@ export async function GET(
 }
 
 // PUT - Update exercise
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id || session.user.role !== 'PERSONAL') {
@@ -133,10 +129,8 @@ export async function PUT(
 }
 
 // DELETE - Delete exercise (blocked while plans, templates or students' load history use it)
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id || session.user.role !== 'PERSONAL') {

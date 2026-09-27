@@ -5,8 +5,7 @@ import { DietPlanEditor } from '@/components/personal/diet-editor/diet-plan-edit
 
 // /personal/diets/{planId}: edita o plano pelo id.
 export default function EditDietPage() {
-    const params = useParams();
-    const planId = Array.isArray(params.id) ? params.id[0] : params.id;
+    const { id: planId } = useParams<{ id: string }>();
 
     return <DietPlanEditor key={planId} route={{ type: 'edit-plan', planId }} />;
 }

@@ -69,9 +69,7 @@ describe('A09: sessions end when the password changes', () => {
         const student = await createStudent(trainer.personal.id);
         const studentToken = await tokenFor(student.user.id);
         signIn(trainer.session);
-        const response = await resetStudentPassword(request('PUT', `/api/students/${student.student.id}/reset-password`, { newPassword: 'nova-senha' }), {
-            params: { id: student.student.id },
-        });
+        const response = await resetStudentPassword(request('PUT', `/api/students/${student.student.id}/reset-password`, { newPassword: 'nova-senha' }), { params: Promise.resolve({ id: student.student.id }) });
         expect(response.status).toBe(200);
         await expect(checkSession(studentToken)).rejects.toThrow('SESSION_REVOKED');
     });
@@ -130,7 +128,7 @@ describe('"Criar acesso ao app"', () => {
         const trainer = await createPersonal();
         const student = await createStudent(trainer.personal.id, { email: null });
         const otherTrainer = await createPersonal();
-        const create = async (body: unknown, id = student.student.id) => json(await createAccess(request('PUT', `/api/students/${id}/access`, body), { params: { id } }));
+        const create = async (body: unknown, id = student.student.id) => json(await createAccess(request('PUT', `/api/students/${id}/access`, body), { params: Promise.resolve({ id }) }));
 
         signIn(otherTrainer.session);
         expect((await create({ email: 'ana@example.test', password: 'abcdef' })).status).toBe(404);

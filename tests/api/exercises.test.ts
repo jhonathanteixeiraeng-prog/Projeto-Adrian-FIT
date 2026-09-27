@@ -26,7 +26,7 @@ describe('exercise names (A16)', () => {
         expect(other.status).toBe(201);
         // Renaming to a name only another trainer uses is fine too.
         const renamed = await json(
-            await updateExercise(request('PUT', `/api/exercises/${other.body.id}`, { name: 'remada cavalinho unilateral' }), { params: { id: other.body.id } })
+            await updateExercise(request('PUT', `/api/exercises/${other.body.id}`, { name: 'remada cavalinho unilateral' }), { params: Promise.resolve({ id: other.body.id }) })
         );
         expect(renamed.status).toBe(200);
         expect(await prisma.exercise.count({ where: { name: 'Remada Cavalinho' } })).toBe(2);

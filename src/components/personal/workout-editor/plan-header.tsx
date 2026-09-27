@@ -28,7 +28,7 @@ interface PlanHeaderProps {
     stats: { days: number; exercises: number; sets: number };
     sourceNote: string | null;
     autoFocusStudent: boolean;
-    titleRef: React.RefObject<HTMLInputElement>;
+    titleRef: React.RefObject<HTMLInputElement | null>;
 }
 
 const DURATIONS = [30, 45, 60, 90];

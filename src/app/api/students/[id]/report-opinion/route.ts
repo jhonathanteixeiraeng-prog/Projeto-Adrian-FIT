@@ -10,7 +10,8 @@ const MAX_OPINION = 4000;
 
 // PUT /api/students/[id]/report-opinion - The trainer's opinion on the evolution report ({ opinion }).
 // It goes on the printed report and in the PDF sent to the student; an empty text clears it.
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const session = await getServerSession(authOptions);
         if (session?.user?.role !== 'PERSONAL') {

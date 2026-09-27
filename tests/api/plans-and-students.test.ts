@@ -31,7 +31,7 @@ describe('PDF send record', () => {
         const trainer = await createPersonal();
         const student = await createStudent(trainer.personal.id);
         const plan = await createWorkoutPlan(student.student.id, trainer.personal.id);
-        const send = async (body: unknown) => json(await markWorkoutSent(request('POST', `/api/workout-plans/${plan.id}/sent`, body), { params: { id: plan.id } }));
+        const send = async (body: unknown) => json(await markWorkoutSent(request('POST', `/api/workout-plans/${plan.id}/sent`, body), { params: Promise.resolve({ id: plan.id }) }));
 
         signIn((await createPersonal()).session);
         expect((await send({ version: 1 })).status).toBe(404);
@@ -71,7 +71,7 @@ describe('PDF send record', () => {
         expect((await updateDietPlan(plan.id, student.student.id, { title: 'Plano 2' })).version).toBe(2);
 
         signIn(trainer.session);
-        const sent = await json(await markDietSent(request('POST', `/api/diets/${plan.id}/sent`, {}), { params: { id: plan.id } }));
+        const sent = await json(await markDietSent(request('POST', `/api/diets/${plan.id}/sent`, {}), { params: Promise.resolve({ id: plan.id }) }));
         expect(sent.body.data).toMatchObject({ version: 2, sentVersion: 2 });
     });
 });
@@ -85,10 +85,10 @@ describe('deleting a student', () => {
         expect(existsSync(photoFile(url))).toBe(true);
 
         signIn((await createPersonal()).session);
-        expect((await deleteStudent(request('DELETE', `/api/students/${student.student.id}`), { params: { id: student.student.id } })).status).toBe(404);
+        expect((await deleteStudent(request('DELETE', `/api/students/${student.student.id}`), { params: Promise.resolve({ id: student.student.id }) })).status).toBe(404);
 
         signIn(trainer.session);
-        const response = await deleteStudent(request('DELETE', `/api/students/${student.student.id}`), { params: { id: student.student.id } });
+        const response = await deleteStudent(request('DELETE', `/api/students/${student.student.id}`), { params: Promise.resolve({ id: student.student.id }) });
         expect(response.status).toBe(200);
         expect(await prisma.student.findUnique({ where: { id: student.student.id } })).toBeNull();
         expect(await prisma.user.findUnique({ where: { id: student.user.id } })).toBeNull();
@@ -101,7 +101,7 @@ describe('deleting a student', () => {
         const coach = await createPersonal();
         const student = await prisma.student.create({ data: { userId: coach.user.id, personalId: trainer.personal.id } });
         signIn(trainer.session);
-        const response = await deleteStudent(request('DELETE', `/api/students/${student.id}`), { params: { id: student.id } });
+        const response = await deleteStudent(request('DELETE', `/api/students/${student.id}`), { params: Promise.resolve({ id: student.id }) });
         expect(response.status).toBe(200);
         expect(await prisma.student.findUnique({ where: { id: student.id } })).toBeNull();
         expect(await prisma.user.findUnique({ where: { id: coach.user.id } })).not.toBeNull();
@@ -116,9 +116,7 @@ describe('assessments', () => {
         const trainerUpload = await savePhoto(jpeg(), trainer.user.id, 'image/jpeg');
         const create = async (url: string) =>
             json(
-                await createAssessment(request('POST', `/api/students/${student.student.id}/assessments`, { date: '2026-09-20', weight: 80, photos: [{ url, angle: 'FRONT' }] }), {
-                    params: { id: student.student.id },
-                })
+                await createAssessment(request('POST', `/api/students/${student.student.id}/assessments`, { date: '2026-09-20', weight: 80, photos: [{ url, angle: 'FRONT' }] }), { params: Promise.resolve({ id: student.student.id }) })
             );
 
         signIn(trainer.session);
@@ -148,7 +146,7 @@ describe('diet edits (A14)', () => {
             fat: null,
             meals: prepareMeals(MEALS as never).meals,
         });
-        const put = async (body: unknown) => json(await updateDiet(request('PUT', `/api/diets/${plan.id}`, body), { params: { id: plan.id } }));
+        const put = async (body: unknown) => json(await updateDiet(request('PUT', `/api/diets/${plan.id}`, body), { params: Promise.resolve({ id: plan.id }) }));
         return { trainer, student, plan, put };
     };
     const swapRice = (mealId: string) =>
