@@ -131,19 +131,30 @@ describe('diet normalizer: normalizeDietFood', () => {
         expect(food.totalCalories).toBe(120);
     });
 
-    // SUSPEITO: "2.000g" ou "2.000" na notação brasileira de milhar é parseado por parseFloat("2.000") = 2,
-    // interpretando 2000g como 2g (ou 0.02 porções de 100g em vez de 20 porções), perdendo 99.9% da quantidade e calorias.
-    it.fails('parses Brazilian dot-thousands notation "2.000g" as 2000g (20 portions of 100g)', () => {
+    // Was the round 7 SUSPEITO: "2.000g" read as 2 g (0.02 portions). Brazilian thousands now read like the
+    // diet editor's parseAmount.
+    it('parses Brazilian dot-thousands notation "2.000g" as 2000g (20 portions of 100g)', () => {
         const food = normalizeDietFood({
             name: 'Arroz cozido',
             portion: '100g',
             quantity: '2.000g',
             calories: 130,
         });
-        // O esperado para 2000g com porção de 100g são 20 porções e 2600 kcal.
-        // O código atual divide 2 por 100, resultando em quantity 0.02 e totalCalories 2.6.
         expect(food.quantity).toBe(20);
         expect(food.totalCalories).toBe(2600);
+    });
+
+    it('reads Brazilian thousands in quantities and portions, and keeps decimals that are not thousands', () => {
+        expect(normalizeDietFood({ name: 'Água', portion: '100ml', quantity: '2.000 ml', calories: 0 }).quantity).toBe(20);
+        expect(normalizeDietFood({ name: 'Arroz', portion: '100g', quantity: '1.500,5g', calories: 100 }).quantity).toBeCloseTo(15.005);
+
+        const juice = normalizeDietFood({ name: 'Suco', portion: '1.000ml', quantity: '500 ml', calories: 400 });
+        expect(juice.quantity).toBe(0.5);
+        expect(juice.totalCalories).toBe(200);
+
+        // A dot not followed by exactly three digits, or a first group starting with 0, is a decimal.
+        expect(normalizeDietFood({ name: 'Arroz', portion: '100g', quantity: '150.5g', calories: 100 }).quantity).toBeCloseTo(1.505);
+        expect(normalizeDietFood({ name: 'Arroz', portion: '100g', quantity: '0.250g', calories: 100 }).quantity).toBeCloseTo(0.0025);
     });
 });
 

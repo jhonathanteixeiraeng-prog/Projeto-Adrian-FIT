@@ -53,8 +53,17 @@ function toNumber(value: unknown): number {
     return 0;
 }
 
+/**
+ * Brazilian thousands at the start of a quantity or portion ("2.000 ml", "1.500,5g"): drops the dots so
+ * "2.000" reads as 2000, like the diet editor's parseAmount. A first group starting with 0 ("0.250") or a
+ * dot not followed by exactly three digits ("1.5 kg") stays a decimal.
+ */
+function withoutThousandsDots(text: string): string {
+    return text.replace(/^[1-9]\d{0,2}(?:\.\d{3})+(?=(?:,\d+)?(?:[^\d.,]|$))/, (match) => match.replace(/\./g, ''));
+}
+
 function parsePortion(portion: unknown): PortionInfo {
-    const text = String(portion || '100g').replace(',', '.').trim().toLowerCase();
+    const text = withoutThousandsDots(String(portion || '100g').trim()).replace(',', '.').toLowerCase();
 
     // Caso explícito "100g" / "100 g"
     if (/^(100\s?g|100\s?ml)$/.test(text)) {
@@ -99,7 +108,7 @@ function parseQuantity(quantity: unknown, portionInfo: PortionInfo): number {
         return quantity;
     }
 
-    const text = String(quantity || '').replace(',', '.').trim().toLowerCase();
+    const text = withoutThousandsDots(String(quantity || '').trim()).replace(',', '.').toLowerCase();
     if (!text) return 1;
 
     // Extrair o primeiro número decimal da string
