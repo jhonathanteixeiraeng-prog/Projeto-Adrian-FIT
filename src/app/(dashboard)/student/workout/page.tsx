@@ -15,8 +15,9 @@ import {
     Trophy,
     ExternalLink
 } from 'lucide-react';
-import { Card, CardContent, Button, Badge } from '@/components/ui';
+import { Card, CardContent, Button, Badge, useToast } from '@/components/ui';
 import { groupChipLabel, groupPositionLabel, groupRestHint, groupRuns, groupTone } from '@/components/personal/workout-editor/group-ui';
+import { browserDay } from '@/lib/student-day';
 import { cn } from '@/lib/utils';
 import { getEmbedVideoUrl, isDirectVideoFile } from '@/lib/video';
 import { describeGroups, sessionSequence } from '@/lib/workout-groups';
@@ -127,6 +128,35 @@ function normalizeSetLog(log: ExerciseSetLog | undefined, totalSets: number): Ex
 
 const setsOf = (exercise: any) => Math.max(0, Number(exercise?.sets) || 0);
 
+/** The first number in a typed value ("22,5", "10-12" → 10), or null. */
+function firstNumber(text: string | undefined): number | null {
+    const match = /\d+(?:[.,]\d+)?/.exec(String(text ?? ''));
+    return match ? Number(match[0].replace(',', '.')) : null;
+}
+
+/** What the server stores for a set: the typed values, else the prescription shown as the suggestion. */
+function setLogValues(exercise: any, setIndex: number, log: ExerciseSetLog) {
+    const prescribedReps = parsePerSetReps(typeof exercise?.reps === 'string' ? exercise.reps : '');
+    return {
+        weight: firstNumber(log.loadKg[setIndex]) ?? loadForSet(exercise?.load, setIndex) ?? 0,
+        reps: Math.round(firstNumber(log.completedReps[setIndex]) ?? firstNumber(prescribedReps[setIndex] ?? prescribedReps[0]) ?? 0),
+    };
+}
+
+/** POST /api/student/set-logs; false when it didn't reach the server. */
+async function postSetLog(body: Record<string, unknown>): Promise<boolean> {
+    try {
+        const response = await fetch('/api/student/set-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
+}
+
 /** Rest after a set: the per-set value when the personal prescribed one ("60/90/120"), else the exercise's rest. */
 function restAfterSet(exercise: any, setIndex: number) {
     const perSet = Array.isArray(exercise?.restBySet) ? Number(exercise.restBySet[setIndex]) : NaN;
@@ -208,6 +238,23 @@ export default function WorkoutPage() {
     const [upNext, setUpNext] = useState<{ exerciseId: string; setIndex: number } | null>(null);
     const scrollToUpNextRef = useRef(false);
     const restIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const { toast } = useToast();
+    /**
+     * Sets are also saved on the server (audit A04), under the student's day when the page opened: a workout
+     * that crosses midnight stays on the day it started. Saves that fail stay pending and go again later.
+     */
+    const [sessionDay] = useState(() => browserDay());
+    const [finishing, setFinishing] = useState(false);
+    const startedAtRef = useRef<string | null>(null);
+    const pendingSyncRef = useRef(new Set<string>());
+    const syncTimersRef = useRef(new Map<string, number>());
+    const offlineWarnedRef = useRef(false);
+    const setLogsRef = useRef(setLogsByExercise);
+    setLogsRef.current = setLogsByExercise;
+    const completedSetsRef = useRef(completedSetsByExercise);
+    completedSetsRef.current = completedSetsByExercise;
+    const workoutRef = useRef(workout);
+    workoutRef.current = workout;
 
     useEffect(() => {
         const fetchWorkout = async () => {
@@ -300,6 +347,59 @@ export default function WorkoutPage() {
             return next;
         });
     }, [workout, hydratedProgress]);
+
+    // Sets already saved today (on another device, or before this page was reloaded) come from the server.
+    const workoutId: string | undefined = workout?.id;
+    useEffect(() => {
+        if (!workoutId) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const response = await fetch(
+                    `/api/student/set-logs?dayId=${encodeURIComponent(workoutId)}&localDate=${sessionDay.localDate}&tz=${sessionDay.timezoneOffsetMinutes}`
+                );
+                const body = await response.json().catch(() => null);
+                if (cancelled || !response.ok || !body?.success) return;
+                const logs: Array<{ exerciseId: string; setIndex: number; weight: number; reps: number }> = body.data?.today ?? [];
+                const current = workoutRef.current;
+                if (!current || current.id !== workoutId) return;
+                const completedSets: Record<string, boolean[]> = { ...completedSetsRef.current };
+                const setLogs: Record<string, ExerciseSetLog> = { ...setLogsRef.current };
+                const exercises = current.exercises.map((item: any) => {
+                    const sets = setsOf(item);
+                    const done = Array.from({ length: sets }, (_, index) => Boolean(completedSets[item.id]?.[index] ?? item.completed));
+                    const log = normalizeSetLog(setLogs[item.id], sets);
+                    for (const saved of logs) {
+                        if (saved.exerciseId !== item.exerciseId || saved.setIndex >= sets) continue;
+                        done[saved.setIndex] = true;
+                        if (!log.loadKg[saved.setIndex] && saved.weight > 0) log.loadKg[saved.setIndex] = String(saved.weight);
+                        if (!log.completedReps[saved.setIndex] && saved.reps > 0) log.completedReps[saved.setIndex] = String(saved.reps);
+                    }
+                    // Done here but not on the server (saved on this device only): sent again.
+                    done.forEach((isDone, index) => {
+                        const onServer = logs.some((saved) => saved.exerciseId === item.exerciseId && saved.setIndex === index);
+                        if (isDone && !onServer) pendingSyncRef.current.add(`${item.id}:${index}`);
+                    });
+                    completedSets[item.id] = done;
+                    setLogs[item.id] = log;
+                    return { ...item, completed: sets > 0 && done.every(Boolean) };
+                });
+                setCompletedSetsByExercise(completedSets);
+                setSetLogsByExercise(setLogs);
+                setWorkout({ ...current, exercises });
+            } catch {
+                // Offline: this device's copy is used, and pending sets go when the connection is back.
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [workoutId, sessionDay]);
+
+    useEffect(() => {
+        const timers = syncTimersRef.current;
+        return () => timers.forEach((timer) => window.clearTimeout(timer));
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -437,6 +537,87 @@ export default function WorkoutPage() {
         }
     };
 
+    /** Saves one set on the server (or removes it). A failed save stays pending and goes with the next ones. */
+    const syncSet = async (exercise: any, setIndex: number, completed: boolean, log?: ExerciseSetLog): Promise<boolean> => {
+        if (!workout?.id || !exercise?.exerciseId) return true;
+        const key = `${exercise.id}:${setIndex}`;
+        const setLog = log ?? normalizeSetLog(setLogsRef.current[exercise.id], setsOf(exercise));
+        const ok = await postSetLog({
+            dayId: workout.id,
+            exerciseId: exercise.exerciseId,
+            setIndex,
+            ...(completed ? setLogValues(exercise, setIndex, setLog) : { remove: true }),
+            ...sessionDay,
+        });
+        if (ok) {
+            pendingSyncRef.current.delete(key);
+            return true;
+        }
+        pendingSyncRef.current.add(key);
+        if (!offlineWarnedRef.current) {
+            offlineWarnedRef.current = true;
+            toast.warning('Sem conexão com o servidor', 'O treino fica salvo neste aparelho e é enviado ao finalizar.');
+        }
+        return false;
+    };
+
+    /** Sends the sets still pending, with what the screen shows now. */
+    const flushPending = async () => {
+        for (const key of Array.from(pendingSyncRef.current)) {
+            const [itemId, index] = key.split(':');
+            const exercise = exercises.find((item: any) => item.id === itemId);
+            if (!exercise) {
+                pendingSyncRef.current.delete(key);
+                continue;
+            }
+            await syncSet(exercise, Number(index), Boolean(completedSetsRef.current[itemId]?.[Number(index)]));
+        }
+    };
+
+    /** Saves the set and, when that works, whatever was still pending. */
+    const saveSet = (exercise: any, setIndex: number, completed: boolean, log?: ExerciseSetLog) => {
+        startedAtRef.current ??= new Date().toISOString();
+        void syncSet(exercise, setIndex, completed, log).then((ok) => {
+            if (ok && pendingSyncRef.current.size > 0) void flushPending();
+        });
+    };
+
+    /** Records the session (history, the trainer's panel) after sending any pending set. */
+    const finishWorkout = async () => {
+        if (finishing || !workout?.id) return;
+        setFinishing(true);
+        try {
+            await flushPending();
+            if (pendingSyncRef.current.size > 0) {
+                throw new Error('Algumas séries ainda não foram enviadas. Confira a conexão e tente de novo.');
+            }
+            const totalSets = exercises.reduce((sum: number, item: any) => sum + setsOf(item), 0);
+            const completedSets = exercises.reduce(
+                (sum: number, item: any) => sum + getSetsProgress(item, setsOf(item)).filter(Boolean).length,
+                0
+            );
+            const response = await fetch('/api/student/workout/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    dayId: workout.id,
+                    completedSets,
+                    totalSets,
+                    startedAt: startedAtRef.current ?? undefined,
+                    completedAt: new Date().toISOString(),
+                    ...sessionDay,
+                }),
+            });
+            const body = await response.json().catch(() => null);
+            if (!response.ok || !body?.success) throw new Error(body?.error || 'Tente de novo.');
+            setShowCompleted(true);
+        } catch (error) {
+            toast.error('Não foi possível finalizar o treino', error instanceof Error ? error.message : undefined);
+        } finally {
+            setFinishing(false);
+        }
+    };
+
     const toggleExerciseSet = (exercise: any, setIndex: number) => {
         const totalSets = setsOf(exercise);
         if (totalSets <= 0) return;
@@ -457,6 +638,7 @@ export default function WorkoutPage() {
             )
         }));
 
+        saveSet(exercise, setIndex, marking);
         if (marking) followSequence(exercise, setIndex, current);
     };
 
@@ -476,6 +658,7 @@ export default function WorkoutPage() {
             ...previous,
             [exerciseId]: Array.from({ length: totalSets }, () => nextCompletedState)
         }));
+        for (let setIndex = 0; setIndex < totalSets; setIndex++) saveSet(targetExercise, setIndex, nextCompletedState);
     };
 
     const updateExerciseSetLog = (
@@ -494,6 +677,20 @@ export default function WorkoutPage() {
                 [exerciseId]: currentLog,
             };
         });
+
+        // A set already done: its new load or reps go to the server once typing pauses.
+        if (!completedSetsRef.current[exerciseId]?.[setIndex]) return;
+        const exercise = exercises.find((item: any) => item.id === exerciseId);
+        if (!exercise) return;
+        const key = `${exerciseId}:${setIndex}`;
+        window.clearTimeout(syncTimersRef.current.get(key));
+        syncTimersRef.current.set(
+            key,
+            window.setTimeout(() => {
+                syncTimersRef.current.delete(key);
+                saveSet(exercise, setIndex, true, normalizeSetLog(setLogsRef.current[exerciseId], totalSets));
+            }, 800)
+        );
     };
 
     const startRest = (seconds: number) => {
@@ -946,7 +1143,8 @@ export default function WorkoutPage() {
                         variant="secondary"
                         size="lg"
                         className="w-full shadow-glow-orange bg-gradient-to-r from-[#F88022] to-[#e06b10] text-white border-0 pulse-glow touch-bounce"
-                        onClick={() => setShowCompleted(true)}
+                        onClick={() => void finishWorkout()}
+                        loading={finishing}
                     >
                         <Trophy className="w-5 h-5" />
                         Finalizar Treino 🎉

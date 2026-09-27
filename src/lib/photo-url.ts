@@ -9,7 +9,7 @@ export const PHOTO_ROUTE = '/api/photos/';
 /**
  * Largest photo POST /api/upload takes: Vercel's limit for a function's request body (4.5 MB), so the
  * route is never stricter than the platform. The iOS app sends photos as they are, and one that went
- * through before must keep going through. Web pages keep theirs well below (photo-upload.ts).
+ * through before must keep going through. Web pages keep theirs well below (src/lib/photo-upload.ts).
  */
 export const MAX_PHOTO_BYTES = 4.5 * 1024 * 1024;
 

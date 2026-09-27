@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
 import { groupChipLabel, groupPositionLabel, groupRestHint, groupTone } from '@/components/personal/workout-editor/group-ui';
+import { browserDayQuery } from '@/lib/student-day';
 import { cn } from '@/lib/utils';
 import { describeGroups } from '@/lib/workout-groups';
 import { formatLoad, formatRpe } from '@/lib/workout-load';
@@ -52,7 +53,7 @@ export default function StudentHomePage() {
     useEffect(() => {
         const fetchDashboard = async () => {
             try {
-                const response = await fetch('/api/student/dashboard');
+                const response = await fetch(`/api/student/dashboard?${browserDayQuery()}`);
                 const data = await response.json();
                 if (data.success) {
                     setDashboardData(data.data);

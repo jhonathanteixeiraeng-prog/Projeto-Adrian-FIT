@@ -20,6 +20,7 @@ import {
     FileText
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
+import { uploadProgressPhoto } from '@/lib/photo-upload';
 
 type ProgressTab = 'weight' | 'measurements' | 'photos' | 'adherence';
 
@@ -141,22 +142,14 @@ export default function ProgressPage() {
 
         setUploadingDirect(true);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            const uploadRes = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
-            const uploadJson = await uploadRes.json();
-            if (!uploadRes.ok || !uploadJson.success) {
-                throw new Error(uploadJson.error || 'Erro no upload da foto');
-            }
+            // Shrunk in the browser first: a phone photo can be larger than an upload may be.
+            const url = await uploadProgressPhoto(file);
 
             const photoRes = await fetch('/api/student/photos', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    url: uploadJson.url,
+                    url,
                     angle: photoAngleFilter === 'ALL' ? 'FRONT' : photoAngleFilter,
                     weight: profile?.weight ?? null,
                 }),

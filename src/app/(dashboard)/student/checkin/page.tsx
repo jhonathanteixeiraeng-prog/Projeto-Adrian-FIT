@@ -22,6 +22,7 @@ import {
     Sparkles
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '@/components/ui';
+import { uploadProgressPhoto } from '@/lib/photo-upload';
 
 type PhotoSlot = {
     angle: 'FRONT' | 'SIDE' | 'BACK';
@@ -99,20 +100,9 @@ export default function CheckinPage() {
         setError(null);
 
         try {
-            const uploadData = new FormData();
-            uploadData.append('file', file);
-
-            const res = await fetch('/api/upload', {
-                method: 'POST',
-                body: uploadData,
-            });
-
-            const result = await res.json();
-            if (!res.ok || !result.success) {
-                throw new Error(result.error || 'Falha ao enviar foto');
-            }
-
-            setPhotos(prev => prev.map(p => p.angle === angle ? { ...p, url: result.url, uploading: false } : p));
+            // Shrunk in the browser first: a phone photo can be larger than an upload may be.
+            const url = await uploadProgressPhoto(file);
+            setPhotos(prev => prev.map(p => p.angle === angle ? { ...p, url, uploading: false } : p));
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Erro no envio da foto');
             setPhotos(prev => prev.map(p => p.angle === angle ? { ...p, uploading: false } : p));

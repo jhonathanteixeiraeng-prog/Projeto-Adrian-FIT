@@ -1,7 +1,8 @@
 /**
- * Progress photos from the trainer's computer: shrunk in the browser before POST /api/upload.
- * Phone photos are often 4–12 MB and a Vercel function refuses requests above 4.5 MB; 1600 px on
- * the longest side keeps before/after comparisons sharp at a few hundred KB.
+ * Browser only. Progress photos from the web pages (the trainer's assessments, the student's check-ins
+ * and gallery): shrunk in the browser before POST /api/upload. Phone photos are often 4–12 MB and a Vercel
+ * function refuses requests above 4.5 MB; 1600 px on the longest side keeps before/after comparisons sharp
+ * at a few hundred KB.
  */
 
 const MAX_SIDE = 1600;

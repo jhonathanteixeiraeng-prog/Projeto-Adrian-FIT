@@ -15,12 +15,14 @@ import {
     Minus,
     RefreshCw
 } from 'lucide-react';
-import { Card, CardContent, Button, Badge } from '@/components/ui';
+import { Card, CardContent, Button, Badge, useToast } from '@/components/ui';
+import { browserDay, browserDayQuery } from '@/lib/student-day';
 import { FoodSubstitutionModal } from '@/components/diet/FoodSubstitutionModal';
 
 export default function DietPage() {
     const searchParams = useSearchParams();
     const requestedMealId = searchParams.get('mealId');
+    const { toast } = useToast();
     const [diet, setDiet] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export default function DietPage() {
     useEffect(() => {
         const fetchDiet = async () => {
             try {
-                const response = await fetch('/api/student/diet');
+                const response = await fetch(`/api/student/diet?${browserDayQuery()}`);
                 const data = await response.json();
                 if (data.success) {
                     setDiet(data.data);
@@ -276,16 +278,30 @@ export default function DietPage() {
             .reduce((acc: number, m: any) => acc + (m.calories || 0), 0)
         : 0;
 
-    const toggleMeal = (mealId: string) => {
-        // Optimistic update
-        setDiet((prev: any) => ({
-            ...prev,
-            meals: prev.meals.map((m: any) =>
-                m.id === mealId ? { ...m, completed: !m.completed } : m
-            ),
-        }));
+    /** Marks or unmarks a meal for today: shown at once, saved on the server, undone if the save fails (audit A05). */
+    const toggleMeal = async (mealId: string) => {
+        const meal = diet?.meals?.find((m: any) => m.id === mealId);
+        if (!meal) return;
+        const completed = !meal.completed;
+        const setCompleted = (value: boolean) =>
+            setDiet((prev: any) => ({
+                ...prev,
+                meals: prev.meals.map((m: any) => (m.id === mealId ? { ...m, completed: value } : m)),
+            }));
 
-        // TODO: Implement API call to persist meal completion
+        setCompleted(completed);
+        try {
+            const response = await fetch('/api/student/diet/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mealId, completed, ...browserDay() }),
+            });
+            const body = await response.json().catch(() => null);
+            if (!response.ok || !body?.success) throw new Error(body?.error || 'Tente de novo.');
+        } catch (error) {
+            setCompleted(!completed);
+            toast.error('Não foi possível salvar a refeição', error instanceof Error ? error.message : undefined);
+        }
     };
 
     const openSubstitution = (mealId: string, food: any, index: number) => {

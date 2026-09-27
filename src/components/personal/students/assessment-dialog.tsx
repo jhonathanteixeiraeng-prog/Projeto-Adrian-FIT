@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, us
 import { ASSESSMENT_MEASURES, type AssessmentMeasureKey } from '@/lib/assessments';
 import { cn, parseDecimalInput } from '@/lib/utils';
 import { PHOTO_ANGLE_LABELS, errorMessage, requestJson, toDateInputValue, todayInput } from './lib';
-import { discardUploadedPhoto, uploadProgressPhoto } from './photo-upload';
+import { discardUploadedPhoto, uploadProgressPhoto } from '@/lib/photo-upload';
 import { MEASURES } from './progress-section';
 import type { Assessment } from './types';
 import { Field, inputClass, primarySmallButtonClass, smallButtonClass, textareaClass } from './ui';
