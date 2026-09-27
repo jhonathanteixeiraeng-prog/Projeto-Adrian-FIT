@@ -10,7 +10,7 @@ import { POST as requestReset } from '@/app/api/password-reset/request/route';
 import { PUT as createAccess } from '@/app/api/students/[id]/access/route';
 import { PUT as resetStudentPassword } from '@/app/api/students/[id]/reset-password/route';
 import { authOptions, passwordStamp } from '@/lib/auth';
-import { createResetToken } from '@/lib/password-reset';
+import { createResetToken, findUserByEmail } from '@/lib/password-reset';
 import { createPersonal, createStudent, prisma, resetDatabase } from '../helpers/db';
 import { json, request, signIn } from '../helpers/http';
 
@@ -150,19 +150,43 @@ describe('"Criar acesso ao app"', () => {
     });
 });
 
+const credentials = authOptions.providers[0] as unknown as {
+    options: { authorize: (credentials: Record<string, string>, req: { headers?: Record<string, string> }) => Promise<unknown> };
+};
+/** A login through the credentials provider: 'ok' or the error the login page shows. */
+const attempt = (email: string, password: string) =>
+    credentials.options.authorize({ email, password }, {}).then(
+        () => 'ok',
+        (error: Error) => error.message
+    );
+
 describe('login', () => {
     it('answers the same for an unknown e-mail and a wrong password', async () => {
         const trainer = await createPersonal({ password: 'senha-certa' });
-        const provider = authOptions.providers[0] as unknown as { options: { authorize: (credentials: Record<string, string>, req: never) => Promise<unknown> } };
-        const attempt = (email: string, password: string) =>
-            provider.options.authorize({ email, password }, {} as never).then(
-                () => 'ok',
-                (error: Error) => error.message
-            );
-
         const unknown = await attempt('ninguem@example.test', 'senha-certa');
         expect(unknown).toBe('E-mail ou senha incorretos');
         expect(await attempt(trainer.user.email, 'senha-errada')).toBe(unknown);
         expect(await attempt(trainer.user.email.toUpperCase(), 'senha-certa')).toBe('ok');
+    });
+});
+
+describe('e-mail capitals (A17)', () => {
+    it('any capitals find an account stored with capitals, for the login and "Esqueci minha senha"', async () => {
+        const trainer = await createPersonal({ password: 'senha-certa' });
+        await prisma.user.update({ where: { id: trainer.user.id }, data: { email: 'Treinador.Teste@Example.TEST' } });
+
+        expect(await attempt('treinador.teste@example.test', 'senha-certa')).toBe('ok');
+        expect(await attempt(' TREINADOR.TESTE@EXAMPLE.TEST ', 'senha-certa')).toBe('ok');
+        expect(await findUserByEmail('treinador.teste@example.test')).toMatchObject({ id: trainer.user.id });
+    });
+
+    it('two older accounts differing only in capitals: none is guessed', async () => {
+        const first = await createPersonal({ password: 'senha-certa' });
+        const second = await createPersonal({ password: 'senha-certa' });
+        await prisma.user.update({ where: { id: first.user.id }, data: { email: 'Dupla@example.test' } });
+        await prisma.user.update({ where: { id: second.user.id }, data: { email: 'DUPLA@example.test' } });
+
+        expect(await attempt('Dupla@example.test', 'senha-certa')).toBe('ok');
+        expect(await attempt('dupla@example.test', 'senha-certa')).toBe('E-mail ou senha incorretos');
     });
 });

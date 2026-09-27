@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare, hash } from 'bcryptjs';
+import { findAccountIdByEmail } from '@/lib/account-email';
 import prisma from '@/lib/prisma';
 
 /**
@@ -32,17 +33,10 @@ export const authOptions: NextAuthOptions = {
                     throw new Error('E-mail e senha são obrigatórios');
                 }
 
-                // Accounts created on the web are stored in lowercase; older ones may keep their original casing.
-                const typedEmail = credentials.email.trim();
-                const normalizedEmail = typedEmail.toLowerCase();
-                const existing =
-                    (await prisma.user.findUnique({ where: { email: typedEmail }, select: { id: true } })) ??
-                    (normalizedEmail !== typedEmail
-                        ? await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } })
-                        : null);
+                const accountId = await findAccountIdByEmail(credentials.email);
 
-                const user = existing && await prisma.user.findUnique({
-                    where: { id: existing.id },
+                const user = accountId && await prisma.user.findUnique({
+                    where: { id: accountId },
                     include: {
                         personal: true,
                         student: {

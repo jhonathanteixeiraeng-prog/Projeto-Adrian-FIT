@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
+import { findAccountIdByEmail } from '@/lib/account-email';
 import prisma from '@/lib/prisma';
 import { passwordStamp } from '@/lib/auth';
 
@@ -46,15 +47,12 @@ export function readResetToken(token: string, now = Date.now()): { userId: strin
     }
 }
 
-/** Same lookup as the login: the address as typed, then lowercase (older accounts keep their casing). */
+/** Same lookup as the login: any capitals find the account (see findAccountIdByEmail). */
 export async function findUserByEmail(typedEmail: string) {
-    const select = { id: true, name: true, email: true, password: true, passwordResetSentAt: true } as const;
-    const typed = typedEmail.trim();
-    const lower = typed.toLowerCase();
-    return (
-        (await prisma.user.findUnique({ where: { email: typed }, select })) ??
-        (lower !== typed ? await prisma.user.findUnique({ where: { email: lower }, select }) : null)
-    );
+    const id = await findAccountIdByEmail(typedEmail);
+    return id
+        ? prisma.user.findUnique({ where: { id }, select: { id: true, name: true, email: true, password: true, passwordResetSentAt: true } })
+        : null;
 }
 
 /** The e-mail with the link (plain text and HTML). */
