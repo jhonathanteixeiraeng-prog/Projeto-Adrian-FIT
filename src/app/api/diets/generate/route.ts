@@ -58,10 +58,7 @@ export async function POST(request: NextRequest) {
         const student = mode === 'student' && studentId
             ? await prisma.student.findFirst({
                 where: { id: studentId, personalId: session.user.personalId },
-                include: {
-                    user: { select: { name: true } },
-                    anamnesis: true,
-                },
+                include: { anamnesis: true },
             })
             : null;
 
@@ -74,7 +71,8 @@ export async function POST(request: NextRequest) {
 
         const diet = await generateDietWithOpenAI({
             student: {
-                name: student?.user.name || 'Modelo alimentar sem aluno atribuído',
+                // Not the student's name: OpenAI gets only what the diet needs (see /termos).
+                name: student ? 'Aluno(a)' : 'Modelo alimentar sem aluno atribuído',
                 age: calculateAge(student?.birthDate || null),
                 gender: student?.gender || null,
                 height: student?.height || null,
