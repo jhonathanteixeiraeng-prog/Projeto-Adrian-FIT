@@ -13,8 +13,11 @@ import { PHOTO_ROUTE, isPhotoName, photoNameFromUrl, photoOwner, photoOwnerKey }
  */
 
 const BLOB_PREFIX = 'progress-photos/';
-// LOCAL_PHOTO_DIR (relative to the project) gives the tests their own folder, apart from development's.
-const LOCAL_DIR = path.join(process.cwd(), process.env.LOCAL_PHOTO_DIR ?? path.join('.data', 'photos'));
+// Vitest runs with NODE_ENV=test: the tests get their own folder, apart from development's photos. Both
+// paths stay literal: the deploy traces the files a function reads, and a computed path under
+// process.cwd() makes it bundle the whole project.
+const LOCAL_DIR =
+    process.env.NODE_ENV === 'test' ? path.join(process.cwd(), '.data', 'test-photos') : path.join(process.cwd(), '.data', 'photos');
 
 /** Accepted upload types and the extension each one is stored with. */
 export const PHOTO_EXTENSIONS: Record<string, string> = {
