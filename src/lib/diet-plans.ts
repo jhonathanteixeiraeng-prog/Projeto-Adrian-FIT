@@ -348,6 +348,15 @@ export interface DietPlanUpdate {
     endDate?: Date | null;
     /** undefined = não altera as refeições. */
     meals?: PreparedMeal[];
+    /** Optimistic lock: the version the editor loaded. If the plan is at another version, nothing is saved. */
+    expectedVersion?: number;
+}
+
+/** The plan changed after the editor loaded it (another tab, the app, a student's substitution). */
+export class DietVersionConflictError extends Error {
+    constructor(readonly currentVersion: number) {
+        super('VERSION_CONFLICT');
+    }
 }
 
 type DietContent = Pick<DietPlanUpdate, 'title' | 'calories' | 'protein' | 'carbs' | 'fat' | 'startDate' | 'endDate'>;
@@ -370,11 +379,25 @@ function dietContentSignature(plan: DietContent, meals: Array<Omit<PreparedMeal,
  * Atualiza um plano numa transação. Refeições enviadas com id existente são atualizadas no lugar
  * (preservando as marcações de "refeição feita" do aluno); as demais são criadas e as ausentes removidas.
  * Ativar o plano desativa os outros planos ativos do aluno. Mudanças de conteúdo aumentam a versão.
+ * With `expectedVersion`, throws DietVersionConflictError when the plan is at another version.
  */
 export function updateDietPlan(planId: string, studentId: string, update: DietPlanUpdate) {
     return prisma.$transaction(async (tx) => {
         if (update.active === true) {
             await deactivateOtherDietPlans(tx, studentId, planId);
+        }
+
+        if (update.expectedVersion !== undefined) {
+            // A conditional write before anything else: it also locks the row, so a concurrent save waits
+            // for this one and then finds the version it bumped.
+            const claimed = await tx.dietPlan.updateMany({
+                where: { id: planId, version: update.expectedVersion },
+                data: { version: update.expectedVersion },
+            });
+            if (claimed.count === 0) {
+                const current = await tx.dietPlan.findUnique({ where: { id: planId }, select: { version: true } });
+                throw new DietVersionConflictError(current?.version ?? update.expectedVersion);
+            }
         }
 
         // Activating or deactivating isn't a content change: only title, targets, dates and meals are.

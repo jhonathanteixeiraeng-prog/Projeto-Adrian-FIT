@@ -44,7 +44,7 @@ import { contactEmail } from '@/lib/student-access';
 import { CustomFoodDialog } from './custom-food-dialog';
 import type { MealRef } from './food-row';
 import { GenerateDraftDialog, type DraftResult, type DraftSource } from './generate-dialog';
-import { fetchStudentContext, handoffs, loadRoute, sendJson, type DietEditorRoute, type Loaded, type PlanSummary } from './load';
+import { RequestError, fetchStudentContext, handoffs, loadRoute, sendJson, type DietEditorRoute, type Loaded, type PlanSummary } from './load';
 import { FloatingBar, MacroBar } from './macro-bar';
 import { MealCard } from './meal-card';
 import { DropdownMenu, type MenuEntry } from './menu';
@@ -178,6 +178,9 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
     const pendingFocusRef = useRef<string | null>(null);
     const activeMealRef = useRef<string | null>(null);
     const autoTargetsRef = useRef(false);
+    /** The plan version this editor has (sent as the optimistic lock) and its activation as stored. */
+    const versionRef = useRef<number | null>(null);
+    const savedActiveRef = useRef<boolean | null>(null);
 
     const lockedStudentId = route.type === 'student' ? route.studentId : null;
     const studentsApi = useApi<any[]>(route.type === 'new-plan' ? '/api/students' : null);
@@ -202,6 +205,8 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             setDatesSuggested(Boolean(loaded.datesSuggested));
             setLastSavedAt(loaded.savedAt ?? null);
             setSend(loaded.send ?? null);
+            versionRef.current = loaded.send?.version ?? null;
+            savedActiveRef.current = loaded.planId ? loaded.state.active : null;
             setShowErrors(false);
             setDraft(null);
             autoTargetsRef.current = Boolean(loaded.autoTargets);
@@ -595,6 +600,8 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             let createdId: string | null = null;
             let createdSend: SendFields | null = null;
             let responseMeals: Array<{ id: string }> = [];
+            /** What is stored after the save: `current`, unless the plan was (de)activated elsewhere meanwhile. */
+            let saved = current;
 
             if (kind === 'template') {
                 const id = templateIdRef.current;
@@ -605,18 +612,40 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 });
                 if (!id) createdId = result.data?.id ?? null;
             } else if (planIdRef.current) {
-                const result = await sendJson(`/api/diets/${planIdRef.current}`, 'PUT', {
+                const url = `/api/diets/${planIdRef.current}`;
+                const payload = {
                     title: current.title.trim(),
-                    active: current.active,
+                    // Only when changed here: an editor opened earlier must not undo an activation made elsewhere.
+                    ...(current.active !== savedActiveRef.current ? { active: current.active } : {}),
                     notifyStudent,
                     startDate: current.startDate,
                     endDate: current.endDate,
                     ...values,
                     meals: toApiMeals(current.meals, 'foods', true),
-                });
+                };
+                let result;
+                try {
+                    result = await sendJson(url, 'PUT', versionRef.current === null ? payload : { ...payload, version: versionRef.current });
+                } catch (error) {
+                    if (!(error instanceof RequestError && error.code === 'VERSION_CONFLICT')) throw error;
+                    const overwrite = await confirm({
+                        title: 'A dieta foi alterada em outro lugar',
+                        description: `${error.message} Se sobrescrever, as mudanças feitas em outro lugar serão substituídas pelas suas.`,
+                        confirmText: 'Sobrescrever com a minha versão',
+                        cancelText: 'Continuar editando',
+                        variant: 'danger',
+                    });
+                    if (!overwrite) return false;
+                    result = await sendJson(url, 'PUT', payload);
+                }
                 responseMeals = result.data?.meals ?? [];
                 // Content changes bump the version, which may make the sent PDF outdated.
                 if (result.data) setSend(sendFieldsOf(result.data));
+                versionRef.current = result.data?.version ?? null;
+                if (typeof result.data?.active === 'boolean') {
+                    savedActiveRef.current = result.data.active;
+                    if (result.data.active !== current.active) saved = { ...current, active: result.data.active };
+                }
             } else {
                 const result = await sendJson('/api/diet-plans', 'POST', {
                     title: current.title.trim(),
@@ -635,10 +664,14 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 responseMeals = result.meals ?? [];
                 createdSend = sendFieldsOf(result);
                 setSend(createdSend);
+                versionRef.current = createdSend.version ?? null;
+                savedActiveRef.current = typeof result.active === 'boolean' ? result.active : current.active;
             }
 
-            baselineRef.current = currentSnapshot;
-            setBaseline(currentSnapshot);
+            if (saved !== current) dispatch({ type: 'set', patch: { active: saved.active } });
+            const savedSnapshot = saved === current ? currentSnapshot : snapshotOf(saved, kind);
+            baselineRef.current = savedSnapshot;
+            setBaseline(savedSnapshot);
             setSavedTitle(current.title.trim());
             const savedAt = new Date();
             setLastSavedAt(savedAt);
@@ -669,10 +702,10 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 toast.success(
                     createdId ? 'Plano criado' : 'Plano salvo',
                     STUDENTS_USE_APP
-                        ? current.active
+                        ? saved.active
                             ? `Já está no app de ${firstName}.`
                             : 'Plano inativo: não aparece no app do aluno.'
-                        : current.active
+                        : saved.active
                           ? `É a dieta atual de ${firstName}. Exporte o PDF para enviar.`
                           : 'Plano salvo como inativo.'
                 );
@@ -704,7 +737,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                                 setPlansLoaded(true);
                             })
                             .catch(() => undefined);
-                        if (!current.active) router.replace(`/personal/students/${route.studentId}/diet?planId=${createdId}`);
+                        if (!saved.active) router.replace(`/personal/students/${route.studentId}/diet?planId=${createdId}`);
                     } else {
                         handoffs.set(`plan:${createdId}`, {
                             state: handoffState(),
@@ -722,11 +755,11 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                     }
                 }
             } else {
-                if (kind === 'plan' && current.active && studentPlans.some((plan) => plan.active && plan.id !== planIdRef.current)) {
+                if (kind === 'plan' && saved.active && studentPlans.some((plan) => plan.active && plan.id !== planIdRef.current)) {
                     setStudentPlans((plans) => plans.map((plan) => ({ ...plan, active: plan.id === planIdRef.current })));
                 }
                 // Sem ?planId=, a ficha do aluno abre a dieta ativa: um plano recém-desativado precisa do id na URL.
-                if (route.type === 'student' && !current.active && !route.planId && planIdRef.current) {
+                if (route.type === 'student' && !saved.active && !route.planId && planIdRef.current) {
                     router.replace(`/personal/students/${route.studentId}/diet?planId=${planIdRef.current}`);
                 }
             }
@@ -739,7 +772,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             setSaving(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [kind, route, firstName, student, studentPlans, focusSearch]);
+    }, [kind, route, firstName, student, studentPlans, focusSearch, confirm]);
 
     useHotkey('mod+s', () => {
         if (isModalOpen()) return;

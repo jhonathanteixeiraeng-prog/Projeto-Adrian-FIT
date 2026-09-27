@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import {
+    DietVersionConflictError,
     dietMealInputSchema,
     getDietPlanForPersonal,
     parseDateInput,
@@ -58,7 +59,21 @@ const updateSchema = z.object({
     startDate: z.string().optional().nullable(),
     endDate: z.string().optional().nullable(),
     meals: z.array(dietMealInputSchema).optional(),
+    /** Optional optimistic lock: the version the client loaded (the web editor sends it; older clients don't). */
+    version: z.number().int().optional(),
 });
+
+function versionConflict(currentVersion: number) {
+    return NextResponse.json(
+        {
+            success: false,
+            code: 'VERSION_CONFLICT',
+            currentVersion,
+            error: `Esta dieta foi alterada em outro lugar (agora está na versão ${currentVersion}). Recarregue para ver as mudanças ou salve novamente para sobrescrever.`,
+        },
+        { status: 409 }
+    );
+}
 
 /** undefined = campo não enviado (não altera); null = limpar. */
 function optionalInt(value: unknown): number | null | undefined {
@@ -114,6 +129,10 @@ export async function PUT(
             );
         }
 
+        if (data.version !== undefined && data.version !== existingPlan.version) {
+            return versionConflict(existingPlan.version);
+        }
+
         const startDate = data.startDate === undefined ? undefined : parseDateInput(data.startDate);
         const endDate = data.endDate === undefined ? undefined : parseDateInput(data.endDate);
         const effectiveStart = startDate === undefined ? existingPlan.startDate : startDate;
@@ -127,17 +146,24 @@ export async function PUT(
 
         const prepared = data.meals ? prepareMeals(data.meals) : null;
 
-        const updatedPlan = await updateDietPlan(params.id, existingPlan.studentId, {
-            title: data.title?.trim(),
-            calories: optionalInt(data.calories),
-            protein: optionalInt(data.protein),
-            carbs: optionalInt(data.carbs),
-            fat: optionalInt(data.fat),
-            active: data.active,
-            startDate,
-            endDate,
-            meals: prepared?.meals,
-        });
+        let updatedPlan;
+        try {
+            updatedPlan = await updateDietPlan(params.id, existingPlan.studentId, {
+                title: data.title?.trim(),
+                calories: optionalInt(data.calories),
+                protein: optionalInt(data.protein),
+                carbs: optionalInt(data.carbs),
+                fat: optionalInt(data.fat),
+                active: data.active,
+                startDate,
+                endDate,
+                meals: prepared?.meals,
+                expectedVersion: data.version,
+            });
+        } catch (error) {
+            if (error instanceof DietVersionConflictError) return versionConflict(error.currentVersion);
+            throw error;
+        }
 
         const transitionedToActive = !existingPlan.active && data.active === true;
         if (transitionedToActive && data.notifyStudent) {

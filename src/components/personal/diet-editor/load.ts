@@ -242,6 +242,13 @@ export async function loadRoute(route: DietEditorRoute): Promise<Loaded> {
     }
 }
 
+/** A failed request: the API's message, plus the HTTP status and the API's error code (e.g. VERSION_CONFLICT). */
+export class RequestError extends Error {
+    constructor(message: string, readonly status: number, readonly code?: string) {
+        super(message);
+    }
+}
+
 export async function sendJson(url: string, method: 'POST' | 'PUT' | 'DELETE', body?: unknown) {
     const response = await fetch(url, {
         method,
@@ -250,7 +257,7 @@ export async function sendJson(url: string, method: 'POST' | 'PUT' | 'DELETE', b
     });
     const data = await response.json().catch(() => null);
     if (!response.ok || data?.success === false) {
-        throw new Error((data && (data.error || data.message)) || `Erro ${response.status} ao salvar.`);
+        throw new RequestError((data && (data.error || data.message)) || `Erro ${response.status} ao salvar.`, response.status, data?.code);
     }
     return data;
 }

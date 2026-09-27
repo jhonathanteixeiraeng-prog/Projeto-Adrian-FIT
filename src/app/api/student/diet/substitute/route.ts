@@ -233,12 +233,17 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const body = await request.json();
-        const { mealId, originalFoodIndex, originalFood, newFood } = body;
+        let body: any;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ success: false, error: 'Corpo da requisição inválido' }, { status: 400 });
+        }
+        const { mealId, originalFoodIndex, originalFood, newFood } = body ?? {};
 
         // originalFood and newFood expected to be full objects with name, calories, macros, quantity/portion
 
-        if (!mealId || originalFoodIndex === undefined || !originalFood || !newFood) {
+        if (typeof mealId !== 'string' || !mealId || !Number.isInteger(originalFoodIndex) || !originalFood || !newFood) {
             return NextResponse.json(
                 { success: false, error: 'Dados incompletos' },
                 { status: 400 }
@@ -359,13 +364,24 @@ export async function POST(request: NextRequest) {
         const newFoodItem = normalizeDietFood(rawNewFoodItem);
         foods[originalFoodIndex] = newFoodItem;
 
-        // 4. Save to DB
-        await prisma.dietMeal.update({
-            where: { id: mealId },
-            data: {
-                foods: JSON.stringify(foods)
-            }
+        // 4. Save to DB, only over the foods read above: two substitutions at once (or a trainer's save in
+        // between) can't silently undo each other. Like any content change, it bumps the plan version, so an
+        // editor opened before gets a conflict instead of overwriting the substitution (see diet-plans).
+        const saved = await prisma.$transaction(async (tx) => {
+            const updated = await tx.dietMeal.updateMany({
+                where: { id: mealId, foods: meal.foods },
+                data: { foods: JSON.stringify(foods) },
+            });
+            if (updated.count === 0) return false;
+            await tx.dietPlan.update({ where: { id: meal.dietPlanId }, data: { version: { increment: 1 } } });
+            return true;
         });
+        if (!saved) {
+            return NextResponse.json(
+                { success: false, code: 'MEAL_CHANGED', error: 'A refeição mudou enquanto a substituição era feita. Atualize e tente de novo.' },
+                { status: 409 }
+            );
+        }
 
         // 5. Log History (optional, don't break the main flow if this fails)
         try {
@@ -409,10 +425,11 @@ export async function POST(request: NextRequest) {
             }
         });
 
-    } catch (error: any) {
+    } catch (error) {
+        // Details stay in the server log (audit A23).
         console.error('Substitution Error:', error);
         return NextResponse.json(
-            { success: false, error: 'Erro ao realizar substituição: ' + error.message, stack: error.stack },
+            { success: false, error: 'Não foi possível fazer a substituição. Tente de novo.' },
             { status: 500 }
         );
     }
