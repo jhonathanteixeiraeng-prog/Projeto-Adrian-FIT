@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { PhotoStorageUnavailableError, photoTypeOf, savePhoto } from '@/lib/photo-storage';
 import { MAX_PHOTO_BYTES } from '@/lib/photo-url';
+import { LIMITS, hitRateLimit, tooManyRequests, waitText } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,11 @@ export async function POST(request: NextRequest) {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id) {
             return NextResponse.json({ success: false, error: 'Acesso não autorizado' }, { status: 401 });
+        }
+
+        const limited = await hitRateLimit(LIMITS.upload, session.user.id);
+        if (!limited.allowed) {
+            return tooManyRequests(limited.retryAfterSeconds, `Muitas fotos enviadas em pouco tempo. Tente de novo em ${waitText(limited.retryAfterSeconds)}.`);
         }
 
         const formData = await request.formData();

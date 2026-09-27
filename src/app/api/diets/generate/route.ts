@@ -4,6 +4,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { generateDietWithOpenAI } from '@/lib/openai-diet-generator';
+import { LIMITS, hitRateLimit, tooManyRequests, waitText } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -66,6 +67,22 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 { success: false, error: 'Aluno não encontrado' },
                 { status: 404 }
+            );
+        }
+
+        // Each draft is a paid OpenAI call: a burst guard, then a daily budget per trainer (audit A10).
+        const burst = await hitRateLimit(LIMITS.dietDraftBurst, session.user.personalId);
+        if (!burst.allowed) {
+            return tooManyRequests(
+                burst.retryAfterSeconds,
+                `Muitos rascunhos seguidos. Espere ${waitText(burst.retryAfterSeconds)} e tente de novo.`
+            );
+        }
+        const daily = await hitRateLimit(LIMITS.dietDraftDaily, session.user.personalId);
+        if (!daily.allowed) {
+            return tooManyRequests(
+                daily.retryAfterSeconds,
+                `O limite de ${LIMITS.dietDraftDaily.max} rascunhos com IA por dia foi atingido. Tente de novo em ${waitText(daily.retryAfterSeconds)}.`
             );
         }
 

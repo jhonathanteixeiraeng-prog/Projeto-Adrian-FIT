@@ -4,6 +4,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare, hash } from 'bcryptjs';
 import { findAccountIdByEmail } from '@/lib/account-email';
 import prisma from '@/lib/prisma';
+import { LIMITS, clientAddress, hitRateLimit, waitText } from '@/lib/rate-limit';
 
 /**
  * Fingerprint of the stored password hash, kept in the (encrypted) session JWT. Changing or resetting
@@ -28,9 +29,21 @@ export const authOptions: NextAuthOptions = {
                 email: { label: 'Email', type: 'email' },
                 password: { label: 'Senha', type: 'password' },
             },
-            async authorize(credentials) {
+            async authorize(credentials, req) {
                 if (!credentials?.email || !credentials?.password) {
                     throw new Error('E-mail e senha são obrigatórios');
+                }
+
+                // Every attempt counts, before the password is checked: per address, and per e-mail from it
+                // (so someone guessing from elsewhere can't lock the owner out).
+                const address = clientAddress(req?.headers);
+                const email = credentials.email.trim().toLowerCase();
+                for (const [limit, caller] of [
+                    [LIMITS.loginAddress, address],
+                    [LIMITS.loginAccount, `${address} ${email}`],
+                ] as const) {
+                    const result = await hitRateLimit(limit, caller);
+                    if (!result.allowed) throw new Error(`Muitas tentativas de login. Tente de novo em ${waitText(result.retryAfterSeconds)}.`);
                 }
 
                 const accountId = await findAccountIdByEmail(credentials.email);

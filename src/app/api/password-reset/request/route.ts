@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { isEmailConfigured, sendEmail } from '@/lib/mailer';
 import { RESET_EMAIL_INTERVAL_MS, createResetToken, findUserByEmail, resetEmail } from '@/lib/password-reset';
+import { LIMITS, clientAddress, hitRateLimit, tooManyRequests } from '@/lib/rate-limit';
 import { hasAppAccess } from '@/lib/student-access';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,9 @@ export async function POST(request: NextRequest) {
                 { status: 503 }
             );
         }
+
+        const limited = await hitRateLimit(LIMITS.passwordReset, clientAddress(request.headers));
+        if (!limited.allowed) return tooManyRequests(limited.retryAfterSeconds);
 
         const user = await findUserByEmail(email);
         // Students registered without an e-mail have no login to recover (see student-access).

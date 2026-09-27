@@ -515,3 +515,11 @@ model DietTemplateMeal {
   notes      String?
   order      Int          @default(0)
 }
+
+/// Usage limits (src/lib/rate-limit.ts): one fixed-window counter per operation and caller. The key is a
+/// hash, so no e-mail or IP address is stored.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+}
