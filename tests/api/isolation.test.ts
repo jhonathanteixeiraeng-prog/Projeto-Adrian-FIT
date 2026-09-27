@@ -1,5 +1,3 @@
-import { rmSync } from 'node:fs';
-import path from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth', async (importOriginal) => ({ ...(await importOriginal<typeof import('next-auth')>()), getServerSession: vi.fn() }));
@@ -11,13 +9,14 @@ import { GET as getStudent } from '@/app/api/students/[id]/route';
 import { savePhoto } from '@/lib/photo-storage';
 import { createPersonal, createStudent, prisma, resetDatabase } from '../helpers/db';
 import { json, request, signIn } from '../helpers/http';
+import { removeTestPhotos } from '../helpers/photos';
 
-// Local photo storage (.data/photos): no Blob token, not on Vercel.
+// Local photo storage (the tests' folder): no Blob token, not on Vercel.
 delete process.env.BLOB_READ_WRITE_TOKEN;
 delete process.env.VERCEL;
 
 beforeEach(resetDatabase);
-afterAll(() => rmSync(path.join(process.cwd(), '.data'), { recursive: true, force: true }));
+afterAll(removeTestPhotos);
 
 const jpeg = () => new Blob([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0xff, 0xd9])], { type: 'image/jpeg' });
 

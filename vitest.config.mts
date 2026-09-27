@@ -18,6 +18,8 @@ export default defineConfig({
             DATABASE_URL: 'file:./test.db',
             NEXTAUTH_SECRET: 'test-secret-not-for-production',
             NEXTAUTH_URL: 'http://localhost:3000',
+            // Photo files the tests store (removed after each file), apart from development's .data/photos.
+            LOCAL_PHOTO_DIR: '.data/test-photos',
         },
         // One SQLite file shared by the API tests: files run one at a time.
         fileParallelism: false,

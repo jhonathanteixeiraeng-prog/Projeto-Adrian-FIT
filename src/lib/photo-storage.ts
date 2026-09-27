@@ -13,7 +13,8 @@ import { PHOTO_ROUTE, isPhotoName, photoNameFromUrl, photoOwner, photoOwnerKey }
  */
 
 const BLOB_PREFIX = 'progress-photos/';
-const LOCAL_DIR = path.join(process.cwd(), '.data', 'photos');
+// LOCAL_PHOTO_DIR (relative to the project) gives the tests their own folder, apart from development's.
+const LOCAL_DIR = path.join(process.cwd(), process.env.LOCAL_PHOTO_DIR ?? path.join('.data', 'photos'));
 
 /** Accepted upload types and the extension each one is stored with. */
 export const PHOTO_EXTENSIONS: Record<string, string> = {

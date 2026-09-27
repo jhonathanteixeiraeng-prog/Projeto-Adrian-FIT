@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,15 +12,16 @@ import { createDietPlanForStudent, prepareMeals, updateDietPlan } from '@/lib/di
 import { savePhoto } from '@/lib/photo-storage';
 import { createPersonal, createStudent, createWorkoutPlan, prisma, resetDatabase } from '../helpers/db';
 import { json, request, signIn } from '../helpers/http';
+import { TEST_PHOTO_DIR, removeTestPhotos } from '../helpers/photos';
 
 delete process.env.BLOB_READ_WRITE_TOKEN;
 delete process.env.VERCEL;
 
 beforeEach(resetDatabase);
-afterAll(() => rmSync(path.join(process.cwd(), '.data'), { recursive: true, force: true }));
+afterAll(removeTestPhotos);
 
 const jpeg = () => new Blob([Buffer.from([0xff, 0xd8, 0xff, 0xd9])], { type: 'image/jpeg' });
-const photoFile = (url: string) => path.join(process.cwd(), '.data', 'photos', url.slice('/api/photos/'.length));
+const photoFile = (url: string) => path.join(TEST_PHOTO_DIR, url.slice('/api/photos/'.length));
 
 describe('PDF send record', () => {
     it("records the version sent, never newer than the plan, and only for the trainer's own students", async () => {
