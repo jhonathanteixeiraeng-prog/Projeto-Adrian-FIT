@@ -45,10 +45,10 @@ import {
     exportRowsCsv,
     sortRows,
     tabPredicates,
-    VISIBLE_CRM_TABS,
+    visibleCrmTabs,
 } from '@/components/personal/students/crm';
 import { PLAN_ENDING_WINDOW_DAYS } from '@/components/personal/dashboard/attention-rules';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { useNotifications } from '@/components/personal/notifications-provider';
 import {
     PLAN_OPTIONS,
     STATUS_OPTIONS,
@@ -249,6 +249,16 @@ function TableSkeleton() {
     );
 }
 
+/** App-only cells of a student who doesn't use the student area (plans go as PDF over WhatsApp). */
+function NotInApp() {
+    return (
+        <span className="text-xs text-muted-foreground" title="Não usa a área do aluno: recebe os planos em PDF pelo WhatsApp">
+            <span aria-hidden="true">—</span>
+            <span className="sr-only">Não usa a área do aluno</span>
+        </span>
+    );
+}
+
 export default function StudentsPage() {
     const router = useRouter();
     const { toast } = useToast();
@@ -256,6 +266,9 @@ export default function StudentsPage() {
     usePageMeta({ title: 'Alunos', breadcrumbs: [{ label: 'Alunos (CRM)' }] });
 
     const { data, error, isLoading, isValidating, mutate } = useApi<StudentListItem[]>(STUDENTS_KEY);
+    // Workout/check-in columns, the app tabs and reminders while some student uses the student area (phase 2 pilot).
+    const { studentAppInUse } = useNotifications();
+    const crmTabs = visibleCrmTabs(studentAppInUse);
     // All list state lives in the URL (?q, tab, plan, payment, status, sort, dir, view, student), mirrored locally for instant feedback.
     const [params, setParams] = useSyncedUrlParams(URL_DEFAULTS);
     const [storedView, setStoredView] = useLocalStorageState<'table' | 'cards'>('personal:crm-view', 'table');
@@ -266,7 +279,7 @@ export default function StudentsPage() {
     const drawerId = params.student;
     const setDrawerId = useCallback((student: string) => setParams({ student }), [setParams]);
 
-    const tab = (VISIBLE_CRM_TABS.some((item) => item.id === params.tab) ? params.tab : 'all') as CrmTab;
+    const tab = (crmTabs.some((item) => item.id === params.tab) ? params.tab : 'all') as CrmTab;
     const sortKey = (SORT_KEYS.includes(params.sort as SortKey) ? params.sort : 'name') as SortKey;
     const sortDir: 'asc' | 'desc' = params.dir === 'desc' ? 'desc' : 'asc';
 
@@ -588,7 +601,7 @@ export default function StudentsPage() {
             toast.warning('Nenhum aluno para exportar neste filtro');
             return;
         }
-        exportRowsCsv(list, `alunos_${new Date().toISOString().slice(0, 10)}.csv`);
+        exportRowsCsv(list, `alunos_${new Date().toISOString().slice(0, 10)}.csv`, studentAppInUse);
         toast.success('CSV exportado', `${list.length} ${list.length === 1 ? 'aluno' : 'alunos'}`);
     };
 
@@ -634,11 +647,8 @@ export default function StudentsPage() {
     const visibleRows = filtered.slice(0, Math.max(visibleCount, highlightIndex + 1, drawerIndex + 1));
     const hasMore = visibleRows.length < filtered.length;
 
-    const lastWorkoutTone = (row: CrmRow) => {
-        if (row.status !== 'ACTIVE') return toneText.muted;
-        if (row.lastWorkoutDays === null || row.lastWorkoutDays >= INACTIVITY_ALERT_DAYS) return toneText.danger;
-        return toneText.ok;
-    };
+    // Same rule as the "Em risco" tab (buildRow): a student who just joined the student area is neither.
+    const lastWorkoutTone = (row: CrmRow) => (row.atRisk ? toneText.danger : row.onTrack ? toneText.ok : toneText.muted);
 
     // ---------------------------------------------------------------- render helpers
     const renderWorkout = (row: CrmRow) => {
@@ -833,13 +843,13 @@ export default function StudentsPage() {
                         detail={`${metrics.active} ativos · ${metrics.paused} pausados · ${metrics.inactive} inativos`}
                         icon={<Users className="h-4 w-4" />}
                     />
-                    {STUDENTS_USE_APP ? (
+                    {studentAppInUse ? (
                         <MetricCard
                             label="Em risco"
                             value={metrics.risk}
                             detail={
                                 metrics.risk === 0
-                                    ? 'Todos treinaram recentemente'
+                                    ? `Ninguém sem treinar há ${INACTIVITY_ALERT_DAYS}+ dias`
                                     : `Sem treinar há ${INACTIVITY_ALERT_DAYS}+ dias${metrics.neverTrained ? ` · ${metrics.neverTrained} nunca treinaram` : ''}`
                             }
                             icon={<AlertTriangle className="h-4 w-4" />}
@@ -879,7 +889,7 @@ export default function StudentsPage() {
             )}
 
             <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1" role="tablist" aria-label="Segmentos de alunos">
-                {VISIBLE_CRM_TABS.map((item) => (
+                {crmTabs.map((item) => (
                     <button
                         key={item.id}
                         type="button"
@@ -1061,11 +1071,11 @@ export default function StudentsPage() {
                                     <SortableHeader label="Aluno" column="name" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                     <SortableHeader label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                     <SortableHeader label="Treino ativo" column="workout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
-                                    <th scope="col" className={cn('hidden px-3 py-2.5 text-left font-medium', STUDENTS_USE_APP ? '2xl:table-cell' : 'lg:table-cell')}>
+                                    <th scope="col" className={cn('hidden px-3 py-2.5 text-left font-medium', studentAppInUse ? '2xl:table-cell' : 'lg:table-cell')}>
                                         Dieta ativa
                                     </th>
-                                    {/* Workouts and check-ins are logged in the students' app. */}
-                                    {STUDENTS_USE_APP && (
+                                    {/* Workouts and check-ins are logged in the student area. */}
+                                    {studentAppInUse && (
                                         <>
                                             <SortableHeader label="Último treino" column="lastWorkout" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
                                             <SortableHeader label="Último check-in" column="lastCheckin" sortKey={sortKey} sortDir={sortDir} onSort={setSort} />
@@ -1134,22 +1144,28 @@ export default function StudentsPage() {
                                                 <StudentStatusBadge status={row.status} />
                                             </td>
                                             <td className="max-w-[170px] px-3 py-2">{renderWorkout(row)}</td>
-                                            <td className={cn('hidden max-w-[180px] px-3 py-2', STUDENTS_USE_APP ? '2xl:table-cell' : 'lg:table-cell')}>
+                                            <td className={cn('hidden max-w-[180px] px-3 py-2', studentAppInUse ? '2xl:table-cell' : 'lg:table-cell')}>
                                                 {renderDiet(row)}
                                             </td>
-                                            {STUDENTS_USE_APP && (
+                                            {studentAppInUse && (
                                                 <>
                                                     <td className="whitespace-nowrap px-3 py-2">
-                                                        <p className={cn('font-semibold', lastWorkoutTone(row))}>
-                                                            {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
-                                                        </p>
-                                                        {row.lastWorkoutName && (
-                                                            <p className="max-w-[110px] truncate text-xs text-muted-foreground" title={row.lastWorkoutName}>
-                                                                {row.lastWorkoutName}
-                                                            </p>
+                                                        {row.app ? (
+                                                            <>
+                                                                <p className={cn('font-semibold', lastWorkoutTone(row))}>
+                                                                    {row.lastWorkoutDays === null ? 'Nunca treinou' : relativeDaysLabel(row.lastWorkoutDays)}
+                                                                </p>
+                                                                {row.lastWorkoutName && (
+                                                                    <p className="max-w-[110px] truncate text-xs text-muted-foreground" title={row.lastWorkoutName}>
+                                                                        {row.lastWorkoutName}
+                                                                    </p>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <NotInApp />
                                                         )}
                                                     </td>
-                                                    <td className="whitespace-nowrap px-3 py-2">{renderCheckin(row)}</td>
+                                                    <td className="whitespace-nowrap px-3 py-2">{row.app ? renderCheckin(row) : <NotInApp />}</td>
                                                 </>
                                             )}
                                             <td className="whitespace-nowrap px-3 py-2">{renderPlan(row)}</td>
@@ -1234,7 +1250,7 @@ export default function StudentsPage() {
                                             <dt className="text-xs text-muted-foreground">Dieta ativa</dt>
                                             <dd>{renderDiet(row)}</dd>
                                         </div>
-                                        {STUDENTS_USE_APP && (
+                                        {studentAppInUse && row.app && (
                                             <>
                                                 <div>
                                                     <dt className="text-xs text-muted-foreground">Último treino</dt>
@@ -1401,13 +1417,15 @@ export default function StudentsPage() {
                                 <PlayCircle className="h-3.5 w-3.5 text-emerald-500" />
                                 Reativar
                             </button>
-                            {/* Reminders are app notifications. */}
-                            {STUDENTS_USE_APP && (
+                            {/* Reminders are app notifications: only for selected students who use the student area. */}
+                            {studentAppInUse && (
                                 <button
                                     type="button"
                                     className={smallButtonClass}
-                                    disabled={bulkBusy}
-                                    onClick={() => setReminderTargets(selectedRows.map((row) => ({ id: row.id, name: row.name })))}
+                                    disabled={bulkBusy || !selectedRows.some((row) => row.app)}
+                                    onClick={() =>
+                                        setReminderTargets(selectedRows.filter((row) => row.app).map((row) => ({ id: row.id, name: row.name })))
+                                    }
                                 >
                                     <BellRing className="h-3.5 w-3.5 text-primary" />
                                     Enviar lembrete

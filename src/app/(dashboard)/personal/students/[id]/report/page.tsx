@@ -15,7 +15,7 @@ import { useInstantUrlValue } from '@/components/personal/students/use-instant-u
 import { setApiData, useApi } from '@/hooks/use-api';
 import { useUrlState } from '@/hooks/use-url-state';
 import { evolutionRecords, type EvolutionRecord } from '@/lib/evolution';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
 import { cn } from '@/lib/utils';
 import { formatPhone } from '@/lib/whatsapp';
 
@@ -263,6 +263,7 @@ export default function StudentEvolutionReportPage() {
     const bmiDelta = formatDelta(report.currentBmi, report.initialBmi);
     const noRecords = report.inPeriod.length === 0;
     const weightChanged = Boolean(report.weightBaseline && report.weightLatest && report.weightBaseline.id !== report.weightLatest.id);
+    const studentApp = usesStudentApp(student);
 
     // The same figures feed the page and the PDF sent to the student.
     const kpis: Array<{ icon: React.ReactNode; label: string; value: string; delta: string | null; detail: string }> = [
@@ -283,7 +284,7 @@ export default function StudentEvolutionReportPage() {
             detail: student.height ? `Inicial: ${formatNumber(report.initialBmi)}` : 'Altura não informada',
         },
         // Adherence is the student's self-report in the app check-in.
-        ...(STUDENTS_USE_APP
+        ...(studentApp
             ? [
                   {
                       icon: <Dumbbell className="h-3.5 w-3.5 text-brand" />,
@@ -490,7 +491,7 @@ export default function StudentEvolutionReportPage() {
 
                 {noRecords && (
                     <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 print:hidden">
-                        {STUDENTS_USE_APP
+                        {studentApp
                             ? 'Nenhuma avaliação ou check-in neste período. Escolha um período maior, registre uma avaliação ou peça um check-in ao aluno.'
                             : 'Nenhuma avaliação neste período. Escolha um período maior ou registre uma avaliação na aba Evolução da ficha do aluno.'}
                     </p>

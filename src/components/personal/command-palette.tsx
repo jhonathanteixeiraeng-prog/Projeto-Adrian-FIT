@@ -31,7 +31,8 @@ import { cn, matchesSearch, normalizeText } from '@/lib/utils';
 import { useApi } from '@/hooks/use-api';
 import { confirmNavigation } from '@/hooks/use-unsaved-changes';
 import { whatsappHref } from '@/components/personal/chat/contact';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
+import { useNotifications } from '@/components/personal/notifications-provider';
 import { contactEmail } from '@/lib/student-access';
 
 interface StudentItem {
@@ -40,6 +41,8 @@ interface StudentItem {
     email: string;
     phone: string | null;
     status: string;
+    /** Uses the student area (usesStudentApp): the chat reaches them. */
+    app: boolean;
 }
 
 interface PaletteItem {
@@ -86,7 +89,7 @@ export function rememberRecentStudent(studentId: string) {
 }
 
 /** Per-student actions; `words` let queries like "treino joao" or "chat ana" jump straight to the action. */
-const ALL_STUDENT_ACTIONS: {
+const STUDENT_ACTIONS: {
     key: string;
     words: string[];
     title: (name: string) => string;
@@ -102,8 +105,6 @@ const ALL_STUDENT_ACTIONS: {
     { key: 'whatsapp', words: ['whatsapp', 'whats', 'zap'], title: (n) => `WhatsApp de ${n}`, icon: Phone },
 ];
 
-// The chat reaches students through the app (STUDENTS_USE_APP).
-const STUDENT_ACTIONS = ALL_STUDENT_ACTIONS.filter((action) => STUDENTS_USE_APP || action.key !== 'chat');
 
 const ACTION_WORDS = new Set(STUDENT_ACTIONS.flatMap((action) => action.words));
 
@@ -116,9 +117,8 @@ const STATIC_ITEMS: PaletteItem[] = [
     { id: 'nav-workouts', group: 'Ir para', title: 'Fichas de treino', subtitle: 'G depois T', icon: ClipboardList, href: '/personal/workouts', keywords: 'modelos biblioteca' },
     { id: 'nav-diets', group: 'Ir para', title: 'Planos de dieta', subtitle: 'G depois N', icon: Utensils, href: '/personal/diets', keywords: 'nutricao modelos' },
     { id: 'nav-exercises', group: 'Ir para', title: 'Exercícios', subtitle: 'G depois E', icon: Library, href: '/personal/exercises', keywords: 'biblioteca videos' },
-    ...(STUDENTS_USE_APP
-        ? [{ id: 'nav-chat', group: 'Ir para', title: 'Chat', subtitle: 'G depois C', icon: MessageCircle, href: '/personal/chat', keywords: 'mensagens conversas' }]
-        : []),
+    // Shown only while some student uses the student area (see CommandPalette).
+    { id: 'nav-chat', group: 'Ir para', title: 'Chat', subtitle: 'G depois C', icon: MessageCircle, href: '/personal/chat', keywords: 'mensagens conversas' },
     { id: 'nav-notifications', group: 'Ir para', title: 'Notificações', icon: Bell, href: '/personal/notifications', keywords: 'alertas' },
     { id: 'nav-settings', group: 'Ir para', title: 'Configurações', icon: Settings, href: '/personal/settings', keywords: 'perfil conta' },
     {
@@ -133,7 +133,9 @@ const STATIC_ITEMS: PaletteItem[] = [
 ];
 
 function studentActionItems(student: StudentItem, onlyKeys?: Set<string>): PaletteItem[] {
-    return STUDENT_ACTIONS.filter((action) => !onlyKeys || onlyKeys.has(action.key)).flatMap<PaletteItem>((action) => {
+    // The chat reaches only students who use the student area.
+    const actions = STUDENT_ACTIONS.filter((action) => (action.key !== 'chat' || student.app) && (!onlyKeys || onlyKeys.has(action.key)));
+    return actions.flatMap<PaletteItem>((action) => {
         const firstName = student.name.split(' ')[0];
         if (action.key === 'whatsapp') {
             const href = whatsappHref(student.phone);
@@ -163,6 +165,8 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
     // Cached: reopening the palette is instant and shares data with the CRM list.
     const { data: rawStudents, isLoading } = useApi<any[]>(isOpen ? '/api/students' : null);
+    const { studentAppInUse } = useNotifications();
+    const staticItems = useMemo(() => STATIC_ITEMS.filter((item) => item.id !== 'nav-chat' || studentAppInUse), [studentAppInUse]);
 
     const students = useMemo<StudentItem[]>(
         () =>
@@ -172,6 +176,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                 email: contactEmail(s.user?.email) ?? '',
                 phone: s.user?.phone || null,
                 status: s.status,
+                app: usesStudentApp(s),
             })),
         [rawStudents]
     );
@@ -206,7 +211,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                 .map((id) => students.find((student) => student.id === id))
                 .filter((student): student is StudentItem => Boolean(student))
                 .map((student) => toStudentItem(student, 'Recentes'));
-            return [...recentStudents, ...STATIC_ITEMS];
+            return [...recentStudents, ...staticItems];
         }
 
         // Split "treino joao" into an action ("treino") and a name ("joao").
@@ -237,9 +242,9 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         if (requestedActions.size === 0 && matchedStudents.length > 0) {
             result.push(...studentActionItems(matchedStudents[0]).filter((item) => !item.id.endsWith('-profile')));
         }
-        result.push(...STATIC_ITEMS.filter((item) => matchesSearch(trimmed, item.title, item.subtitle, item.keywords)));
+        result.push(...staticItems.filter((item) => matchesSearch(trimmed, item.title, item.subtitle, item.keywords)));
         return result;
-    }, [query, students, recents]);
+    }, [query, students, recents, staticItems]);
 
     useEffect(() => {
         setSelectedIndex((index) => Math.min(index, Math.max(items.length - 1, 0)));
@@ -320,7 +325,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
                             setQuery(e.target.value);
                             setSelectedIndex(0);
                         }}
-                        placeholder={`Buscar aluno ou comando — ex.: "treino ana", "${STUDENTS_USE_APP ? 'chat' : 'dieta'} joão"`}
+                        placeholder={`Buscar aluno ou comando — ex.: "treino ana", "${studentAppInUse ? 'chat' : 'dieta'} joão"`}
                         className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none"
                     />
                     {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}

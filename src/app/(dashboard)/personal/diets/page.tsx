@@ -27,6 +27,7 @@ import { Avatar, useDialogs, useToast } from '@/components/ui';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
 import { PlanSendBadge } from '@/components/personal/pdf/send-badge';
+import { usesStudentApp } from '@/lib/student-app';
 import { AssignTemplateDialog, type AssignableTemplate } from '@/components/personal/diet-editor/assign-template-dialog';
 import { DropdownMenu, type MenuEntry } from '@/components/personal/diet-editor/menu';
 import { dateInputFromDate, dateInputFromIso, formatDateBR } from '@/components/personal/diet-editor/model';
@@ -55,6 +56,7 @@ interface PlanRow {
     studentId: string;
     student: {
         id: string;
+        usesApp?: boolean;
         user: { name: string; email?: string | null; avatar?: string | null };
     };
     meals: Array<{ id: string }>;
@@ -273,7 +275,7 @@ export default function DietsPage() {
             const studentName = plan.student?.user?.name ?? 'o aluno';
             const ok = await confirm({
                 title: `Ativar “${plan.title}”?`,
-                description: planActivationText('dieta', studentName, shouldNotify),
+                description: planActivationText('dieta', studentName, shouldNotify, usesStudentApp(plan.student)),
                 confirmText: 'Ativar dieta',
             });
             if (!ok) return;
@@ -556,7 +558,7 @@ export default function DietsPage() {
                                                     >
                                                         {plan.active ? 'Ativa' : 'Inativa'}
                                                     </span>
-                                                    {plan.active && <PlanSendBadge plan={plan} endDate={plan.endDate} compact />}
+                                                    {plan.active && <PlanSendBadge plan={plan} endDate={plan.endDate} compact studentUsesApp={usesStudentApp(plan.student)} />}
                                                     {days !== null && days < 0 && (
                                                         <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
                                                             Vencida há {Math.abs(days)} {Math.abs(days) === 1 ? 'dia' : 'dias'}

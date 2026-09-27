@@ -6,7 +6,7 @@ import { AlertTriangle, Loader2, UserPlus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, useToast } from '@/components/ui';
 import { invalidateApi, useApi } from '@/hooks/use-api';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
 import { StudentPicker, type StudentOption } from './student-picker';
 import { addDaysYmd, DEFAULT_PLAN_LENGTH_DAYS, todayYmd } from './plan-dates';
@@ -131,8 +131,8 @@ export function AssignTemplateDialog({ template, onOpenChange }: AssignTemplateD
                                 />
                             </label>
                         </div>
-                        {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
-                        {STUDENTS_USE_APP && (
+                        {/* In-app notice: only for a student who uses the student area. */}
+                        {usesStudentApp(selected) && (
                             <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
                                 <input
                                     type="checkbox"

@@ -60,11 +60,14 @@ export function AssignWorkoutTemplateDialog({
     onOpenChange,
     studentId,
     studentName,
+    studentUsesApp = STUDENTS_USE_APP,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     studentId: string;
     studentName: string;
+    /** The student uses the student area (usesStudentApp): "Avisar o aluno" shows. */
+    studentUsesApp?: boolean;
 }) {
     const { toast } = useToast();
     const { data, isLoading, error: loadError } = useApi<WorkoutTemplateOption[]>(open ? '/api/workout-templates' : null);
@@ -198,8 +201,8 @@ export function AssignWorkoutTemplateDialog({
                             <input id="workout-template-end" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className={inputClass} />
                         </Field>
                     </div>
-                    {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
-                    {STUDENTS_USE_APP && (
+                    {/* In-app notice: only for a student who uses the student area. */}
+                    {studentUsesApp && (
                         <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
                             <input
                                 type="checkbox"
@@ -408,12 +411,15 @@ export function AssignDietTemplateDialog({
     studentId,
     studentName,
     currentCalories,
+    studentUsesApp = STUDENTS_USE_APP,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     studentId: string;
     studentName: string;
     currentCalories?: number | null;
+    /** The student uses the student area (usesStudentApp): "Avisar o aluno" shows. */
+    studentUsesApp?: boolean;
 }) {
     const { toast } = useToast();
     const { data, isLoading, error: loadError } = useApi<DietTemplateOption[]>(open ? '/api/diet-templates' : null);
@@ -576,8 +582,8 @@ export function AssignDietTemplateDialog({
                             <input id="diet-template-end" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className={inputClass} />
                         </Field>
                     </div>
-                    {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
-                    {STUDENTS_USE_APP && (
+                    {/* In-app notice: only for a student who uses the student area. */}
+                    {studentUsesApp && (
                         <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
                             <input
                                 type="checkbox"

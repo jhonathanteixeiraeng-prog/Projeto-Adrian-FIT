@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { appClockStart, sinceAppStart, usesStudentApp } from '@/lib/student-app';
 import { CHECKIN_EXPECTED_DAYS, monthlyValue } from '@/lib/student-status';
 import { parseTzOffset } from '@/lib/viewer-time';
 import { whatsappLink } from '@/lib/whatsapp';
@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
                     id: true,
                     userId: true,
                     status: true,
+                    usesApp: true,
                     createdAt: true,
                     user: { select: { id: true, name: true, email: true, phone: true, avatar: true } },
                 },
@@ -166,10 +167,17 @@ export async function GET(request: NextRequest) {
         const attentionQueue: any[] = [];
 
         for (const student of students) {
-            const latestCheckin = student.checkins[0];
+            // Activity, check-ins, adherence and messages only exist for students who use the student area
+            // (the phase 2 pilot, see src/lib/student-app.ts); the others count for plans and billing. Their
+            // activity counts from when they joined (appClockStart): older workouts and check-ins don't.
+            const app = usesStudentApp(student);
+            const clockStart = appClockStart(student);
+            const latestCheckin = app && sinceAppStart(student.checkins[0]?.date, clockStart) ? student.checkins[0] : undefined;
 
             // 1. Checkin adherence metrics
-            if (latestCheckin) {
+            if (!app) {
+                // Nothing to measure: the student doesn't send check-ins.
+            } else if (latestCheckin) {
                 totalWorkoutAdherence += latestCheckin.workoutAdherence;
                 totalDietAdherence += latestCheckin.dietAdherence;
                 studentsWithCheckinData++;
@@ -214,6 +222,7 @@ export async function GET(request: NextRequest) {
             } else {
                 latestWorkoutDate = sessionDate || legacyDate;
             }
+            latestWorkoutDate = sinceAppStart(latestWorkoutDate, clockStart);
 
             const daysSinceLastWorkout = latestWorkoutDate
                 ? Math.floor((now.getTime() - latestWorkoutDate.getTime()) / DAY_MS)
@@ -225,7 +234,7 @@ export async function GET(request: NextRequest) {
 
             const hasWorkoutIn72h = latestWorkoutDate ? latestWorkoutDate > threeDaysAgo : false;
 
-            if (!hasWorkoutIn72h) {
+            if (app && !hasWorkoutIn72h) {
                 studentsWithoutWorkout72hList.push({
                     id: student.id,
                     name: student.user.name,
@@ -238,7 +247,7 @@ export async function GET(request: NextRequest) {
             let riskLevel: 'CRITICAL' | 'WARNING' | null = null;
 
             if (daysSinceLastWorkout === null) {
-                const daysSinceCreation = Math.floor((now.getTime() - new Date(student.createdAt).getTime()) / DAY_MS);
+                const daysSinceCreation = Math.floor((now.getTime() - clockStart.getTime()) / DAY_MS);
                 if (daysSinceCreation >= 3) {
                     reasons.push('Nenhum treino iniciado desde o cadastro');
                     riskLevel = daysSinceCreation >= 7 ? 'CRITICAL' : 'WARNING';
@@ -267,7 +276,7 @@ export async function GET(request: NextRequest) {
             }
 
             if (daysSinceLastCheckin === null) {
-                const daysSinceCreation = Math.floor((now.getTime() - new Date(student.createdAt).getTime()) / DAY_MS);
+                const daysSinceCreation = Math.floor((now.getTime() - clockStart.getTime()) / DAY_MS);
                 if (daysSinceCreation >= CHECKIN_EXPECTED_DAYS) {
                     reasons.push('Nenhum check-in enviado');
                     riskLevel = riskLevel || 'WARNING';
@@ -277,7 +286,7 @@ export async function GET(request: NextRequest) {
                 riskLevel = riskLevel || 'WARNING';
             }
 
-            if (riskLevel && reasons.length > 0) {
+            if (app && riskLevel && reasons.length > 0) {
                 // Generate WhatsApp pre-filled link
                 let whatsappUrl: string | null = null;
                 if (student.user.phone) {
@@ -312,11 +321,12 @@ export async function GET(request: NextRequest) {
                 });
             }
 
-            // 4. Real workout adherence: days trained vs. days prescribed while the plan was running.
+            // 4. Real workout adherence: days trained vs. days prescribed while the plan was running (and the
+            // student was using the app).
             const workoutPlan = student.workoutPlans[0] ?? null;
             const daysPerWeek = workoutPlan?.workoutDays.length ?? 0;
-            if (workoutPlan && daysPerWeek > 0) {
-                const windowStart = Math.max(sevenDaysAgo.getTime(), new Date(workoutPlan.startDate).getTime());
+            if (app && workoutPlan && daysPerWeek > 0) {
+                const windowStart = Math.max(sevenDaysAgo.getTime(), new Date(workoutPlan.startDate).getTime(), clockStart.getTime());
                 const windowEnd = Math.min(now.getTime(), new Date(workoutPlan.endDate).getTime());
                 const coveredDays = (windowEnd - windowStart) / DAY_MS;
                 if (coveredDays >= 1) {
@@ -336,8 +346,8 @@ export async function GET(request: NextRequest) {
             if (billing.status === 'EXPIRING') expiringSoon++;
 
             // 6. Daily attention queue: one entry per student with every reason merged.
-            // Without the students' app, messages don't reach anyone (STUDENTS_USE_APP).
-            const conversation = STUDENTS_USE_APP ? conversations.get(student.userId) : undefined;
+            // Messages only reach students who use the student area.
+            const conversation = app ? conversations.get(student.userId) : undefined;
             const lastMessage = conversation?.lastMessage ?? null;
             const unanswered = lastMessage && !lastMessage.fromMe ? lastMessage : null;
             const dietPlan = student.dietPlans[0] ?? null;
@@ -345,7 +355,7 @@ export async function GET(request: NextRequest) {
             const attention = attentionReasons(
                 {
                     status: student.status,
-                    createdAt: student.createdAt,
+                    createdAt: clockStart,
                     planExpiresAt: student.planExpiresAt,
                     paymentStatus: student.paymentStatus,
                     lastWorkoutAt: latestWorkoutDate,
@@ -355,7 +365,7 @@ export async function GET(request: NextRequest) {
                     expectsDiet,
                     unansweredMessageAt: unanswered?.createdAt ?? null,
                 },
-                { now, tzOffset, appSignals: STUDENTS_USE_APP }
+                { now, tzOffset, appSignals: app }
             );
             if (attention.some((reason) => PLAN_END_KEYS.has(reason.key))) plansToRenew++;
 
@@ -363,6 +373,7 @@ export async function GET(request: NextRequest) {
                 attentionQueue.push({
                     studentId: student.id,
                     userId: student.userId,
+                    usesApp: app,
                     name: student.user.name,
                     email: student.user.email,
                     phone: student.user.phone,
@@ -396,7 +407,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Paused/inactive students only enter the queue with an unanswered message.
-        for (const student of STUDENTS_USE_APP ? otherStudents : []) {
+        for (const student of otherStudents.filter(usesStudentApp)) {
             const lastMessage = conversations.get(student.userId)?.lastMessage ?? null;
             if (!lastMessage || lastMessage.fromMe) continue;
             const attention = attentionReasons(
@@ -407,6 +418,7 @@ export async function GET(request: NextRequest) {
             attentionQueue.push({
                 studentId: student.id,
                 userId: student.userId,
+                usesApp: true,
                 name: student.user.name,
                 email: student.user.email,
                 phone: student.user.phone,
@@ -458,6 +470,8 @@ export async function GET(request: NextRequest) {
             data: {
                 totalStudents,
                 activeStudents,
+                // Students who use the student area (phase 2 pilot): the app alerts and numbers are theirs.
+                appStudents: [...students, ...otherStudents].filter(usesStudentApp).length,
                 studentsWithoutWorkout72h: studentsWithoutWorkout72hList.length,
                 // Average of each active student's latest self-reported check-in, whatever its date.
                 averageWorkoutAdherence,

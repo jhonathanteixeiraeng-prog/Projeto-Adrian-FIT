@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { assessmentInclude } from '@/lib/assessments-server';
 import { deleteUnusedPhotoFiles } from '@/lib/photo-storage';
+import { hasAppAccess } from '@/lib/student-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,6 +92,11 @@ function buildUpdate(body: any) {
             throw new InvalidField('Status de pagamento inválido');
         }
         student.paymentStatus = body.paymentStatus;
+    }
+    // Phase 2 pilot: "Usa a área do aluno" (see src/lib/student-app.ts).
+    if (body.usesApp !== undefined) {
+        if (typeof body.usesApp !== 'boolean') throw new InvalidField('Opção "Usa a área do aluno" inválida');
+        student.usesApp = body.usesApp;
     }
 
     return { student, user };
@@ -393,6 +399,20 @@ export async function PUT(request: NextRequest, props: { params: Promise<{ id: s
             }
             throw error;
         }
+
+        // A student in the pilot must be able to log in: one registered without e-mail gets access first.
+        if (update.student.usesApp === true) {
+            const account = await prisma.user.findUnique({ where: { id: student.userId }, select: { email: true } });
+            if (!account || !hasAppAccess(account.email)) {
+                return NextResponse.json(
+                    { success: false, error: 'Crie o acesso ao app deste aluno antes de incluí-lo na área do aluno.' },
+                    { status: 400 }
+                );
+            }
+            // Joining starts the clock for app activity: what happened before doesn't count against the student.
+            if (!student.usesApp) update.student.usesAppSince = new Date();
+        }
+        if (update.student.usesApp === false) update.student.usesAppSince = null;
 
         const operations: Prisma.PrismaPromise<unknown>[] = [];
 

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { studentLinkFor } from '@/lib/notifications';
+import { appClockStart, sinceAppStart, usesStudentApp } from '@/lib/student-app';
 import { engagementReasons } from '@/components/personal/dashboard/attention-rules';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,7 @@ const firstName = (name: string | null | undefined) => (name || '').trim().split
 /**
  * Active students whose training or check-in routine needs a nudge,
  * using the same rules as the dashboard queue (never every active student).
+ * Only students who use the student area (phase 2 pilot, src/lib/student-app.ts) get app reminders.
  */
 async function findAtRiskStudents(personalId: string) {
     const students = await prisma.student.findMany({
@@ -24,6 +26,8 @@ async function findAtRiskStudents(personalId: string) {
             userId: true,
             status: true,
             createdAt: true,
+            usesApp: true,
+            usesAppSince: true,
             user: { select: { name: true } },
             checkins: {
                 orderBy: { date: 'desc' },
@@ -50,19 +54,23 @@ async function findAtRiskStudents(personalId: string) {
 
     const now = new Date();
     return students.filter((student) => {
+        if (!usesStudentApp(student)) return false;
         const plan = student.workoutPlans[0] ?? null;
         let lastWorkoutAt = student.workoutSessions[0]?.completedAt ?? null;
         for (const day of plan?.workoutDays ?? []) {
             const completedAt = day.completions[0]?.completedAt;
             if (completedAt && (!lastWorkoutAt || completedAt > lastWorkoutAt)) lastWorkoutAt = completedAt;
         }
+        // Activity counts from when the student joined the student area (same as the dashboard).
+        const clockStart = appClockStart(student);
+        const lastCheckin = student.checkins[0] ?? null;
         return (
             engagementReasons(
                 {
                     status: student.status,
-                    createdAt: student.createdAt,
-                    lastWorkoutAt,
-                    lastCheckin: student.checkins[0] ?? null,
+                    createdAt: clockStart,
+                    lastWorkoutAt: sinceAppStart(lastWorkoutAt, clockStart),
+                    lastCheckin: lastCheckin && sinceAppStart(lastCheckin.date, clockStart) ? lastCheckin : null,
                     workoutPlan: plan,
                 },
                 { now }

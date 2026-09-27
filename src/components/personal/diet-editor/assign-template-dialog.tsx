@@ -6,7 +6,7 @@ import { AlertTriangle, Loader2, UserPlus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, useToast } from '@/components/ui';
 import { invalidateApi, useApi } from '@/hooks/use-api';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
 import { contactEmail } from '@/lib/student-access';
@@ -60,6 +60,8 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
         [studentsApi.data]
     );
     const selected = students.find((student) => student.id === studentId);
+    // The chosen student uses the student area (phase 2 pilot): they get the diet in the app.
+    const selectedUsesApp = usesStudentApp((studentsApi.data ?? []).find((student: any) => student.id === studentId));
     const activeDietTitle = (studentsApi.data ?? []).find((student: any) => student.id === studentId)?.dietPlans?.[0]?.title as string | undefined;
 
     const submit = async (event: React.FormEvent) => {
@@ -109,7 +111,7 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
             invalidateApi('/api/students');
             toast.success(
                 'Dieta atribuída',
-                STUDENTS_USE_APP
+                selectedUsesApp
                     ? `${selected?.name ?? 'O aluno'} já recebe “${template.title}” no app. Abrindo o plano…`
                     : `“${template.title}” agora é a dieta atual de ${selected?.name ?? 'o aluno'}. Abrindo o plano…`
             );
@@ -193,8 +195,8 @@ export function AssignTemplateDialog({ template, onClose }: { template: Assignab
                         </span>
                     </label>
 
-                    {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
-                    {STUDENTS_USE_APP && (
+                    {/* In-app notice: only for a student who uses the student area. */}
+                    {selectedUsesApp && (
                         <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground">
                             <input
                                 type="checkbox"

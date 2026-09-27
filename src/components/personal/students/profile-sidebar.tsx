@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import Link from 'next/link';
 import {
     BellRing,
@@ -22,7 +22,9 @@ import {
     Zap,
 } from 'lucide-react';
 import { useDialogs, useToast } from '@/components/ui';
+import { invalidateApi } from '@/hooks/use-api';
 import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
 import { contactEmail, hasAppAccess } from '@/lib/student-access';
 import { getBillingInfo, renewedExpiry } from '@/lib/student-status';
 import { cn } from '@/lib/utils';
@@ -46,10 +48,51 @@ import { BillingBadge, InfoRow, SectionCard, primarySmallButtonClass, smallButto
 const editButtonClass =
     'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-primary hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
 
-export function ContactCard({ student, onCreateAccess }: { student: StudentProfile; onCreateAccess?: () => void }) {
+export function ContactCard({
+    student,
+    onCreateAccess,
+    onChanged,
+}: {
+    student: StudentProfile;
+    onCreateAccess?: () => void;
+    /** After the "Usa a área do aluno" switch was saved. */
+    onChanged?: () => void;
+}) {
     const { toast } = useToast();
     const whatsapp = whatsappUrl(student.user.phone);
     const email = contactEmail(student.user.email);
+    const [savingApp, setSavingApp] = useState(false);
+    const canLogIn = hasAppAccess(student.user.email);
+    const appSwitchId = useId();
+
+    /** Phase 2 pilot: the student starts (or stops) using the student area. */
+    const toggleApp = async () => {
+        const next = !student.usesApp;
+        setSavingApp(true);
+        try {
+            const response = await fetch(`/api/students/${student.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usesApp: next }),
+            });
+            const body = await response.json().catch(() => null);
+            if (!response.ok || !body?.success) throw new Error(body?.error || 'Tente de novo.');
+            toast.success(
+                next ? 'Agora usa a área do aluno' : 'Não usa mais a área do aluno',
+                next
+                    ? 'Recebe os avisos de plano novo e aparece nos alertas de atividade e no chat.'
+                    : 'Os planos voltam a ir só em PDF pelo WhatsApp.'
+            );
+            // The chat and the app alerts show while some student uses the student area.
+            invalidateApi('/api/personal/notifications');
+            invalidateApi('/api/dashboard');
+            onChanged?.();
+        } catch (error) {
+            toast.error('Não foi possível alterar', error instanceof Error ? error.message : undefined);
+        } finally {
+            setSavingApp(false);
+        }
+    };
     const copy = async (value: string, label: string) => {
         try {
             await navigator.clipboard.writeText(value);
@@ -109,13 +152,47 @@ export function ContactCard({ student, onCreateAccess }: { student: StudentProfi
                         WhatsApp
                     </span>
                 )}
-                {STUDENTS_USE_APP && (
+                {usesStudentApp(student) && (
                     <Link href={`/personal/chat/${student.id}`} className={smallButtonClass}>
                         <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
                         Chat no app
                     </Link>
                 )}
             </div>
+            {/* Phase 2 pilot (while STUDENTS_USE_APP is off, the trainer picks who uses the student area). */}
+            {!STUDENTS_USE_APP && (
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={Boolean(student.usesApp)}
+                    aria-labelledby={`${appSwitchId}-label`}
+                    aria-describedby={`${appSwitchId}-hint`}
+                    onClick={() => void toggleApp()}
+                    disabled={savingApp || (!student.usesApp && !canLogIn)}
+                    className="mt-3 flex w-full items-center justify-between gap-3 rounded-xl border border-border px-3 py-2 text-left transition-colors hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span className="min-w-0">
+                        <span id={`${appSwitchId}-label`} className="block text-sm font-medium text-foreground">
+                            Usa a área do aluno
+                        </span>
+                        <span id={`${appSwitchId}-hint`} className="block text-xs text-muted-foreground">
+                            {student.usesApp
+                                ? 'Recebe avisos de plano e aparece nos alertas de atividade.'
+                                : canLogIn
+                                  ? 'Hoje recebe os planos em PDF pelo WhatsApp.'
+                                  : 'Crie o acesso ao app para incluir.'}
+                        </span>
+                    </span>
+                    <span className={cn('relative h-5 w-9 shrink-0 rounded-full transition-colors', student.usesApp ? 'bg-emerald-500' : 'bg-muted-foreground/40')}>
+                        <span
+                            className={cn(
+                                'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform',
+                                student.usesApp ? 'translate-x-4' : 'translate-x-0'
+                            )}
+                        />
+                    </span>
+                </button>
+            )}
         </SectionCard>
     );
 }
@@ -331,7 +408,7 @@ export function QuickActionsCard({
                     Relatório
                 </Link>
                 {/* Reminders are app notifications. */}
-                {STUDENTS_USE_APP && (
+                {usesStudentApp(student) && (
                     <button type="button" onClick={onRemind} className={actionClass}>
                         <BellRing className="h-3.5 w-3.5 text-muted-foreground" />
                         Lembrete

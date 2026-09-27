@@ -59,7 +59,7 @@ export const ATTENTION_CATEGORIES: { key: AttentionCategory; label: string }[] =
 /** Categories that only exist when students use the app (messages, training, check-ins). */
 export const APP_ATTENTION_CATEGORIES: AttentionCategory[] = ['MESSAGES', 'INACTIVITY', 'CHECKIN'];
 
-/** Categories the trainer can act on in the current phase (see STUDENTS_USE_APP). */
+/** Categories the trainer can act on: the app ones only while some student uses the student area (src/lib/student-app.ts). */
 export function attentionCategories(appSignals: boolean) {
     return appSignals ? ATTENTION_CATEGORIES : ATTENTION_CATEGORIES.filter((category) => !APP_ATTENTION_CATEGORIES.includes(category.key));
 }
@@ -86,6 +86,10 @@ const SEVERITY_ORDER: AttentionSeverity[] = ['CRITICAL', 'WARNING', 'INFO'];
 export interface AttentionSignals {
     /** ACTIVE | PAUSED | INACTIVE. Only messages are considered for students that are not active. */
     status: string;
+    /**
+     * When the waiting periods for training and check-ins start: registration, or joining the student area
+     * when that came later (appClockStart in src/lib/student-app.ts).
+     */
     createdAt: Date | string;
     planExpiresAt?: Date | string | null;
     paymentStatus?: string | null;
@@ -109,9 +113,9 @@ export interface AttentionOptions {
      */
     tzOffset?: number | null;
     /**
-     * Whether students use the app (STUDENTS_USE_APP). When false, only what the trainer controls
-     * counts (billing and plans): without the app there are no workouts, check-ins or messages to
-     * judge, and every student would look inactive. Defaults to true.
+     * Whether this student uses the student area / app (usesStudentApp, src/lib/student-app.ts). When
+     * false, only what the trainer controls counts (billing and plans): without the app there are no
+     * workouts, check-ins or messages to judge, and the student would look inactive. Defaults to true.
      */
     appSignals?: boolean;
 }

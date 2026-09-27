@@ -37,7 +37,7 @@ import { isModalOpen, modKeyLabel, useHotkey } from '@/hooks/use-hotkey';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes';
 import { cn } from '@/lib/utils';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
 import { NOTIFY_STUDENT_STORAGE_KEY } from '@/lib/notifications';
 import { sendFieldsOf, type SendFields } from '@/lib/plan-send';
 import { contactEmail } from '@/lib/student-access';
@@ -371,6 +371,8 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
     const studentId = state.studentId || lockedStudentId || '';
     const studentName = student?.name ?? studentOptions.find((option) => option.id === studentId)?.name ?? '';
     const firstName = studentName.split(' ')[0] || 'o aluno';
+    // The student uses the student area (phase 2 pilot): they see the diet in the app and can be told about it.
+    const studentUsesApp = usesStudentApp(student);
 
     // ------------------------------------------------------------------ meta da página
 
@@ -701,7 +703,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             } else {
                 toast.success(
                     createdId ? 'Plano criado' : 'Plano salvo',
-                    STUDENTS_USE_APP
+                    studentUsesApp
                         ? saved.active
                             ? `Já está no app de ${firstName}.`
                             : 'Plano inativo: não aparece no app do aluno.'
@@ -838,7 +840,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
             title: isTemplate ? 'Excluir este modelo?' : 'Excluir este plano alimentar?',
             description: isTemplate
                 ? 'Planos já criados a partir dele não são afetados.'
-                : STUDENTS_USE_APP
+                : studentUsesApp
                   ? `${firstName.charAt(0).toUpperCase()}${firstName.slice(1)} deixa de ver esta dieta no app. Esta ação não pode ser desfeita.`
                   : 'O plano sai do histórico do aluno. Esta ação não pode ser desfeita.',
             confirmText: 'Excluir',
@@ -1025,7 +1027,7 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                         <ChevronDown className="h-4 w-4 opacity-70" />
                     </DropdownMenu>
                     {kind === 'plan' && planId && send && state.active && (
-                        <PlanSendBadge plan={send} compact className="hidden py-1 sm:inline-flex" />
+                        <PlanSendBadge plan={send} compact className="hidden py-1 sm:inline-flex" studentUsesApp={studentUsesApp} />
                     )}
                     {kind === 'plan' && planId && (
                         <button
@@ -1054,8 +1056,8 @@ export function DietPlanEditor({ route }: { route: DietEditorRoute }) {
                 {(floating) => (
                     <MacroBar totals={totals} targets={state.targets} compact={floating}>
                         {saveStatus}
-                        {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
-                        {STUDENTS_USE_APP && kind === 'plan' && (isNew || state.active) && (
+                        {/* In-app notice: only for a student who uses the student area. */}
+                        {studentUsesApp && kind === 'plan' && (isNew || state.active) && (
                             <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-pointer">
                                 <input
                                     type="checkbox"

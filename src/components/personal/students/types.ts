@@ -76,6 +76,10 @@ export interface Assessment {
 /** Row of GET /api/students. */
 export interface StudentListItem extends StudentContractFields {
     id: string;
+    /** Phase 2 pilot: uses the student area (see src/lib/student-app.ts). */
+    usesApp?: boolean;
+    /** When usesApp was turned on: app activity counts from then (appClockStart). */
+    usesAppSince?: string | null;
     userId?: string;
     personalId?: string;
     status: string;
@@ -219,6 +223,10 @@ export interface WorkoutSessionSummary {
 export interface StudentProfile extends StudentContractFields {
     id: string;
     status: string;
+    /** Phase 2 pilot: uses the student area (see src/lib/student-app.ts). */
+    usesApp?: boolean;
+    /** When usesApp was turned on: app activity counts from then (appClockStart). */
+    usesAppSince?: string | null;
     goal: string | null;
     birthDate: string | null;
     gender: string | null;
@@ -243,6 +251,10 @@ export interface StudentProfile extends StudentContractFields {
 export interface StudentReport {
     id: string;
     status: string;
+    /** Phase 2 pilot: uses the student area (see src/lib/student-app.ts). */
+    usesApp?: boolean;
+    /** When usesApp was turned on: app activity counts from then (appClockStart). */
+    usesAppSince?: string | null;
     goal: string | null;
     height: number | null;
     weight: number | null;

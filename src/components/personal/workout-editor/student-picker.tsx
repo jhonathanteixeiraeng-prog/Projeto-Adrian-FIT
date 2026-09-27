@@ -7,6 +7,8 @@ import { cn, matchesSearch } from '@/lib/utils';
 
 /** Subset of GET /api/students used by the pickers. */
 export interface StudentOption {
+    /** Phase 2 pilot: uses the student area (see src/lib/student-app.ts). */
+    usesApp?: boolean;
     id: string;
     status?: string | null;
     user: { id?: string; name: string; email?: string | null; avatar?: string | null };

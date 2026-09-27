@@ -17,16 +17,19 @@ export function PlanSendBadge({
     endDate,
     compact = false,
     className,
+    studentUsesApp = STUDENTS_USE_APP,
 }: {
     plan: SendFields;
     endDate?: string | Date | null;
     compact?: boolean;
     className?: string;
+    /** The student uses the student area (usesStudentApp): the plan reaches them without the PDF. */
+    studentUsesApp?: boolean;
 }) {
     const daysLeft = endDate ? daysUntil(endDate) : null;
     if (daysLeft !== null && daysLeft < 0) return null;
     const status = sendStatus(plan);
-    const warn = status.state === 'CHANGED' || (status.state === 'NOT_SENT' && !STUDENTS_USE_APP);
+    const warn = status.state === 'CHANGED' || (status.state === 'NOT_SENT' && !studentUsesApp);
     const Icon = status.state === 'SENT' ? FileCheck2 : status.state === 'CHANGED' ? FileWarning : FileClock;
     return (
         <span

@@ -34,6 +34,7 @@ import { useUrlStateGroup } from '@/hooks/use-url-state';
 import { usePageMeta } from '@/components/personal/page-meta';
 import { ExportPdfDialog, type PdfExportTarget } from '@/components/personal/pdf/export-pdf-dialog';
 import { PlanSendBadge } from '@/components/personal/pdf/send-badge';
+import { usesStudentApp } from '@/lib/student-app';
 import { ActionMenu, type ActionMenuEntry } from '@/components/personal/workout-editor/action-menu';
 import { AssignTemplateDialog } from '@/components/personal/workout-editor/assign-template-dialog';
 import { daysUntilPlanEnd, formatPlanDate } from '@/components/personal/workout-editor/plan-dates';
@@ -52,7 +53,7 @@ interface PlanListItem {
     sentVersion?: number | null;
     createdAt: string;
     updatedAt: string;
-    student?: { user?: { name?: string | null; avatar?: string | null } | null } | null;
+    student?: { usesApp?: boolean; user?: { name?: string | null; avatar?: string | null } | null } | null;
     workoutDays?: { id: string; name: string; _count?: { items: number } }[];
     _count?: { workoutDays: number };
 }
@@ -265,7 +266,7 @@ export default function WorkoutsPage() {
             value
                 ? {
                       title: `Ativar “${plan.title}”?`,
-                      description: planActivationText('ficha', studentNameOf(plan), shouldNotify),
+                      description: planActivationText('ficha', studentNameOf(plan), shouldNotify, usesStudentApp(plan.student)),
                       confirmText: 'Ativar ficha',
                   }
                 : {
@@ -653,7 +654,9 @@ export default function WorkoutsPage() {
                                             </Link>
                                             <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                                                 v{plan.version} · atualizada {formatPlanDate(plan.updatedAt, { day: '2-digit', month: '2-digit' })}
-                                                {plan.active && <PlanSendBadge plan={plan} endDate={plan.endDate} compact className="py-0" />}
+                                                {plan.active && (
+                                                    <PlanSendBadge plan={plan} endDate={plan.endDate} compact className="py-0" studentUsesApp={usesStudentApp(plan.student)} />
+                                                )}
                                             </span>
                                         </div>
                                         <div className="relative z-10 col-start-2 row-start-1 flex justify-end md:hidden">

@@ -1,5 +1,5 @@
-import { STUDENTS_USE_APP } from '@/lib/features';
 import prisma from '@/lib/prisma';
+import { usesStudentApp } from '@/lib/student-app';
 
 export interface NotifyStudentAboutPlanInput {
     studentId: string;
@@ -9,17 +9,16 @@ export interface NotifyStudentAboutPlanInput {
 
 /**
  * Server only. Notifies the student (in-app notification) that a new workout or diet plan was created or activated.
- * Best effort: failures are logged and never break the plan request. Nothing is sent while students
- * don't use the app (STUDENTS_USE_APP): the trainer sends the plan as PDF over WhatsApp.
+ * Best effort: failures are logged and never break the plan request. Only students who use the student
+ * area are told (usesStudentApp); the others get their plan as PDF over WhatsApp from the trainer.
  */
 export async function notifyStudentAboutPlan(input: NotifyStudentAboutPlanInput): Promise<void> {
-    if (!STUDENTS_USE_APP) return;
     try {
         const student = await prisma.student.findUnique({
             where: { id: input.studentId },
-            select: { userId: true },
+            select: { userId: true, usesApp: true },
         });
-        if (!student?.userId) return;
+        if (!student?.userId || !usesStudentApp(student)) return;
 
         const isWorkout = input.kind === 'workout';
         await prisma.notification.create({

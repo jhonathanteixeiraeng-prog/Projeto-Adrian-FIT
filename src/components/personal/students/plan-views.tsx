@@ -20,6 +20,7 @@ function PlanHeader({
     activeCount,
     kind,
     send,
+    studentUsesApp,
 }: {
     title: string;
     startDate?: string | null;
@@ -27,6 +28,7 @@ function PlanHeader({
     activeCount: number;
     kind: 'treino' | 'dieta';
     send: SendFields;
+    studentUsesApp?: boolean;
 }) {
     const end = planEndInfo(endDate);
     return (
@@ -34,7 +36,7 @@ function PlanHeader({
             <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-                    <PlanSendBadge plan={send} endDate={endDate} />
+                    <PlanSendBadge plan={send} endDate={endDate} studentUsesApp={studentUsesApp} />
                 </div>
                 <p className="text-sm text-muted-foreground">
                     {formatDate(startDate)} – {formatDate(endDate)}
@@ -51,7 +53,7 @@ function PlanHeader({
     );
 }
 
-export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; activeCount: number }) {
+export function WorkoutPlanView({ plan, activeCount, studentUsesApp }: { plan: WorkoutPlanFull; activeCount: number; studentUsesApp?: boolean }) {
     const days = useMemo(
         () => [...plan.workoutDays].sort((a, b) => a.dayOfWeek - b.dayOfWeek || (a.order ?? 0) - (b.order ?? 0)),
         [plan.workoutDays]
@@ -60,7 +62,7 @@ export function WorkoutPlanView({ plan, activeCount }: { plan: WorkoutPlanFull; 
 
     return (
         <div className="space-y-4">
-            <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="treino" send={plan} />
+            <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="treino" send={plan} studentUsesApp={studentUsesApp} />
             <p className="text-sm text-muted-foreground">
                 {days.length} {days.length === 1 ? 'dia' : 'dias'} de treino · {totalExercises} {totalExercises === 1 ? 'exercício' : 'exercícios'}
             </p>
@@ -197,7 +199,7 @@ function parseFoods(raw: string): NormalizedDietFood[] {
     }
 }
 
-export function DietPlanView({ plan, activeCount }: { plan: DietPlanFull; activeCount: number }) {
+export function DietPlanView({ plan, activeCount, studentUsesApp }: { plan: DietPlanFull; activeCount: number; studentUsesApp?: boolean }) {
     const meals = useMemo(
         () =>
             [...plan.meals]
@@ -225,7 +227,7 @@ export function DietPlanView({ plan, activeCount }: { plan: DietPlanFull; active
 
     return (
         <div className="space-y-4">
-            <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="dieta" send={plan} />
+            <PlanHeader title={plan.title} startDate={plan.startDate} endDate={plan.endDate} activeCount={activeCount} kind="dieta" send={plan} studentUsesApp={studentUsesApp} />
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
                     { label: 'Calorias', value: `${formatNumber(totals.calories)} kcal`, className: 'text-primary' },

@@ -73,6 +73,10 @@ model Student {
   // Trainer's opinion on the evolution report (printed and sent in the report PDF).
   reportOpinion  String?
   status         String    @default("ACTIVE") // ACTIVE | INACTIVE | PAUSED
+  /// Uses the student area / app (phase 2 pilot, src/lib/student-app.ts). Off: plans go as PDF over WhatsApp.
+  usesApp        Boolean   @default(false)
+  /// When usesApp was last turned on: app activity (workouts, check-ins) counts from then, not from before.
+  usesAppSince   DateTime?
   planType       String?   @default("MENSAL") // MENSAL | TRIMESTRAL | SEMESTRAL | ANUAL
   planValue      Float?    @default(150.0) // Valor em R$
   planExpiresAt  DateTime? // Data de vencimento da consultoria

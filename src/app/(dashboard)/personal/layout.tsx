@@ -22,12 +22,11 @@ import {
     PanelLeftOpen,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui';
-import { STUDENTS_USE_APP } from '@/lib/features';
 import { cn } from '@/lib/utils';
 import { TopHeader } from '@/components/personal/top-header';
 import { NotificationsProvider, useNotifications } from '@/components/personal/notifications-provider';
 import { PageMetaProvider } from '@/components/personal/page-meta';
-import { GO_TO_SHORTCUTS, ShortcutsHelpDialog } from '@/components/personal/shortcuts-help';
+import { ShortcutsHelpDialog, goToShortcuts } from '@/components/personal/shortcuts-help';
 import { useHotkey, isTypingTarget, isModalOpen } from '@/hooks/use-hotkey';
 import { useLocalStorageState } from '@/hooks/use-local-storage';
 import { useSessionGuard } from '@/hooks/use-session-guard';
@@ -47,7 +46,8 @@ interface NavGroup {
     items: NavItem[];
 }
 
-const navGroups: NavGroup[] = [
+/** `chat`: some student uses the student area (the chat reaches them through it; WhatsApp is the channel otherwise). */
+const navGroupsFor = (chat: boolean): NavGroup[] => [
     {
         title: 'Gestor',
         items: [
@@ -66,10 +66,7 @@ const navGroups: NavGroup[] = [
     {
         title: 'Comunicação',
         items: [
-            // The chat reaches students through the app (STUDENTS_USE_APP); WhatsApp is the channel for now.
-            ...(STUDENTS_USE_APP
-                ? [{ href: '/personal/chat', label: 'Chat & Mensagens', icon: MessageCircle, badge: 'messages' as const }]
-                : []),
+            ...(chat ? [{ href: '/personal/chat', label: 'Chat & Mensagens', icon: MessageCircle, badge: 'messages' as const }] : []),
             { href: '/personal/notifications', label: 'Notificações', icon: Bell, badge: 'notifications' },
         ],
     },
@@ -81,11 +78,11 @@ const navGroups: NavGroup[] = [
     },
 ];
 
-const mobileNavItems: NavItem[] = [
+const mobileNavItemsFor = (chat: boolean): NavItem[] => [
     { href: '/personal/dashboard', label: 'Início', icon: LayoutDashboard },
     { href: '/personal/students', label: 'Alunos', icon: Users },
     { href: '/personal/workouts', label: 'Treinos', icon: ClipboardList },
-    ...(STUDENTS_USE_APP ? [{ href: '/personal/chat', label: 'Chat', icon: MessageCircle, badge: 'messages' as const }] : []),
+    ...(chat ? [{ href: '/personal/chat', label: 'Chat', icon: MessageCircle, badge: 'messages' as const }] : []),
     { href: '/personal/diets', label: 'Dietas', icon: Utensils },
     { href: '/personal/exercises', label: 'Exercícios', icon: Library },
     { href: '/personal/notifications', label: 'Alertas', icon: Bell, badge: 'notifications' },
@@ -106,7 +103,7 @@ function PageFallback() {
 }
 
 /** "G then <key>" navigation, e.g. G A opens the students CRM. */
-function useGoToShortcuts() {
+function useGoToShortcuts(studentAppInUse: boolean) {
     const router = useRouter();
     const pendingRef = useRef<number>(0);
 
@@ -118,7 +115,7 @@ function useGoToShortcuts() {
 
             if (pendingRef.current && Date.now() - pendingRef.current < 1200) {
                 pendingRef.current = 0;
-                const target = GO_TO_SHORTCUTS.find((item) => item.key === key);
+                const target = goToShortcuts(studentAppInUse).find((item) => item.key === key);
                 if (target) {
                     event.preventDefault();
                     confirmNavigation().then((ok) => {
@@ -131,13 +128,15 @@ function useGoToShortcuts() {
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [router]);
+    }, [router, studentAppInUse]);
 }
 
 function PersonalShell({ children }: { children: React.ReactNode }) {
     const { data: session } = useSession();
     const pathname = usePathname();
-    const { unreadMessages, unreadNotifications } = useNotifications();
+    const { unreadMessages, unreadNotifications, studentAppInUse } = useNotifications();
+    const navGroups = navGroupsFor(studentAppInUse);
+    const mobileNavItems = mobileNavItemsFor(studentAppInUse);
     const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
     const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
     const [collapsed, setCollapsed] = useLocalStorageState('personal:sidebar-collapsed', false);
@@ -148,7 +147,7 @@ function PersonalShell({ children }: { children: React.ReactNode }) {
     const mobilePrimaryItems = mobileNavItems.slice(0, 4);
     const mobileMoreItems = mobileNavItems.slice(4);
 
-    useGoToShortcuts();
+    useGoToShortcuts(studentAppInUse);
     useSessionGuard();
     useHotkey('?', () => setIsShortcutsOpen(true));
     useHotkey('[', () => setCollapsed((current) => !current));

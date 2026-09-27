@@ -4,18 +4,23 @@ import React from 'react';
 import { Keyboard } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { modKeyLabel } from '@/hooks/use-hotkey';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { useNotifications } from '@/components/personal/notifications-provider';
 
-/** Destinations for the "G then <key>" navigation sequences (handled in the personal layout). */
-export const GO_TO_SHORTCUTS: { key: string; href: string; label: string }[] = [
+/**
+ * Destinations for the "G then <key>" navigation sequences (handled in the personal layout). `app`: only
+ * while some student uses the student area (the chat reaches students through it).
+ */
+export const GO_TO_SHORTCUTS: { key: string; href: string; label: string; app?: boolean }[] = [
     { key: 'd', href: '/personal/dashboard', label: 'Dashboard' },
     { key: 'a', href: '/personal/students', label: 'Alunos (CRM)' },
     { key: 't', href: '/personal/workouts', label: 'Fichas de treino' },
     { key: 'n', href: '/personal/diets', label: 'Planos de dieta' },
     { key: 'e', href: '/personal/exercises', label: 'Exercícios' },
-    // The chat reaches students through the app (STUDENTS_USE_APP).
-    ...(STUDENTS_USE_APP ? [{ key: 'c', href: '/personal/chat', label: 'Chat' }] : []),
+    { key: 'c', href: '/personal/chat', label: 'Chat', app: true },
 ];
+
+/** The shortcuts available now (see `app`). */
+export const goToShortcuts = (studentAppInUse: boolean) => GO_TO_SHORTCUTS.filter((item) => !item.app || studentAppInUse);
 
 function Kbd({ children }: { children: React.ReactNode }) {
     return (
@@ -44,6 +49,7 @@ function Row({ keys, label, sequence = false }: { keys: React.ReactNode[]; label
 
 export function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
     const mod = modKeyLabel();
+    const { studentAppInUse } = useNotifications();
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,7 +73,7 @@ export function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onO
                         </div>
                         <h3 className="mb-1 mt-5 text-xs font-medium text-muted-foreground">Ir para</h3>
                         <div className="divide-y divide-border/60">
-                            {GO_TO_SHORTCUTS.map((item) => (
+                            {goToShortcuts(studentAppInUse).map((item) => (
                                 <Row key={item.key} keys={['G', item.key.toUpperCase()]} label={item.label} sequence />
                             ))}
                         </div>

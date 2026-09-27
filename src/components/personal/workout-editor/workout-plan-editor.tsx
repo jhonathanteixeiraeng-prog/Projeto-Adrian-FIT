@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, useDialogs, useToast } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
 import { NOTIFY_STUDENT_STORAGE_KEY, getStoredNotifyStudent, personalLinks, planActivationText } from '@/lib/notifications';
 import { groupLabel } from '@/lib/workout-groups';
 import { parsePerSetReps } from '@/lib/workout-reps';
@@ -191,6 +191,8 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
     const isNew = !entityId;
     const studentName =
         studentsApi.data?.find((student) => student.id === state.studentId)?.user.name ?? (state.studentId ? props.studentName : null);
+    // The student uses the student area (phase 2 pilot): they see the plan in the app and can be told about it.
+    const studentUsesApp = usesStudentApp(studentsApi.data?.find((student) => student.id === state.studentId));
     const activeDay = state.days.find((day) => day.key === state.activeDayKey) ?? state.days[0] ?? null;
     const swapItem = swapItemKey ? findItem(state, swapItemKey)?.item ?? null : null;
 
@@ -971,7 +973,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
         const shouldNotify = getStoredNotifyStudent();
         const ok = await confirm({
             title: 'Ativar esta ficha?',
-            description: planActivationText('ficha', studentName ?? 'o aluno', shouldNotify),
+            description: planActivationText('ficha', studentName ?? 'o aluno', shouldNotify, studentUsesApp),
             confirmText: 'Ativar ficha',
         });
         if (!ok) return;
@@ -982,13 +984,13 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
             setActive(true);
             invalidateApi('/api/workout-plans');
             invalidateApi('/api/students');
-            toast.success('Ficha ativada', STUDENTS_USE_APP ? 'Agora é a ficha que o aluno vê no app.' : 'Agora é a ficha atual do aluno.');
+            toast.success('Ficha ativada', studentUsesApp ? 'Agora é a ficha que o aluno vê no app.' : 'Agora é a ficha atual do aluno.');
         } catch (error) {
             toast.error('Não foi possível ativar a ficha', error instanceof Error ? error.message : undefined);
         } finally {
             setActivating(false);
         }
-    }, [confirm, studentName, toast]);
+    }, [confirm, studentName, studentUsesApp, toast]);
 
     // ------------------------------------------------------------------ shortcuts
     useHotkey('mod+s', () => {
@@ -1150,6 +1152,7 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                             plan={{ version, sentAt: sent?.sentAt, sentVersion: sent?.sentVersion }}
                             compact
                             className="hidden py-1 lg:inline-flex"
+                            studentUsesApp={studentUsesApp}
                         />
                     )}
                     {mode === 'plan' && entityId && (
@@ -1164,8 +1167,8 @@ export function WorkoutPlanEditor(props: WorkoutPlanEditorProps) {
                             <span className="hidden sm:inline">Exportar PDF</span>
                         </button>
                     )}
-                    {/* In-app notice: only while students use the app (STUDENTS_USE_APP). */}
-                    {STUDENTS_USE_APP && mode === 'plan' && !entityId && (
+                    {/* In-app notice: only for a student who uses the student area. */}
+                    {studentUsesApp && mode === 'plan' && !entityId && (
                         <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground select-none cursor-pointer">
                             <input
                                 type="checkbox"

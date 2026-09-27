@@ -3,6 +3,7 @@
 import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useApi } from '@/hooks/use-api';
+import { STUDENTS_USE_APP } from '@/lib/features';
 
 export interface PersonalNotification {
     id: string;
@@ -19,6 +20,8 @@ interface NotificationsPayload {
     unreadMessages: number;
     unreadNotifications: number;
     unreadCount: number;
+    /** Students who use the student area (phase 2 pilot). */
+    appStudents?: number;
 }
 
 interface NotificationsContextValue {
@@ -26,6 +29,11 @@ interface NotificationsContextValue {
     notifications: PersonalNotification[];
     unreadNotifications: number;
     unreadMessages: number;
+    /**
+     * Whether any student uses the student area (the phase 2 pilot, or STUDENTS_USE_APP): the chat, the
+     * activity feed and the app alerts only show then. Per student, see usesStudentApp.
+     */
+    studentAppInUse: boolean;
     isLoading: boolean;
     error: Error | undefined;
     refresh: () => Promise<void>;
@@ -113,6 +121,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
             notifications: (data?.notifications ?? []).filter((item) => item.type !== 'NEW_MESSAGE'),
             unreadNotifications: data?.unreadNotifications ?? 0,
             unreadMessages: data?.unreadMessages ?? 0,
+            studentAppInUse: STUDENTS_USE_APP || (data?.appStudents ?? 0) > 0,
             isLoading,
             error,
             refresh,

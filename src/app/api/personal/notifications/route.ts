@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { STUDENTS_USE_APP } from '@/lib/features';
 
 // GET /api/personal/notifications - List personal notifications and unread count
 export async function GET(request: NextRequest) {
@@ -56,6 +57,12 @@ export async function GET(request: NextRequest) {
             }),
         ]);
 
+        // Students in the phase 2 pilot (all of them while STUDENTS_USE_APP is on): chat, activity and app
+        // alerts only show on the web when there is one.
+        const appStudents = session.user.personalId
+            ? await prisma.student.count({ where: { personalId: session.user.personalId, ...(STUDENTS_USE_APP ? {} : { usesApp: true }) } })
+            : 0;
+
         const hasMore = page.length > limit;
         const notifications = hasMore ? page.slice(0, limit) : page;
 
@@ -67,6 +74,7 @@ export async function GET(request: NextRequest) {
                 unreadNotifications,
                 unreadCount: unreadNotifications + unreadMessages,
                 hasMore,
+                appStudents,
             },
         });
     } catch (error) {

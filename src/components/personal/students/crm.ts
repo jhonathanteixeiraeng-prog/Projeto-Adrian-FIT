@@ -1,5 +1,5 @@
 import { PLAN_ENDING_WINDOW_DAYS } from '@/components/personal/dashboard/attention-rules';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { appIdleDays, usesStudentApp } from '@/lib/student-app';
 import { contactEmail } from '@/lib/student-access';
 import { normalizeText } from '@/lib/utils';
 import {
@@ -45,6 +45,8 @@ export interface CrmRow {
     workoutEndsIn: number | null;
     diet: DietSummary | null;
     dietEndsIn: number | null;
+    /** Uses the student area (phase 2 pilot): workouts and check-ins exist only for these students. */
+    app: boolean;
     onTrack: boolean;
     atRisk: boolean;
     /** Active student without a workout plan, or whose workout/diet ends within 7 days or is over. */
@@ -64,6 +66,10 @@ export function buildRow(student: StudentListItem, now: Date): CrmRow {
     const endsSoon = (days: number | null) => days !== null && days <= PLAN_ENDING_WINDOW_DAYS;
     const billing = getBillingInfo(student, now);
     const isActive = status === 'ACTIVE';
+    const app = usesStudentApp(student);
+    // Training counts from registration, or from joining the student area (appClockStart): right after
+    // joining, and for workouts from before, nobody is "at risk".
+    const idle = appIdleDays({ createdAt: student.createdAt ?? new Date(0), usesAppSince: student.usesAppSince }, lastSession?.completedAt, now);
     const phone = student.user?.phone || '';
 
     return {
@@ -86,8 +92,10 @@ export function buildRow(student: StudentListItem, now: Date): CrmRow {
         workoutEndsIn,
         diet,
         dietEndsIn,
-        onTrack: isActive && lastWorkoutDays !== null && lastWorkoutDays < INACTIVITY_ALERT_DAYS,
-        atRisk: isActive && (lastWorkoutDays === null || lastWorkoutDays >= INACTIVITY_ALERT_DAYS),
+        app,
+        // Training rhythm only for students who log workouts (the others get their plans as PDF).
+        onTrack: app && isActive && idle.trained && idle.days < INACTIVITY_ALERT_DAYS,
+        atRisk: app && isActive && idle.days >= INACTIVITY_ALERT_DAYS,
         planAlert: isActive && (!workout || endsSoon(workoutEndsIn) || endsSoon(dietEndsIn)),
         // Former students (INACTIVE) are not billed, so they never count as a billing alert.
         billingAlert: status !== 'INACTIVE' && ['OVERDUE', 'EXPIRING', 'PENDING'].includes(billing.status),
@@ -108,9 +116,10 @@ export const CRM_TABS = [
 ] as const;
 export type CrmTab = (typeof CRM_TABS)[number]['id'];
 
-/** "Treinando no ritmo" and "Em risco" come from workouts logged in the students' app. */
+/** "Treinando no ritmo" and "Em risco" come from workouts logged in the student area. */
 const APP_TABS: CrmTab[] = ['on-track', 'risk'];
-export const VISIBLE_CRM_TABS = CRM_TABS.filter((tab) => STUDENTS_USE_APP || !APP_TABS.includes(tab.id));
+/** The tabs shown now: the app ones while some student uses the student area. */
+export const visibleCrmTabs = (studentAppInUse: boolean) => CRM_TABS.filter((tab) => studentAppInUse || !APP_TABS.includes(tab.id));
 
 export const tabPredicates: Record<CrmTab, (row: CrmRow) => boolean> = {
     all: () => true,
@@ -219,8 +228,8 @@ const CSV_COLUMNS: Array<{ header: string; value: (row: CrmRow) => CsvCell; app?
     },
 ];
 
-export function exportRowsCsv(rows: CrmRow[], filename: string) {
-    const columns = CSV_COLUMNS.filter((column) => STUDENTS_USE_APP || !column.app);
+export function exportRowsCsv(rows: CrmRow[], filename: string, studentAppInUse: boolean) {
+    const columns = CSV_COLUMNS.filter((column) => studentAppInUse || !column.app);
     downloadCsv(
         filename,
         columns.map((column) => column.header),

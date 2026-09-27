@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Sigma, Target, UserRound } from 'lucide-react';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
 import { cn } from '@/lib/utils';
 import {
     ACTIVITY_LABELS,
@@ -143,7 +143,7 @@ export function PlanDetails({
                                 aria-checked={state.active}
                                 onClick={() => dispatch({ type: 'set', patch: { active: !state.active } })}
                                 title={
-                                    STUDENTS_USE_APP
+                                    usesStudentApp(student)
                                         ? state.active
                                             ? 'Visível no app do aluno'
                                             : 'Não aparece no app do aluno'
@@ -166,7 +166,7 @@ export function PlanDetails({
                                         )}
                                     />
                                 </span>
-                                {state.active ? (STUDENTS_USE_APP ? 'Ativa no app' : 'Ativa') : 'Inativa'}
+                                {state.active ? (usesStudentApp(student) ? 'Ativa no app' : 'Ativa') : 'Inativa'}
                             </button>
                         </Field>
                     </>

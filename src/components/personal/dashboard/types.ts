@@ -3,6 +3,8 @@ import type { AttentionReason, AttentionSeverity } from './attention-rules';
 
 /** One student in the "Precisa da sua atenção hoje" queue (GET /api/dashboard → attentionQueue). */
 export interface AttentionItem {
+    /** Uses the student area (phase 2 pilot): app reminders reach them. */
+    usesApp?: boolean;
     studentId: string;
     userId: string;
     name: string;
@@ -55,6 +57,8 @@ export interface DashboardData {
     totalStudents: number;
     activeStudents: number;
     attentionQueue?: AttentionItem[];
+    /** Students who use the student area (phase 2 pilot). */
+    appStudents?: number;
     kpis?: DashboardKpis;
     generatedAt?: string;
 }

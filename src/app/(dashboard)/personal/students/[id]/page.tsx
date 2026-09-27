@@ -73,7 +73,7 @@ import { invalidateApi, useApi } from '@/hooks/use-api';
 import { useHotkey } from '@/hooks/use-hotkey';
 import { useUrlState } from '@/hooks/use-url-state';
 import { evolutionRecords, weightRange } from '@/lib/evolution';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { appIdleDays, usesStudentApp } from '@/lib/student-app';
 import { CHECKIN_EXPECTED_DAYS, INACTIVITY_ALERT_DAYS, daysSince, getBillingInfo } from '@/lib/student-status';
 import { cn } from '@/lib/utils';
 
@@ -383,6 +383,10 @@ export default function StudentProfilePage() {
 
     const { lastSession, lastWorkoutDays, lastCheckin, lastCheckinDays, records, weights, weightNow, weightDelta, billing } = derived;
     const workout = student.activeWorkoutPlan;
+    // Workouts, check-ins and adherence only exist for students who use the student area (phase 2 pilot).
+    const studentApp = usesStudentApp(student);
+    // Same rule as the students list: training counts from joining the student area (appClockStart).
+    const idle = appIdleDays(student, lastSession?.completedAt);
     const diet = student.activeDietPlan;
     const workoutEnd = planEndInfo(workout?.endDate);
     const dietEnd = planEndInfo(diet?.endDate);
@@ -498,8 +502,8 @@ export default function StudentProfilePage() {
             <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="min-w-0 space-y-4">
                     {/* KPIs. Workouts and check-ins only exist when students log them in the app. */}
-                    <div className={cn('grid grid-cols-2 gap-3', STUDENTS_USE_APP ? 'xl:grid-cols-4' : 'xl:grid-cols-3')}>
-                        {!STUDENTS_USE_APP && (
+                    <div className={cn('grid grid-cols-2 gap-3', studentApp ? 'xl:grid-cols-4' : 'xl:grid-cols-3')}>
+                        {!studentApp && (
                             <KpiCard
                                 label="Dieta ativa"
                                 icon={<Utensils className="h-3.5 w-3.5 text-muted-foreground" />}
@@ -508,7 +512,7 @@ export default function StudentProfilePage() {
                                 tone={diet ? dietEnd?.tone ?? 'muted' : 'muted'}
                             />
                         )}
-                        {STUDENTS_USE_APP && (
+                        {studentApp && (
                             <>
                                 <KpiCard
                                     label="Último treino"
@@ -518,9 +522,11 @@ export default function StudentProfilePage() {
                                     tone={
                                         student.status !== 'ACTIVE'
                                             ? 'muted'
-                                            : lastWorkoutDays === null || lastWorkoutDays >= INACTIVITY_ALERT_DAYS
+                                            : idle.days >= INACTIVITY_ALERT_DAYS
                                                 ? 'danger'
-                                                : 'ok'
+                                                : idle.trained
+                                                  ? 'ok'
+                                                  : 'muted'
                                     }
                                 />
                                 <KpiCard
@@ -620,7 +626,7 @@ export default function StudentProfilePage() {
                                 </div>
                             </SectionCard>
 
-                            {STUDENTS_USE_APP && (
+                            {studentApp && (
                             <SectionCard title="Atividade recente" icon={<History className="h-4 w-4 text-muted-foreground" />}>
                                 {student.workoutSessions.length === 0 ? (
                                     <p className="text-sm text-muted-foreground">Nenhum treino registrado no app ainda.</p>
@@ -662,7 +668,7 @@ export default function StudentProfilePage() {
                                     <div className="space-y-2">
                                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-foreground">
                                             {workout.title}
-                                            <PlanSendBadge plan={workout} endDate={workout.endDate} compact />
+                                            <PlanSendBadge plan={workout} endDate={workout.endDate} compact studentUsesApp={studentApp} />
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                             {formatDate(workout.startDate)} – {formatDate(workout.endDate)}
@@ -698,7 +704,7 @@ export default function StudentProfilePage() {
                                     <div className="space-y-2">
                                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-foreground">
                                             {diet.title}
-                                            <PlanSendBadge plan={diet} endDate={diet.endDate} compact />
+                                            <PlanSendBadge plan={diet} endDate={diet.endDate} compact studentUsesApp={studentApp} />
                                         </p>
                                         <div className="grid grid-cols-4 gap-2 text-center">
                                             {[
@@ -742,7 +748,7 @@ export default function StudentProfilePage() {
                                             Salvar como modelo
                                         </button>
                                     </div>
-                                    <WorkoutPlanView plan={workout} activeCount={derived.activeWorkoutCount} />
+                                    <WorkoutPlanView plan={workout} activeCount={derived.activeWorkoutCount} studentUsesApp={studentApp} />
                                 </>
                             ) : (
                                 <EmptyPlan kind="treino" action={workoutActions} />
@@ -779,7 +785,7 @@ export default function StudentProfilePage() {
                                             Salvar como modelo
                                         </button>
                                     </div>
-                                    <DietPlanView plan={diet} activeCount={derived.activeDietCount} />
+                                    <DietPlanView plan={diet} activeCount={derived.activeDietCount} studentUsesApp={studentApp} />
                                 </>
                             ) : (
                                 <EmptyPlan kind="dieta" action={dietActions} />
@@ -842,7 +848,7 @@ export default function StudentProfilePage() {
                                 </SectionCard>
                             )}
                             {/* Check-ins are the student's self-report in the app. */}
-                            {(STUDENTS_USE_APP || student.checkins.length > 0) && (
+                            {(studentApp || student.checkins.length > 0) && (
                                 <SectionCard
                                     title="Check-ins do app"
                                     icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
@@ -879,7 +885,7 @@ export default function StudentProfilePage() {
                     ref={asideRef}
                     className={cn('space-y-3', stickyAside && 'lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:pb-2')}
                 >
-                    <ContactCard student={student} onCreateAccess={() => setDialog('access')} />
+                    <ContactCard student={student} onCreateAccess={() => setDialog('access')} onChanged={() => { void mutate(); invalidateApi(STUDENTS_KEY); }} />
                     <ContractCard student={student} onEdit={() => setDialog('contract')} />
                     <AnamnesisCard student={student} onEdit={() => setDialog('anamnesis')} />
                     <StatusCard student={student} />
@@ -917,6 +923,7 @@ export default function StudentProfilePage() {
                 onOpenChange={(open) => setDialog(open ? 'assignWorkout' : null)}
                 studentId={student.id}
                 studentName={student.user.name}
+                studentUsesApp={studentApp}
             />
             <CloneWorkoutDialog
                 open={dialog === 'cloneWorkout'}
@@ -931,6 +938,7 @@ export default function StudentProfilePage() {
                 studentId={student.id}
                 studentName={student.user.name}
                 currentCalories={diet?.calories ?? null}
+                studentUsesApp={studentApp}
             />
             <ExportPdfDialog
                 target={pdfTarget}

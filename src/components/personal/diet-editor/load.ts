@@ -85,6 +85,7 @@ function profileFromPlanStudent(student: any): StudentProfile | null {
         goal: student.goal ?? null,
         activityLevel: student.anamnesis?.activityLevel ?? null,
         restrictions: student.anamnesis?.restrictions ?? null,
+        usesApp: Boolean(student.usesApp),
     };
 }
 

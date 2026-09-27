@@ -95,6 +95,8 @@ export interface StudentProfile {
     goal?: string | null;
     activityLevel?: string | null;
     restrictions?: string | null;
+    /** Phase 2 pilot: uses the student area (see src/lib/student-app.ts). */
+    usesApp?: boolean;
 }
 
 let uidSequence = 0;

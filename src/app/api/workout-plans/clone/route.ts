@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { usesStudentApp } from '@/lib/student-app';
 import { studentLinkFor } from '@/lib/notifications';
 import prisma from '@/lib/prisma';
 import { TRANSACTION_OPTIONS, addDays, deactivateOtherActivePlans } from '@/lib/workout-plans';
@@ -119,8 +119,8 @@ export async function POST(request: NextRequest) {
                 },
             });
 
-            // Notify target student (in the app; nothing while students don't use it)
-            if (STUDENTS_USE_APP) {
+            // Notify the target student in the app, when they use the student area
+            if (usesStudentApp(targetStudent)) {
                 await tx.notification.create({
                     data: {
                         userId: targetStudent.user.id,

@@ -13,7 +13,7 @@ import { formatClock, formatLongToday } from '@/components/personal/chat/time-fo
 import { AttentionQueue, type QueueFilter } from '@/components/personal/dashboard/attention-queue';
 import { attentionCategories } from '@/components/personal/dashboard/attention-rules';
 import { KpiRow } from '@/components/personal/dashboard/kpi-row';
-import { STUDENTS_USE_APP } from '@/lib/features';
+import { useNotifications } from '@/components/personal/notifications-provider';
 import { ActivityFeed } from '@/components/personal/dashboard/activity-feed';
 import type { DashboardData } from '@/components/personal/dashboard/types';
 
@@ -29,10 +29,10 @@ const FILTER_SLUGS: Record<QueueFilter, string> = {
     PLANS: 'planos',
 };
 
-const filterFromSlug = (slug: string): QueueFilter => {
+const filterFromSlug = (slug: string, studentAppInUse: boolean): QueueFilter => {
     const filter = (Object.keys(FILTER_SLUGS) as QueueFilter[]).find((key) => FILTER_SLUGS[key] === slug) ?? 'ALL';
-    // An old link to an app-only filter (?fila=mensagens) falls back to everything.
-    return filter === 'ALL' || attentionCategories(STUDENTS_USE_APP).some((category) => category.key === filter) ? filter : 'ALL';
+    // A link to an app-only filter (?fila=mensagens) falls back to everything while no student uses the app.
+    return filter === 'ALL' || attentionCategories(studentAppInUse).some((category) => category.key === filter) ? filter : 'ALL';
 };
 
 export default function PersonalDashboard() {
@@ -47,7 +47,8 @@ export default function PersonalDashboard() {
     const dashboardKey = `/api/dashboard?tz=${new Date().getTimezoneOffset()}`;
     const { data, error, mutate } = useApi<DashboardData>(dashboardKey, { refreshInterval: REFRESH_MS });
 
-    const filter = filterFromSlug(filterSlug);
+    const { studentAppInUse } = useNotifications();
+    const filter = filterFromSlug(filterSlug, studentAppInUse);
     const setFilter = (next: QueueFilter) => setFilterSlug(FILTER_SLUGS[next]);
 
     const refresh = async () => {
@@ -110,8 +111,8 @@ export default function PersonalDashboard() {
             <KpiRow kpis={data?.kpis} onShowBilling={() => setFilter('BILLING')} onShowPlans={() => setFilter('PLANS')} />
 
             {/* The activity feed is made of what students do in the app (workouts, check-ins, messages). */}
-            <div className={cn('grid gap-6', STUDENTS_USE_APP && 'xl:grid-cols-3')}>
-                <div className={cn(STUDENTS_USE_APP && 'xl:col-span-2')}>
+            <div className={cn('grid gap-6', studentAppInUse && 'xl:grid-cols-3')}>
+                <div className={cn(studentAppInUse && 'xl:col-span-2')}>
                     <AttentionQueue
                         items={data ? data.attentionQueue ?? [] : undefined}
                         failed={Boolean(error && !data)}
@@ -120,7 +121,7 @@ export default function PersonalDashboard() {
                         onChanged={() => void mutate(undefined, { force: true })}
                     />
                 </div>
-                {STUDENTS_USE_APP && <ActivityFeed />}
+                {studentAppInUse && <ActivityFeed />}
             </div>
         </div>
     );

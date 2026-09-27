@@ -35,9 +35,9 @@ export function studentLinkFor(type: string): string | null {
     return STUDENT_LINK_BY_TYPE[type] ?? null;
 }
 
-/** Confirmation text for activating a workout plan ("ficha") or a diet ("dieta"). */
-export function planActivationText(noun: 'ficha' | 'dieta', studentName: string, shouldNotify: boolean): string {
-    if (!STUDENTS_USE_APP) {
+/** Confirmation text for activating a workout plan ("ficha") or a diet ("dieta"); `usesApp`: see usesStudentApp. */
+export function planActivationText(noun: 'ficha' | 'dieta', studentName: string, shouldNotify: boolean, usesApp = STUDENTS_USE_APP): string {
+    if (!usesApp) {
         return `Ela passa a ser a ${noun} atual de ${studentName}. A ${noun} ativa de agora será desativada (continua no histórico).`;
     }
     return `Ela passa a ser a ${noun} que ${studentName} vê no app. A ${noun} ativa atual do aluno será desativada (continua no histórico). ${

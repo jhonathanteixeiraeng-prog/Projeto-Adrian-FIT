@@ -328,6 +328,7 @@ export async function getStudentDietEditorView(
                 goal: student.goal,
                 activityLevel: student.anamnesis?.activityLevel ?? null,
                 restrictions: student.anamnesis?.restrictions ?? null,
+                usesApp: student.usesApp,
             }
             : null,
         plans: plans.map(({ _count, ...summary }) => ({ ...summary, mealCount: _count.meals })),
