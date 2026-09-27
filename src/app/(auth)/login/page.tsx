@@ -191,6 +191,9 @@ export default function LoginPage() {
                         <p className="text-sm text-muted-foreground">
                             Credenciais fornecidas pelo seu Personal Trainer
                         </p>
+                        <Link href="/termos" className="mt-3 inline-block text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                            Termos de Uso e Privacidade
+                        </Link>
                     </div>
                 </div>
             </div>

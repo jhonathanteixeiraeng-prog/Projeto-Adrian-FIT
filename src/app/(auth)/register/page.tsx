@@ -20,6 +20,9 @@ export default function RegisterPage() {
                     Ir para o login
                     <ArrowRight className="h-5 w-5" />
                 </Link>
+                <Link href="/termos" className="mt-6 block text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                    Termos de Uso e Privacidade
+                </Link>
             </div>
         </div>
     );

@@ -57,6 +57,10 @@ export default function StudentPrivacyPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            <Link href="/termos" className="block text-center text-sm font-medium text-accent hover:underline">
+                Ler os Termos de Uso e a Política de Privacidade completos
+            </Link>
         </div>
     );
 }
