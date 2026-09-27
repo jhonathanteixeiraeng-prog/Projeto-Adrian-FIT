@@ -16,7 +16,8 @@
         "db:push:neon": "prisma db push --schema prisma/schema.postgres.prisma",
         "db:studio": "prisma studio",
         "db:seed": "tsx prisma/seed.ts",
-        "db:seed:foods": "tsx prisma/seed-foods.ts"
+        "db:seed:foods": "tsx prisma/seed-foods.ts",
+        "trainer:create": "tsx scripts/create-trainer.ts"
     },
     "dependencies": {
         "@hookform/resolvers": "^3.3.0",

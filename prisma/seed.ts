@@ -1,5 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { hash } from 'bcryptjs';
+
+/**
+ * The global exercise library (exercises without a trainer), created or updated by name. Safe to run
+ * again, on any database. It creates no accounts: trainers are created with scripts/create-trainer.ts,
+ * which never puts a password in the code.
+ */
 
 const prisma = new PrismaClient();
 
@@ -616,27 +621,6 @@ const EXERCISE_LIBRARY: ExerciseSeed[] = [
 
 async function main() {
     console.log('🌱 Starting seed...');
-
-    // Create Personal Trainer - Adrian Santos
-    const hashedPassword = await hash('Adrian@2024', 10);
-
-    const personalUser = await prisma.user.upsert({
-        where: { email: 'adrian@adriansantos.com.br' },
-        update: {},
-        create: {
-            email: 'adrian@adriansantos.com.br',
-            name: 'Adrian Santos',
-            password: hashedPassword,
-            role: 'PERSONAL',
-            phone: '11999999999',
-            personal: {
-                create: {},
-            },
-        },
-        include: { personal: true },
-    });
-
-    console.log('✅ Personal Trainer created:', personalUser.name);
 
     let created = 0;
     let updated = 0;
