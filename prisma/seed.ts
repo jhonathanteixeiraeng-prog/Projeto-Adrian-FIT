@@ -642,29 +642,24 @@ async function main() {
     let updated = 0;
 
     for (const exercise of EXERCISE_LIBRARY) {
-        const existing = await prisma.exercise.findUnique({
-            where: { name: exercise.name },
+        // Global library: no trainer (names are unique per trainer, so the lookup includes personalId).
+        const existing = await prisma.exercise.findFirst({
+            where: { name: exercise.name, personalId: null },
             select: { id: true },
         });
 
-        await prisma.exercise.upsert({
-            where: { name: exercise.name },
-            update: {
-                muscleGroup: exercise.muscleGroup,
-                equipment: exercise.equipment,
-                difficulty: exercise.difficulty,
-                instructions: exercise.instructions,
-                tips: exercise.tips,
-            },
-            create: {
-                name: exercise.name,
-                muscleGroup: exercise.muscleGroup,
-                equipment: exercise.equipment,
-                difficulty: exercise.difficulty,
-                instructions: exercise.instructions,
-                tips: exercise.tips,
-            },
-        });
+        const values = {
+            muscleGroup: exercise.muscleGroup,
+            equipment: exercise.equipment,
+            difficulty: exercise.difficulty,
+            instructions: exercise.instructions,
+            tips: exercise.tips,
+        };
+        if (existing) {
+            await prisma.exercise.update({ where: { id: existing.id }, data: values });
+        } else {
+            await prisma.exercise.create({ data: { name: exercise.name, ...values } });
+        }
 
         if (existing) {
             updated += 1;

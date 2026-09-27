@@ -186,7 +186,7 @@ model Exercise {
   id           String    @id @default(cuid())
   personalId   String?
   personal     Personal? @relation(fields: [personalId], references: [id])
-  name         String    @unique
+  name         String
   muscleGroup  String
   equipment    String?
   difficulty   String    @default("INICIANTE") // INICIANTE | INTERMEDIARIO | AVANCADO
@@ -199,6 +199,11 @@ model Exercise {
   workoutItems         WorkoutItem[]
   workoutTemplateItems WorkoutTemplateItem[]
   setLogs              SetLog[]
+
+  // Unique within each trainer's private library. Global exercises (personalId null) come from the seed,
+  // which checks their names itself; creating one compares names ignoring case and accents with the
+  // global and own exercises (isExerciseNameTaken).
+  @@unique([personalId, name])
 }
 
 model WorkoutItem {

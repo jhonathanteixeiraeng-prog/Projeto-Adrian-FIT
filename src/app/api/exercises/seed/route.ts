@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
 
         let created = 0;
         for (const exercise of exercises) {
-            const existing = await prisma.exercise.findUnique({
-                where: { name: exercise.name },
+            const existing = await prisma.exercise.findFirst({
+                where: { name: exercise.name, personalId: null },
             });
 
             if (!existing) {
