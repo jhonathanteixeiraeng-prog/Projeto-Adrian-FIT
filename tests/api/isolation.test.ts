@@ -3,9 +3,13 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('next-auth', async (importOriginal) => ({ ...(await importOriginal<typeof import('next-auth')>()), getServerSession: vi.fn() }));
 
 import { GET as listCheckins } from '@/app/api/checkins/route';
+import { POST as dietTemplateFromPlan } from '@/app/api/diet-templates/from-plan/route';
+import { GET as listDietTemplates, POST as createDietTemplate } from '@/app/api/diet-templates/route';
+import { POST as createFood } from '@/app/api/foods/route';
 import { GET as getPhoto } from '@/app/api/photos/[name]/route';
 import { POST as addGalleryPhoto } from '@/app/api/student/photos/route';
 import { GET as getStudent } from '@/app/api/students/[id]/route';
+import { GET as listWorkoutTemplates } from '@/app/api/workout-templates/route';
 import { savePhoto } from '@/lib/photo-storage';
 import { createPersonal, createStudent, prisma, resetDatabase } from '../helpers/db';
 import { json, request, signIn } from '../helpers/http';
@@ -92,5 +96,42 @@ describe('each account only sees its own data', () => {
         expect(await open()).toBe(404);
         signIn(otherTrainer.session);
         expect(await open()).toBe(404);
+    });
+
+    // Same root cause as A01: `personalId: session.user.personalId!` in a where. An account with role PERSONAL
+    // but no trainer profile had no personalId, so Prisma dropped the filter and listed every trainer's templates.
+    it('an account without a trainer profile gets no templates', async () => {
+        const trainer = await createPersonal();
+        const workoutTemplate = await prisma.workoutTemplate.create({ data: { personalId: trainer.personal.id, title: 'Modelo de treino' } });
+        const dietTemplate = await prisma.dietTemplate.create({ data: { personalId: trainer.personal.id, title: 'Modelo de dieta' } });
+        const orphan = await prisma.user.create({ data: { name: 'Sem perfil', email: 'orphan-personal@example.test', password: 'x', role: 'PERSONAL' } });
+
+        signIn({ id: orphan.id, role: 'PERSONAL' });
+        const workouts = await json(await listWorkoutTemplates());
+        expect(workouts.status).toBe(401);
+        expect(JSON.stringify(workouts.body)).not.toContain(workoutTemplate.id);
+        const diets = await json(await listDietTemplates(request('GET', '/api/diet-templates')));
+        expect(diets.status).toBe(401);
+        expect(JSON.stringify(diets.body)).not.toContain(dietTemplate.id);
+        expect((await createDietTemplate(request('POST', '/api/diet-templates', { title: 'Novo' }))).status).toBe(401);
+        expect((await dietTemplateFromPlan(request('POST', '/api/diet-templates/from-plan', { planId: 'x' }))).status).toBe(401);
+
+        signIn(trainer.session);
+        const own = await json(await listWorkoutTemplates());
+        expect(own.status).toBe(200);
+        expect(JSON.stringify(own.body)).toContain(workoutTemplate.id);
+    });
+
+    it("a student can't add foods to the shared food table", async () => {
+        const trainer = await createPersonal();
+        const student = await createStudent(trainer.personal.id);
+        const food = { name: 'Tapioca de teste', portion: '100g', calories: 240, protein: 0, carbs: 60, fat: 0 };
+
+        signIn(student.session);
+        expect((await createFood(request('POST', '/api/foods', food))).status).toBe(401);
+        expect(await prisma.food.count({ where: { name: food.name } })).toBe(0);
+
+        signIn(trainer.session);
+        expect((await createFood(request('POST', '/api/foods', food))).status).toBe(200);
     });
 });

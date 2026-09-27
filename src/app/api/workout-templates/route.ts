@@ -15,13 +15,13 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const session = await getServerSession(authOptions);
-        if (!session?.user?.id || session.user.role !== 'PERSONAL') {
+        if (!session?.user?.id || session.user.role !== 'PERSONAL' || !session.user.personalId) {
             return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
         }
 
         const templates = await prisma.workoutTemplate.findMany({
             where: {
-                personalId: session.user.personalId!,
+                personalId: session.user.personalId,
             },
             include: {
                 templateDays: {

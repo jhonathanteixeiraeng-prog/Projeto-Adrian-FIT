@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from 'next-auth'
 import { authOptions } from "@/lib/auth"
 import { getVisibleCreatorIds } from '@/lib/food-database';
 
@@ -53,7 +53,8 @@ function toMacro(value: unknown): number {
 export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
-    if (!session) {
+    // Only trainers add foods (the diet editor's custom food); students only search them.
+    if (!session?.user?.id || session.user.role !== 'PERSONAL') {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

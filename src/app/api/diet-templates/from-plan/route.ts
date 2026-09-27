@@ -12,7 +12,7 @@ const schema = z.object({
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session?.user?.id || session.user.role !== 'PERSONAL') {
+        if (!session?.user?.id || session.user.role !== 'PERSONAL' || !session.user.personalId) {
             return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 });
         }
 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
         const template = await prisma.dietTemplate.create({
             data: {
-                personalId: session.user.personalId!,
+                personalId: session.user.personalId,
                 title: validated.title || plan.title,
                 calories: plan.calories,
                 protein: plan.protein,

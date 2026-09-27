@@ -9,13 +9,13 @@ import { dietTemplateSchema, formatTemplate, prepareMeals, toPositiveInt } from 
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session?.user?.id || session.user.role !== 'PERSONAL') {
+        if (!session?.user?.id || session.user.role !== 'PERSONAL' || !session.user.personalId) {
             return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
         }
 
         const templates = await prisma.dietTemplate.findMany({
             where: {
-                personalId: session.user.personalId!,
+                personalId: session.user.personalId,
             },
             include: {
                 meals: {
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session?.user?.id || session.user.role !== 'PERSONAL') {
+        if (!session?.user?.id || session.user.role !== 'PERSONAL' || !session.user.personalId) {
             return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
         }
 
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         const template = await prisma.dietTemplate.create({
             data: {
                 title: validatedData.title,
-                personalId: session.user.personalId!,
+                personalId: session.user.personalId,
                 calories: toPositiveInt(validatedData.calories) ?? Math.round(totals.calories),
                 protein: toPositiveInt(validatedData.protein) ?? Math.round(totals.protein),
                 carbs: toPositiveInt(validatedData.carbs) ?? Math.round(totals.carbs),
