@@ -326,9 +326,13 @@ model SetLog {
   weight     Float // kg (0 = peso corporal)
   reps       Int
   date       DateTime        @default(now())
+  /// The student's calendar day (YYYY-MM-DD, see src/lib/student-day.ts). Null on logs saved before it existed.
+  localDate  String?
   sessionId  String?
   session    WorkoutSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
+  // One log per set and day: a repeated or concurrent save updates it instead of adding another (audit A13).
+  @@unique([studentId, dayId, exerciseId, setIndex, localDate])
   @@index([studentId, exerciseId, date])
   @@index([studentId, dayId, date])
   @@index([sessionId])

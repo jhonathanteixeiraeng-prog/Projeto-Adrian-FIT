@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { personalLinks } from '@/lib/notifications';
+import { CHECKIN_REPEAT_WINDOW_MS, checkinFingerprint, parseCheckinBody } from '@/lib/checkins';
 import { isOwnPhotoUrl } from '@/lib/photo-url';
 
 export const dynamic = 'force-dynamic';
@@ -80,12 +81,6 @@ export async function GET(request: NextRequest) {
     }
 }
 
-function parseOptionalFloat(val: unknown): number | null {
-    if (val === null || val === undefined || val === '') return null;
-    const num = parseFloat(String(val).replace(',', '.'));
-    return Number.isFinite(num) ? num : null;
-}
-
 // POST /api/checkins - Create new checkin
 export async function POST(request: NextRequest) {
     try {
@@ -98,116 +93,98 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const body = await request.json();
-        const {
-            weight,
-            sleepHours,
-            energyLevel,
-            hungerLevel,
-            stressLevel,
-            workoutAdherence,
-            dietAdherence,
-            notes,
-            chest,
-            waist,
-            abdomen,
-            hips,
-            armRight,
-            armLeft,
-            thighRight,
-            thighLeft,
-            calfRight,
-            calfLeft,
-            bodyFatPercentage,
-            photos,
-        } = body;
-
-        // Validate required fields
-        if (!weight || !sleepHours) {
-            return NextResponse.json(
-                { success: false, error: 'Peso e horas de sono são obrigatórios' },
-                { status: 400 }
-            );
+        const studentId = session.user.studentId;
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ success: false, error: 'Corpo da requisição inválido' }, { status: 400 });
         }
 
+        const parsed = parseCheckinBody(body);
+        if (!parsed.ok) {
+            return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
+        }
+        const input = parsed.value;
+
         // Photos must be files this student sent to POST /api/upload (private, see src/lib/photo-url.ts).
-        const photoList: Array<{ url: unknown; angle?: unknown }> = Array.isArray(photos) ? photos.filter((photo) => photo?.url) : [];
-        if (photoList.some((photo) => !isOwnPhotoUrl(String(photo.url).trim(), session.user.id))) {
+        if (input.photos.some((photo) => !isOwnPhotoUrl(photo.url, session.user.id))) {
             return NextResponse.json({ success: false, error: 'Foto inválida: envie a imagem de novo' }, { status: 400 });
         }
 
-        const parsedWeight = parseFloat(String(weight).replace(',', '.'));
-        const parsedSleepHours = parseFloat(String(sleepHours).replace(',', '.'));
+        // A repeat of the same check-in (a retry after an error, a double tap) returns the one already saved.
+        const recent = await prisma.checkin.findMany({
+            where: { studentId, date: { gte: new Date(Date.now() - CHECKIN_REPEAT_WINDOW_MS) } },
+            orderBy: { date: 'desc' },
+        });
+        const repeated = recent.find((checkin) => checkinFingerprint(checkin) === checkinFingerprint(input));
+        if (repeated) {
+            return NextResponse.json({ success: true, data: repeated, message: 'Check-in enviado com sucesso!' });
+        }
 
         const checkin = await prisma.$transaction(async (tx) => {
             const created = await tx.checkin.create({
                 data: {
-                    studentId: session.user.studentId!,
-                    weight: parsedWeight,
-                    sleepHours: parsedSleepHours,
-                    energyLevel: parseInt(energyLevel) || 3,
-                    hungerLevel: parseInt(hungerLevel) || 3,
-                    stressLevel: parseInt(stressLevel) || 3,
-                    workoutAdherence: parseInt(workoutAdherence) || 0,
-                    dietAdherence: parseInt(dietAdherence) || 0,
-                    notes: notes ? String(notes).trim() : null,
-                    chest: parseOptionalFloat(chest),
-                    waist: parseOptionalFloat(waist),
-                    abdomen: parseOptionalFloat(abdomen),
-                    hips: parseOptionalFloat(hips),
-                    armRight: parseOptionalFloat(armRight),
-                    armLeft: parseOptionalFloat(armLeft),
-                    thighRight: parseOptionalFloat(thighRight),
-                    thighLeft: parseOptionalFloat(thighLeft),
-                    calfRight: parseOptionalFloat(calfRight),
-                    calfLeft: parseOptionalFloat(calfLeft),
-                    bodyFatPercentage: parseOptionalFloat(bodyFatPercentage),
+                    studentId,
+                    date: new Date(),
+                    weight: input.weight,
+                    sleepHours: input.sleepHours,
+                    energyLevel: input.energyLevel,
+                    hungerLevel: input.hungerLevel,
+                    stressLevel: input.stressLevel,
+                    workoutAdherence: input.workoutAdherence,
+                    dietAdherence: input.dietAdherence,
+                    notes: input.notes,
+                    ...input.measures,
+                    bodyFatPercentage: input.bodyFatPercentage,
                 },
             });
 
             // Se fotos foram enviadas com o check-in, cadastra e associa
-            for (const photo of photoList) {
-                const rawAngle = String(photo.angle || 'FRONT').toUpperCase();
-                const angle = ['FRONT', 'SIDE', 'BACK', 'OTHER'].includes(rawAngle) ? rawAngle : 'FRONT';
+            for (const photo of input.photos) {
                 await tx.progressPhoto.create({
                     data: {
-                        studentId: session.user.studentId!,
+                        studentId,
                         checkinId: created.id,
-                        url: String(photo.url).trim(),
-                        angle,
-                        weight: parsedWeight,
+                        url: photo.url,
+                        angle: photo.angle,
+                        weight: input.weight,
                     },
                 });
             }
 
             // Atualiza peso do aluno
             await tx.student.update({
-                where: { id: session.user.studentId! },
-                data: { weight: parsedWeight },
+                where: { id: studentId },
+                data: { weight: input.weight },
             });
 
             return created;
         });
 
-        // Create notification for personal
-        const student = await prisma.student.findUnique({
-            where: { id: session.user.studentId },
-            include: {
-                user: { select: { name: true } },
-                personal: { select: { userId: true } },
-            },
-        });
-
-        if (student?.personal?.userId) {
-            await prisma.notification.create({
-                data: {
-                    userId: student.personal.userId,
-                    type: 'CHECKIN_REMINDER',
-                    title: 'Novo Check-in',
-                    body: `${student.user.name} enviou o check-in semanal.`,
-                    link: personalLinks.student(student.id, 'progress'),
+        // The check-in is saved: a failing notification must not turn it into an error (and a resend).
+        try {
+            const student = await prisma.student.findUnique({
+                where: { id: studentId },
+                include: {
+                    user: { select: { name: true } },
+                    personal: { select: { userId: true } },
                 },
             });
+
+            if (student?.personal?.userId) {
+                await prisma.notification.create({
+                    data: {
+                        userId: student.personal.userId,
+                        type: 'CHECKIN_REMINDER',
+                        title: 'Novo Check-in',
+                        body: `${student.user.name} enviou o check-in semanal.`,
+                        link: personalLinks.student(student.id, 'progress'),
+                    },
+                });
+            }
+        } catch (error) {
+            console.error('Check-in saved, but the trainer notification failed:', error);
         }
 
         return NextResponse.json({

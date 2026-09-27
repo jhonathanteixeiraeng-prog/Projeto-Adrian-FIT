@@ -2,16 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-function localDayRange(localDate: string, timezoneOffsetMinutes: number) {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
-    if (!match) return null;
-    const [, year, month, day] = match;
-    const startMs = Date.UTC(Number(year), Number(month) - 1, Number(day)) - timezoneOffsetMinutes * 60_000;
-    const start = new Date(startMs);
-    const end = new Date(startMs + 24 * 60 * 60 * 1000);
-    return { start, end };
-}
+import { isLocalDate, localDayRange } from '@/lib/student-day';
 
 function validDate(value: unknown): Date | null {
     if (typeof value !== 'string') return null;
@@ -38,7 +29,7 @@ export async function POST(request: NextRequest) {
         const percentage = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
         const timezoneOffsetMinutes = Math.min(840, Math.max(-840, Math.round(Number(body?.timezoneOffsetMinutes) || 0)));
         const localDate = String(body?.localDate || new Date().toISOString().slice(0, 10));
-        const range = localDayRange(localDate, timezoneOffsetMinutes);
+        const range = isLocalDate(localDate) ? localDayRange(localDate, timezoneOffsetMinutes) : null;
 
         if (!dayId || !range || completedSets < 1 || totalSets < 1 || completedSets > totalSets) {
             return NextResponse.json({ success: false, error: 'Dados de conclusão inválidos' }, { status: 400 });
@@ -53,7 +44,8 @@ export async function POST(request: NextRequest) {
         }
 
         const logs = await prisma.setLog.findMany({
-            where: { studentId: student.id, dayId, date: { gte: range.start, lt: range.end } },
+            // The day's logs by localDate, and logs saved before localDate existed by their time.
+            where: { studentId: student.id, dayId, OR: [{ localDate }, { localDate: null, date: { gte: range.start, lt: range.end } }] },
             select: { id: true, date: true, weight: true, reps: true },
             orderBy: { date: 'asc' },
         });

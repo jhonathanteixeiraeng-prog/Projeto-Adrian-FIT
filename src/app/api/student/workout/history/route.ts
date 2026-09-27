@@ -2,56 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { weeklyStreak, workoutsThisWeek as countThisWeek } from '@/lib/workout-stats';
 
 export const dynamic = 'force-dynamic';
 
 type SessionWithLogs = Awaited<ReturnType<typeof loadSessions>>[number];
-
-function parseLocalDate(value: string) {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-    if (!match) return null;
-    return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-}
-
-function dateKey(date: Date) {
-    return date.toISOString().slice(0, 10);
-}
-
-function weekStart(date: Date) {
-    const result = new Date(date);
-    const weekday = result.getUTCDay();
-    result.setUTCDate(result.getUTCDate() - (weekday === 0 ? 6 : weekday - 1));
-    return result;
-}
-
-function addDays(date: Date, days: number) {
-    const result = new Date(date);
-    result.setUTCDate(result.getUTCDate() + days);
-    return result;
-}
-
-function weeklyStreak(localDates: string[], weeklyGoal: number, todayKey: string) {
-    const today = parseLocalDate(todayKey) ?? new Date();
-    const counts = new Map<string, Set<string>>();
-    for (const localDate of localDates) {
-        const date = parseLocalDate(localDate);
-        if (!date) continue;
-        const key = dateKey(weekStart(date));
-        if (!counts.has(key)) counts.set(key, new Set());
-        counts.get(key)!.add(localDate);
-    }
-
-    const goal = Math.max(weeklyGoal, 1);
-    let cursor = weekStart(today);
-    if ((counts.get(dateKey(cursor))?.size ?? 0) < goal) cursor = addDays(cursor, -7);
-
-    let streak = 0;
-    while ((counts.get(dateKey(cursor))?.size ?? 0) >= goal) {
-        streak += 1;
-        cursor = addDays(cursor, -7);
-    }
-    return streak;
-}
 
 async function resolveStudent(request: NextRequest) {
     const session = await getServerSession(authOptions);
@@ -245,12 +200,7 @@ export async function GET(request: NextRequest) {
             })
             .sort((a, b) => b.totalSets - a.totalSets);
 
-        const currentWeek = weekStart(parseLocalDate(today) ?? new Date());
-        const nextWeek = addDays(currentWeek, 7);
-        const workoutsThisWeek = combined.filter((session) => {
-            const date = parseLocalDate(session.localDate);
-            return date && date >= currentWeek && date < nextWeek;
-        }).length;
+        const workoutsThisWeek = countThisWeek(combined.map((session) => session.localDate), today);
         const totalVolume = detailed.reduce((sum, session) => sum + session.totalVolume, 0);
         const averageDurationSeconds = detailed.length > 0
             ? Math.round(detailed.reduce((sum, session) => sum + session.durationSeconds, 0) / detailed.length)

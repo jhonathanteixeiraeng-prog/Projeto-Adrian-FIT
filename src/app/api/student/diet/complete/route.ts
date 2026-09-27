@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { studentDay } from '@/lib/student-day';
 
 // POST /api/student/diet/complete - Mark/unmark a meal as completed today
 export async function POST(request: NextRequest) {
@@ -26,10 +27,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const body = await request.json();
-        const { mealId, completed } = body as { mealId?: string; completed?: boolean };
+        let body: { mealId?: unknown; completed?: unknown; localDate?: unknown; timezoneOffsetMinutes?: unknown };
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ success: false, error: 'Corpo da requisição inválido' }, { status: 400 });
+        }
+        const { mealId, completed } = body;
 
-        if (!mealId) {
+        if (typeof mealId !== 'string' || !mealId) {
             return NextResponse.json(
                 { success: false, error: 'Refeição é obrigatória' },
                 { status: 400 }
@@ -51,15 +57,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
+        // "Today" in the student's calendar (localDate + timezoneOffsetMinutes, see student-day); the server's day otherwise.
+        const day = studentDay(body);
+        const today = { gte: day.start, lt: day.end };
 
         if (completed === false) {
             await prisma.mealCompletion.deleteMany({
                 where: {
                     mealId,
                     studentId: student.id,
-                    completedAt: { gte: startOfDay },
+                    completedAt: today,
                 },
             });
         } else {
@@ -67,12 +74,15 @@ export async function POST(request: NextRequest) {
                 where: {
                     mealId,
                     studentId: student.id,
-                    completedAt: { gte: startOfDay },
+                    completedAt: today,
                 },
             });
             if (!existing) {
+                // Inside the day it was marked for (now, when that day is today).
+                const now = new Date();
+                const completedAt = now >= day.start && now < day.end ? now : new Date(day.start.getTime() + 12 * 60 * 60 * 1000);
                 await prisma.mealCompletion.create({
-                    data: { mealId, studentId: student.id },
+                    data: { mealId, studentId: student.id, completedAt },
                 });
             }
         }

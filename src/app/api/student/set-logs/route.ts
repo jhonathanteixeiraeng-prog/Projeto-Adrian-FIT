@@ -1,19 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { type StudentDay, isLocalDate, studentDay, studentDayFromQuery } from '@/lib/student-day';
+
+/**
+ * Set logs of the student's workout, one per set and day (audit A13). The day is the student's own
+ * (`localDate` + offset, see src/lib/student-day.ts; audit A07). Older app versions send only
+ * `sessionDate` (POST) or nothing (GET): their day is the server's, as before.
+ */
+
+const MAX_WEIGHT_KG = 1000;
+const MAX_REPS = 1000;
 
 async function findStudent(userId: string) {
     return prisma.student.findUnique({ where: { userId } });
 }
 
-function startOfToday() {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    return date;
-}
+/** This day's logs: by localDate, and logs saved before localDate existed by their time. */
+const onDay = (day: StudentDay) => ({
+    OR: [{ localDate: day.localDate }, { localDate: null, date: { gte: day.start, lt: day.end } }],
+});
 
-// GET /api/student/set-logs?dayId=... - Today's logs, previous session and PRs
+// GET /api/student/set-logs?dayId=...[&localDate=YYYY-MM-DD&tz=-240] - The day's logs, previous session and PRs
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -31,32 +41,31 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'dayId é obrigatório' }, { status: 400 });
         }
 
-        const today = startOfToday();
+        const day = studentDayFromQuery(request.nextUrl.searchParams);
 
         const todayLogs = await prisma.setLog.findMany({
-            where: { studentId: student.id, dayId, date: { gte: today } },
+            where: { studentId: student.id, dayId, ...onDay(day) },
             select: { exerciseId: true, setIndex: true, weight: true, reps: true },
         });
 
-        // Sessão anterior: o registro mais recente deste dia de treino antes de hoje
+        // Sessão anterior: o registro mais recente deste dia de treino antes de hoje, e os do mesmo dia dele
         const lastBefore = await prisma.setLog.findFirst({
-            where: { studentId: student.id, dayId, date: { lt: today } },
+            where: { studentId: student.id, dayId, OR: [{ localDate: { lt: day.localDate } }, { localDate: null, date: { lt: day.start } }] },
             orderBy: { date: 'desc' },
-            select: { date: true },
+            select: { date: true, localDate: true },
         });
 
         let previousLogs: { exerciseId: string; setIndex: number; weight: number; reps: number }[] = [];
         if (lastBefore) {
-            const dayStart = new Date(lastBefore.date);
-            dayStart.setHours(0, 0, 0, 0);
-            const dayEnd = new Date(dayStart);
-            dayEnd.setDate(dayEnd.getDate() + 1);
+            let sameDay: Prisma.SetLogWhereInput = { localDate: lastBefore.localDate };
+            if (!lastBefore.localDate) {
+                // Saved before localDate existed: the server's day of that log, as before.
+                const start = new Date(lastBefore.date);
+                start.setHours(0, 0, 0, 0);
+                sameDay = { localDate: null, date: { gte: start, lt: new Date(start.getTime() + 24 * 60 * 60 * 1000) } };
+            }
             previousLogs = await prisma.setLog.findMany({
-                where: {
-                    studentId: student.id,
-                    dayId,
-                    date: { gte: dayStart, lt: dayEnd },
-                },
+                where: { studentId: student.id, dayId, ...sameDay },
                 select: { exerciseId: true, setIndex: true, weight: true, reps: true },
             });
         }
@@ -82,7 +91,14 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// POST /api/student/set-logs - Upsert/remove a set log for today
+/** A number within [0, max], or null when it isn't one (strings with a comma decimal are accepted). */
+function measure(value: unknown, max: number): number | null {
+    if (value === undefined || value === null || value === '') return 0;
+    const number = typeof value === 'string' ? Number(value.trim().replace(',', '.')) : Number(value);
+    return Number.isFinite(number) && number >= 0 && number <= max ? number : null;
+}
+
+// POST /api/student/set-logs - Saves (or with `remove`, deletes) the log of one set of the day
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -95,44 +111,49 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'Perfil de aluno não encontrado' }, { status: 404 });
         }
 
-        const body = await request.json();
-        const { exerciseId, dayId, setIndex, weight, reps, remove, sessionDate } = body as {
-            exerciseId?: string;
-            dayId?: string;
-            setIndex?: number;
-            weight?: number;
-            reps?: number;
-            remove?: boolean;
-            sessionDate?: string;
-        };
+        let body: Record<string, unknown>;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ success: false, error: 'Corpo da requisição inválido' }, { status: 400 });
+        }
+        const { exerciseId, dayId, setIndex, remove } = body;
 
-        if (!exerciseId || !dayId || typeof setIndex !== 'number') {
+        if (typeof exerciseId !== 'string' || !exerciseId || typeof dayId !== 'string' || !dayId || !Number.isInteger(setIndex)) {
             return NextResponse.json({ success: false, error: 'Dados incompletos' }, { status: 400 });
         }
+        const index = setIndex as number;
 
-        const today = startOfToday();
-        const existing = await prisma.setLog.findFirst({
-            where: {
-                studentId: student.id,
-                exerciseId,
-                dayId,
-                setIndex,
-                date: { gte: today },
-            },
+        // Only sets of the student's current plan: the day must be theirs and the exercise in it.
+        const workoutDay = await prisma.workoutDay.findFirst({
+            where: { id: dayId, plan: { studentId: student.id, active: true } },
+            select: { items: { where: { exerciseId }, select: { sets: true } } },
         });
+        if (!workoutDay) {
+            return NextResponse.json({ success: false, error: 'Treino não encontrado' }, { status: 404 });
+        }
+        const prescribedSets = Math.max(0, ...workoutDay.items.map((item) => item.sets));
+        if (workoutDay.items.length === 0 || index < 0 || index >= prescribedSets) {
+            return NextResponse.json({ success: false, error: 'Série fora da ficha' }, { status: 400 });
+        }
 
-        const workoutSession = sessionDate
-            ? await prisma.workoutSession.findUnique({
-                where: {
-                    studentId_workoutDayId_localDate: {
-                        studentId: student.id,
-                        workoutDayId: dayId,
-                        localDate: sessionDate,
-                    },
-                },
-                select: { id: true },
-            })
-            : null;
+        const weight = measure(body.weight, MAX_WEIGHT_KG);
+        const reps = measure(body.reps, MAX_REPS);
+        if (weight === null || reps === null) {
+            return NextResponse.json({ success: false, error: 'Carga ou repetições inválidas' }, { status: 400 });
+        }
+
+        // The app's older builds send the session's date as `sessionDate`.
+        const day = studentDay({
+            localDate: isLocalDate(body.localDate) ? body.localDate : body.sessionDate,
+            timezoneOffsetMinutes: body.timezoneOffsetMinutes,
+        });
+        const key = { studentId: student.id, dayId, exerciseId, setIndex: index, localDate: day.localDate };
+
+        const workoutSession = await prisma.workoutSession.findUnique({
+            where: { studentId_workoutDayId_localDate: { studentId: student.id, workoutDayId: dayId, localDate: day.localDate } },
+            select: { id: true },
+        });
 
         const refreshSessionVolume = async (sessionId: string) => {
             const sessionLogs = await prisma.setLog.findMany({
@@ -146,34 +167,48 @@ export async function POST(request: NextRequest) {
             await prisma.workoutSession.update({ where: { id: sessionId }, data: { totalVolume } });
         };
 
+        // A log of this set saved today before localDate existed.
+        const legacy = await prisma.setLog.findFirst({
+            where: { studentId: student.id, dayId, exerciseId, setIndex: index, localDate: null, date: { gte: day.start, lt: day.end } },
+            select: { id: true, sessionId: true },
+        });
+
         if (remove) {
-            const affectedSessionId = existing?.sessionId ?? workoutSession?.id;
-            if (existing) {
-                await prisma.setLog.delete({ where: { id: existing.id } });
-            }
+            const removed = await prisma.setLog.findMany({
+                where: { studentId: student.id, dayId, exerciseId, setIndex: index, ...onDay(day) },
+                select: { id: true, sessionId: true },
+            });
+            if (removed.length > 0) await prisma.setLog.deleteMany({ where: { id: { in: removed.map((log) => log.id) } } });
+            const affectedSessionId = removed.find((log) => log.sessionId)?.sessionId ?? workoutSession?.id;
             if (affectedSessionId) await refreshSessionVolume(affectedSessionId);
             return NextResponse.json({ success: true, data: { removed: true } });
         }
 
-        const safeWeight = Math.max(0, Number(weight) || 0);
-        const safeReps = Math.max(0, Math.round(Number(reps) || 0));
-
-        const log = existing
-            ? await prisma.setLog.update({
-                where: { id: existing.id },
-                data: { weight: safeWeight, reps: safeReps, sessionId: workoutSession?.id ?? existing.sessionId },
-            })
-            : await prisma.setLog.create({
-                data: {
-                    studentId: student.id,
-                    exerciseId,
-                    dayId,
-                    setIndex,
-                    weight: safeWeight,
-                    reps: safeReps,
-                    sessionId: workoutSession?.id,
-                },
-            });
+        const values = { weight, reps: Math.round(reps), ...(workoutSession ? { sessionId: workoutSession.id } : {}) };
+        let log: { id: string; sessionId: string | null } | null = null;
+        if (legacy) {
+            try {
+                log = await prisma.setLog.update({ where: { id: legacy.id }, data: { ...values, localDate: day.localDate } });
+            } catch (error) {
+                // The day already has a keyed log of this set (saved after the deploy): keep that one.
+                if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
+                await prisma.setLog.delete({ where: { id: legacy.id } });
+            }
+        }
+        if (!log) {
+            try {
+                // One statement on Postgres (INSERT ... ON CONFLICT): a repeated or concurrent save updates the same row.
+                log = await prisma.setLog.upsert({
+                    where: { studentId_dayId_exerciseId_setIndex_localDate: key },
+                    create: { ...key, ...values, date: new Date() },
+                    update: values,
+                });
+            } catch (error) {
+                // The other request created it between our read and write: update it.
+                if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
+                log = await prisma.setLog.update({ where: { studentId_dayId_exerciseId_setIndex_localDate: key }, data: values });
+            }
+        }
 
         if (log.sessionId) await refreshSessionVolume(log.sessionId);
 

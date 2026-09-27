@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { normalizeDietMeal } from '@/lib/diet-normalizer';
+import { localDateAt, parseOffsetMinutes, studentDayFromQuery } from '@/lib/student-day';
+import { dayStreak, nextCheckinLabel, parseLocalDate, workoutsThisWeek } from '@/lib/workout-stats';
 
 function toNumber(value: unknown, fallback = 0) {
     if (typeof value === 'number') {
@@ -147,8 +149,13 @@ export async function GET(request: NextRequest) {
             avatar: personalUser.avatar
         };
 
+        // "Today" in the student's calendar (?localDate=&tz=, see student-day); the server's day otherwise.
+        const day = studentDayFromQuery(request.nextUrl.searchParams);
+        const offset = parseOffsetMinutes(request.nextUrl.searchParams.get('tz') ?? request.nextUrl.searchParams.get('timezoneOffsetMinutes'));
+        const onDay = { OR: [{ localDate: day.localDate }, { localDate: null, date: { gte: day.start, lt: day.end } }] };
+
         // 2. Today's Workout
-        const today = new Date().getDay(); // 0 = Sunday, 1 = Monday...
+        const today = (parseLocalDate(day.localDate) ?? new Date()).getUTCDay(); // 0 = Sunday, 1 = Monday...
         const activeWorkoutPlan = student.workoutPlans[0]; // Assuming only one active plan for now
         let todayWorkout = null;
 
@@ -161,6 +168,19 @@ export async function GET(request: NextRequest) {
             const dayWorkout = dayWorkoutToday || dayWorkoutUpcoming || orderedDays[0];
 
             if (dayWorkout) {
+                // An exercise is done when all its sets have a log today.
+                const logs = await prisma.setLog.findMany({
+                    where: { studentId: student.id, dayId: dayWorkout.id, ...onDay },
+                    select: { exerciseId: true, setIndex: true },
+                });
+                const loggedSets = new Map<string, Set<number>>();
+                for (const log of logs) {
+                    if (!loggedSets.has(log.exerciseId)) loggedSets.set(log.exerciseId, new Set());
+                    loggedSets.get(log.exerciseId)!.add(log.setIndex);
+                }
+                const isDone = (exerciseId: string, sets: number) =>
+                    sets > 0 && Array.from({ length: sets }, (_, index) => index).every((index) => loggedSets.get(exerciseId)?.has(index));
+
                 // Format exercises for frontend
                 todayWorkout = {
                     id: dayWorkout.id,
@@ -174,7 +194,7 @@ export async function GET(request: NextRequest) {
                         load: item.load,
                         rpe: item.rpe,
                         groupId: item.groupId,
-                        completed: false // TODO: Check completions
+                        completed: isDone(item.exerciseId, item.sets),
                     }))
                 };
             }
@@ -185,6 +205,14 @@ export async function GET(request: NextRequest) {
         let formattedDiet = null;
 
         if (activeDiet) {
+            const doneMeals = new Set(
+                (
+                    await prisma.mealCompletion.findMany({
+                        where: { studentId: student.id, mealId: { in: activeDiet.meals.map((meal) => meal.id) }, completedAt: { gte: day.start, lt: day.end } },
+                        select: { mealId: true },
+                    })
+                ).map((completion) => completion.mealId)
+            );
             const normalizedMeals = activeDiet.meals.map((meal: any) => {
                 const foods = typeof meal.foods === 'string' ? JSON.parse(meal.foods) : (meal.foods || []);
                 return normalizeDietMeal({ ...meal, foods });
@@ -193,7 +221,7 @@ export async function GET(request: NextRequest) {
             const formattedMeals = normalizedMeals.map((meal: any) => ({
                 ...meal,
                 calories: Math.round(meal.foods.reduce((acc: number, food: any) => acc + (food.totalCalories || 0), 0)),
-                completed: false // TODO: Check completions
+                completed: doneMeals.has(meal.id),
             }));
 
             formattedDiet = {
@@ -202,18 +230,19 @@ export async function GET(request: NextRequest) {
             };
         }
 
-        // 4. Stats
+        // 4. Stats, counted like the workout history (src/lib/workout-stats.ts).
+        const sessions = await prisma.workoutSession.findMany({
+            where: { studentId: student.id, completedAt: { gte: new Date(day.start.getTime() - 400 * 24 * 60 * 60 * 1000) } },
+            select: { localDate: true },
+        });
+        const sessionDates = sessions.map((workoutSession) => workoutSession.localDate);
+        const lastCheckin = student.checkins[0]?.date ?? null;
         const stats = {
-            streak: 0, // Placeholder
-            weeklyWorkouts: 0, // Placeholder
-            weeklyGoal: 5, // Placeholder
-            nextCheckin: 'Domingo', // Placeholder
+            streak: dayStreak(sessionDates, day.localDate),
+            weeklyWorkouts: workoutsThisWeek(sessionDates, day.localDate),
+            weeklyGoal: activeWorkoutPlan ? activeWorkoutPlan.workoutDays.filter((workoutDay) => workoutDay.items.length > 0).length : 0,
+            nextCheckin: nextCheckinLabel(lastCheckin ? localDateAt(lastCheckin, offset ?? 0) : null, day.localDate),
         };
-
-        // If a checkin exists, maybe update stats?
-        if (student.checkins.length > 0) {
-            // ... checkin logic
-        }
 
         return NextResponse.json({
             success: true,

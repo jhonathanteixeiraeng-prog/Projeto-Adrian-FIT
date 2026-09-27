@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { normalizeDietMeal } from '@/lib/diet-normalizer';
+import { studentDayFromQuery } from '@/lib/student-day';
 
 export async function GET(request: NextRequest) {
     try {
@@ -30,8 +31,8 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
+        // Meals done today in the student's calendar (?localDate=&tz=, see student-day); the server's day otherwise.
+        const day = studentDayFromQuery(request.nextUrl.searchParams);
 
         const dietPlan = await prisma.dietPlan.findFirst({
             where: {
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
                         completions: {
                             where: {
                                 studentId: student.id,
-                                completedAt: { gte: startOfDay },
+                                completedAt: { gte: day.start, lt: day.end },
                             },
                         },
                     },
